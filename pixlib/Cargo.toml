@@ -7,3 +7,5 @@ edition = "2021"
 opticaldisc = { git = "https://github.com/althonos/opticaldisc.git", rev = "2816ea8c2cd9a8402bae5efbaa3037c1439e07f9" }
 nom = "7"
 codepage-strings = "1"
+bevy = "0.12"
+rgb565 = "0.1"
