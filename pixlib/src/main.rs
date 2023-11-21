@@ -1,4 +1,7 @@
-use std::{io::Read, fs};
+mod arr_parser;
+
+use crate::arr_parser::describe_arr;
+use std::{fs, io::Read};
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
@@ -13,22 +16,41 @@ fn main() {
     let mut iso = opticaldisc::iso::IsoFs::new(file).unwrap();
 
     for entry in iso.read_dir("/").unwrap().iter() {
-        println!("Entry discovered: {}, is file? {}", &entry.name(), entry.is_file());
+        println!(
+            "Entry discovered: {}, is file? {}",
+            &entry.name(),
+            entry.is_file()
+        );
     }
 
     let mut buffer = Vec::<u8>::new();
-    let bytes_read = iso.open_file(&path_to_file).unwrap().read_to_end(&mut buffer).unwrap();
-    println!("Read file {} ({} bytes) from disk {}", &path_to_file, bytes_read, &path_to_iso);
+    let bytes_read = iso
+        .open_file(&path_to_file)
+        .unwrap()
+        .read_to_end(&mut buffer)
+        .unwrap();
+    println!(
+        "Read file {} ({} bytes) from disk {}",
+        &path_to_file, bytes_read, &path_to_iso
+    );
 
     if let Some(output_path) = output_path {
         fs::write(&output_path, &buffer).expect("Could not write file");
     }
 
-    let extension = path_to_file.split('/').last().unwrap().split('.').last().unwrap();
+    let extension = path_to_file
+        .split('/')
+        .last()
+        .unwrap()
+        .split('.')
+        .last()
+        .unwrap();
 
     match extension {
         "ANN" => println!("Detected animation file."),
-        "ARR" => describe_arr(&buffer),
+        "ARR" => {
+            describe_arr(&buffer);
+        }
         "CLASS" | "CNV" | "DEF" => println!("Detected script file."),
         "DTA" => describe_dta(&buffer),
         "FLD" => println!("Detected numerical matrix file."),
@@ -40,10 +62,6 @@ fn main() {
         "WAV" => println!("Detected audio file."),
         _ => println!("Unknown file type!"),
     }
-}
-
-fn describe_arr(data: &Vec<u8>) {
-    println!("Detected data array file.");
 }
 
 fn describe_dta(data: &Vec<u8>) {
