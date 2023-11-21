@@ -100,7 +100,7 @@ pub fn element(input: &[u8]) -> IResult<&[u8], Element> {
     })(input)
 }
 
-pub fn describe_arr(data: &Vec<u8>) -> ArrFile {
+pub fn parse_arr(data: &Vec<u8>) -> ArrFile {
     println!("Detected data array file.");
     let (mut data, header) = header(data).unwrap();
     println!("{:?}", header);
