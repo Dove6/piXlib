@@ -4,8 +4,8 @@ mod img_parser;
 use arr_parser::ArrFile;
 use bevy::{
     prelude::{
-        default, App, Assets, Camera2dBundle, Commands, Image, PluginGroup, ResMut, Startup,
-        Transform,
+        default, App, Assets, Camera, Camera2dBundle, Color, Commands, Gizmos, GlobalTransform,
+        Image, PluginGroup, Query, ResMut, Startup, Transform, Update,
     },
     render::render_resource::{Extent3d, TextureFormat},
     sprite::{Anchor, Sprite, SpriteBundle},
@@ -39,6 +39,7 @@ fn main() {
         // Only run the app when there is user input. This will significantly reduce CPU/GPU use.
         .insert_resource(WinitSettings::desktop_app())
         .add_systems(Startup, setup)
+        .add_systems(Update, draw_cursor)
         .run();
 }
 
@@ -71,6 +72,22 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         transform,
         ..default()
     });
+}
+
+fn draw_cursor(
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+    windows: Query<&Window>,
+    mut gizmos: Gizmos,
+) {
+    let (camera, camera_transform) = camera_query.single();
+    let Some(cursor_position) = windows.single().cursor_position() else {
+        return;
+    };
+    let Some(point) = camera.viewport_to_world_2d(camera_transform, cursor_position) else {
+        return;
+    };
+
+    gizmos.circle_2d(point, 10., Color::WHITE);
 }
 
 fn parse_file() -> AmFile {
