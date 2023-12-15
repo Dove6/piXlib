@@ -7,5 +7,23 @@ edition = "2021"
 opticaldisc = { git = "https://github.com/althonos/opticaldisc.git", rev = "2816ea8c2cd9a8402bae5efbaa3037c1439e07f9" }
 nom = "7"
 codepage-strings = "1"
-bevy = "0.12"
+bevy = { version = "0.12", features = [
+    "bevy_asset",
+    "bevy_audio",
+    "bevy_core_pipeline",
+    "bevy_gilrs",
+    "bevy_gizmos",
+    "bevy_render",
+    "bevy_sprite",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_winit",
+    "default_font",
+    "multi-threaded",
+    # "bevy_ci_testing",
+    "bmp",
+    # "file_watcher",
+    "jpeg",
+    "wav",
+] }
 rgb565 = "0.1"

@@ -4,14 +4,11 @@ mod img_parser;
 use arr_parser::ArrFile;
 use bevy::{
     prelude::{
-        default, App, Assets, BuildChildren, Camera2dBundle, Color, Commands, Handle, Image,
-        NodeBundle, PluginGroup, ResMut, Startup,
+        default, App, Assets, Camera2dBundle, Commands, Image, PluginGroup, ResMut, Startup,
+        Transform,
     },
     render::render_resource::{Extent3d, TextureFormat},
-    ui::{
-        AlignItems, FlexDirection, JustifyContent, RelativeCursorPosition, Style, UiImage, UiRect,
-        Val,
-    },
+    sprite::{Anchor, Sprite, SpriteBundle},
     window::{Window, WindowPlugin},
     winit::WinitSettings,
     DefaultPlugins,
@@ -28,11 +25,13 @@ use std::{
     iter,
 };
 
+const WINDOW_SIZE: (f32, f32) = (800., 600.);
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                resolution: (800., 600.).into(),
+                resolution: WINDOW_SIZE.into(),
                 ..default()
             }),
             ..default()
@@ -41,6 +40,37 @@ fn main() {
         .insert_resource(WinitSettings::desktop_app())
         .add_systems(Startup, setup)
         .run();
+}
+
+fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+    let parsed_file = parse_file();
+    let (transform, image) = match parsed_file {
+        AmFile::Img(img_file) => (
+            Transform::from_xyz(
+                img_file.header.x_position_px as f32,
+                -img_file.header.y_position_px as f32,
+                0.0,
+            ),
+            to_image(&img_file),
+        ),
+        _ => panic!(),
+    };
+    let texture = images.add(image);
+    println!("Transform: {:?}", transform);
+
+    commands.spawn(Camera2dBundle {
+        transform: Transform::from_xyz(WINDOW_SIZE.0 / 2.0, WINDOW_SIZE.1 / -2.0, 0.0),
+        ..default()
+    });
+    commands.spawn(SpriteBundle {
+        texture,
+        sprite: Sprite {
+            anchor: Anchor::TopLeft,
+            ..default()
+        },
+        transform,
+        ..default()
+    });
 }
 
 fn parse_file() -> AmFile {
@@ -55,57 +85,6 @@ fn parse_file() -> AmFile {
     let iso_file = File::open(&path_to_iso).unwrap();
     let mut iso = read_iso(&iso_file);
     parse_file_from_iso(&mut iso, &path_to_file, output_path.map(|v| v.as_ref()))
-}
-
-fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
-    let parsed_file = parse_file();
-
-    if let AmFile::Img(img_file) = parsed_file {
-        let image = to_image(&img_file);
-        let handle = images.add(image);
-        draw_ui(
-            commands,
-            (
-                img_file.header.width_px as usize,
-                img_file.header.height_px as usize,
-            ),
-            handle,
-        );
-    } else {
-        panic!();
-    }
-}
-
-fn draw_ui(mut commands: Commands, image_size: (usize, usize), image: Handle<Image>) {
-    commands.spawn(Camera2dBundle::default());
-
-    commands
-        .spawn(NodeBundle {
-            style: Style {
-                width: Val::Percent(100.),
-                height: Val::Percent(100.0),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                flex_direction: FlexDirection::Column,
-                ..default()
-            },
-            ..default()
-        })
-        .with_children(|parent| {
-            parent.spawn((
-                NodeBundle {
-                    style: Style {
-                        width: Val::Px(image_size.0 as f32),
-                        height: Val::Px(image_size.1 as f32),
-                        ..default()
-                    },
-                    // a `NodeBundle` is transparent by default, so to see the image we have to its color to `WHITE`
-                    background_color: Color::WHITE.into(),
-                    ..default()
-                },
-                UiImage::new(image),
-            ));
-        });
 }
 
 fn to_image(img_file: &ImgFile) -> Image {
@@ -194,7 +173,7 @@ fn parse_file_from_iso(
             AmFile::None
         }
         "DTA" => {
-            parse_dta(&buffer);
+            println!("Detected text database file.");
             AmFile::None
         }
         "FLD" => {
@@ -215,7 +194,7 @@ fn parse_file_from_iso(
             AmFile::None
         }
         "SEQ" => {
-            parse_seq(&buffer);
+            println!("Detected animation sequence description file.");
             AmFile::None
         }
         "WAV" => {
@@ -227,14 +206,6 @@ fn parse_file_from_iso(
             AmFile::None
         }
     }
-}
-
-fn parse_dta(data: &Vec<u8>) {
-    println!("Detected text database file.");
-}
-
-fn parse_seq(data: &Vec<u8>) {
-    println!("Detected animation sequence description file.");
 }
 
 enum AmFile {

@@ -106,6 +106,6 @@ pub fn parse_img(data: &Vec<u8>) -> ImgFile {
     println!("Detected static image file.");
     let (data, header) = header(data).unwrap();
     println!("{:?}", header);
-    let (data, image_data) = image_data(data, &header).unwrap();
+    let (_, image_data) = image_data(data, &header).unwrap();
     ImgFile { header, image_data }
 }
