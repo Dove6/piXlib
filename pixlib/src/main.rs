@@ -1,6 +1,8 @@
+mod ann_parser;
 mod arr_parser;
 mod img_parser;
 
+use ann_parser::AnnFile;
 use arr_parser::ArrFile;
 use bevy::{
     prelude::{
@@ -17,8 +19,8 @@ use img_parser::ImgFile;
 use opticaldisc::iso::IsoFs;
 use rgb565::Rgb565;
 
-use crate::arr_parser::parse_arr;
 use crate::img_parser::parse_img;
+use crate::{ann_parser::parse_ann, arr_parser::parse_arr};
 use std::{
     fs::{self, File},
     io::Read,
@@ -52,8 +54,19 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
                 -img_file.header.y_position_px as f32,
                 0.0,
             ),
-            to_image(&img_file),
+            img_to_image(&img_file),
         ),
+        AmFile::Ann(ann_file) => {
+            let sprite = &ann_file.sprites[0];
+            (
+                Transform::from_xyz(
+                    sprite.header.x_position_px as f32,
+                    -sprite.header.y_position_px as f32,
+                    0.0,
+                ),
+                ann_sprite_to_image(sprite),
+            )
+        }
         _ => panic!(),
     };
     let texture = images.add(image);
@@ -104,7 +117,11 @@ fn parse_file() -> AmFile {
     parse_file_from_iso(&mut iso, &path_to_file, output_path.map(|v| v.as_ref()))
 }
 
-fn to_image(img_file: &ImgFile) -> Image {
+fn img_to_image(img_file: &ImgFile) -> Image {
+    assert_eq!(
+        img_file.header.compression_type,
+        img_parser::CompressionType::None
+    );
     let converted_image = &img_file.image_data.color;
     let has_alpha = img_file.header.alpha_size_bytes > 0;
     if has_alpha {
@@ -131,6 +148,45 @@ fn to_image(img_file: &ImgFile) -> Image {
         Extent3d {
             width: img_file.header.width_px,
             height: img_file.header.height_px,
+            depth_or_array_layers: 1,
+        },
+        bevy::render::render_resource::TextureDimension::D2,
+        converted_image,
+        TextureFormat::Rgba32Float,
+    )
+}
+
+fn ann_sprite_to_image(sprite: &ann_parser::Sprite) -> Image {
+    assert_eq!(
+        sprite.header.compression_type,
+        ann_parser::CompressionType::None
+    );
+    let converted_image = &sprite.image_data.color;
+    let has_alpha = sprite.header.alpha_size_bytes > 0;
+    if has_alpha {
+        assert_eq!(
+            sprite.header.color_size_bytes,
+            sprite.header.alpha_size_bytes * 2
+        );
+    }
+    let converted_image = converted_image
+        .chunks_exact(2)
+        .zip(sprite.image_data.alpha.iter().chain(iter::repeat(&255)))
+        .map(|(x, y)| (Rgb565::from_rgb565_le([x[0], x[1]]), y))
+        .map(|(x, y)| {
+            let rgb = x.to_rgb888_components();
+            let alpha = if has_alpha { *y } else { 255 };
+            [rgb[0], rgb[1], rgb[2], alpha]
+        })
+        .map(|x| x.map(|y| f32::try_from(y).unwrap() / 255f32))
+        .flatten()
+        .map(|x| x.to_le_bytes())
+        .flatten()
+        .collect();
+    Image::new(
+        Extent3d {
+            width: sprite.header.width_px as u32,
+            height: sprite.header.height_px as u32,
             depth_or_array_layers: 1,
         },
         bevy::render::render_resource::TextureDimension::D2,
@@ -180,10 +236,7 @@ fn parse_file_from_iso(
         .unwrap();
 
     match extension {
-        "ANN" => {
-            println!("Detected animation file.");
-            AmFile::None
-        }
+        "ANN" => AmFile::Ann(parse_ann(&buffer)),
         "ARR" => AmFile::Arr(parse_arr(&buffer)),
         "CLASS" | "CNV" | "DEF" => {
             println!("Detected script file.");
@@ -226,6 +279,7 @@ fn parse_file_from_iso(
 }
 
 enum AmFile {
+    Ann(AnnFile),
     Arr(ArrFile),
     Img(ImgFile),
     None,
