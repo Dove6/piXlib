@@ -188,7 +188,7 @@ pub fn random_sfx_list(
                 )
             })(input)
         } else {
-            Ok((input, None))
+            Ok((input, None))  // not that simple (sometimes it's present despite seed being 0)
         }
     }
 }

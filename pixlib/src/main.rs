@@ -1,6 +1,7 @@
 mod ann_parser;
 mod arr_parser;
 mod img_parser;
+mod lzw2_decoder;
 
 use ann_parser::AnnFile;
 use arr_parser::ArrFile;
@@ -19,7 +20,7 @@ use img_parser::ImgFile;
 use opticaldisc::iso::IsoFs;
 use rgb565::Rgb565;
 
-use crate::img_parser::parse_img;
+use crate::{img_parser::parse_img, lzw2_decoder::decode_lzw2};
 use crate::{ann_parser::parse_ann, arr_parser::parse_arr};
 use std::{
     fs::{self, File},
@@ -118,21 +119,19 @@ fn parse_file() -> AmFile {
 }
 
 fn img_to_image(img_file: &ImgFile) -> Image {
-    assert_eq!(
-        img_file.header.compression_type,
-        img_parser::CompressionType::None
-    );
-    let converted_image = &img_file.image_data.color;
+    let color_data = match img_file.header.compression_type {
+        img_parser::CompressionType::None => img_file.image_data.color.to_owned(),
+        img_parser::CompressionType::Clzw2 => decode_lzw2(&img_file.image_data.color),
+        _ => panic!(),
+    };
     let has_alpha = img_file.header.alpha_size_bytes > 0;
-    if has_alpha {
-        assert_eq!(
-            img_file.header.color_size_bytes,
-            img_file.header.alpha_size_bytes * 2
-        );
-    }
-    let converted_image = converted_image
+    let alpha_data = match img_file.header.compression_type {
+        img_parser::CompressionType::None => img_file.image_data.alpha.to_owned(),
+        _ => if has_alpha { decode_lzw2(&img_file.image_data.alpha) } else { vec![0u8; 0] },
+    };
+    let converted_image = color_data
         .chunks_exact(2)
-        .zip(img_file.image_data.alpha.iter().chain(iter::repeat(&255)))
+        .zip(alpha_data.iter().chain(iter::repeat(&255)))
         .map(|(x, y)| (Rgb565::from_rgb565_le([x[0], x[1]]), y))
         .map(|(x, y)| {
             let rgb = x.to_rgb888_components();

@@ -102,7 +102,7 @@ pub struct ImgFile {
     pub image_data: ImageData,
 }
 
-pub fn parse_img(data: &Vec<u8>) -> ImgFile {
+pub fn parse_img(data: &[u8]) -> ImgFile {
     println!("Detected static image file.");
     let (data, header) = header(data).unwrap();
     println!("{:?}", header);
