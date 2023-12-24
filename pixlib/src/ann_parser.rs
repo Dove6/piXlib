@@ -308,18 +308,18 @@ pub fn sprite_header(input: &[u8]) -> IResult<&[u8], SpriteHeader> {
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum CompressionType {
     None,
-    Clzw2,
-    CrleInClzw2,
-    Crle,
+    Lzw2,
+    RleInLzw2,
+    Rle,
 }
 
 fn compression_type(input: &[u8]) -> IResult<&[u8], CompressionType> {
     map_res(le_u16, |compression_type| {
         Ok(match compression_type {
             0 => CompressionType::None,
-            2 => CompressionType::Clzw2,
-            3 => CompressionType::CrleInClzw2,
-            4 => CompressionType::Crle,
+            2 => CompressionType::Lzw2,
+            3 => CompressionType::RleInLzw2,
+            4 => CompressionType::Rle,
             _ => return Err(Err::Error(Error::new(input, ErrorKind::Alt))),
         })
     })(input)

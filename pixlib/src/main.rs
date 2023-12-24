@@ -2,6 +2,7 @@ mod ann_parser;
 mod arr_parser;
 mod img_parser;
 mod lzw2_decoder;
+mod rle_decoder;
 
 use ann_parser::AnnFile;
 use arr_parser::ArrFile;
@@ -20,8 +21,8 @@ use img_parser::ImgFile;
 use opticaldisc::iso::IsoFs;
 use rgb565::Rgb565;
 
-use crate::{img_parser::parse_img, lzw2_decoder::decode_lzw2};
-use crate::{ann_parser::parse_ann, arr_parser::parse_arr};
+use crate::{lzw2_decoder::decode_lzw2, rle_decoder::decode_rle};
+use crate::{ann_parser::parse_ann, arr_parser::parse_arr, img_parser::parse_img};
 use std::{
     fs::{self, File},
     io::Read,
@@ -121,13 +122,14 @@ fn parse_file() -> AmFile {
 fn img_to_image(img_file: &ImgFile) -> Image {
     let color_data = match img_file.header.compression_type {
         img_parser::CompressionType::None => img_file.image_data.color.to_owned(),
-        img_parser::CompressionType::Clzw2 => decode_lzw2(&img_file.image_data.color),
+        img_parser::CompressionType::Lzw2 => decode_lzw2(&img_file.image_data.color),
         _ => panic!(),
     };
     let has_alpha = img_file.header.alpha_size_bytes > 0;
     let alpha_data = match img_file.header.compression_type {
+        _ if !has_alpha => vec![],
         img_parser::CompressionType::None => img_file.image_data.alpha.to_owned(),
-        _ => if has_alpha { decode_lzw2(&img_file.image_data.alpha) } else { vec![0u8; 0] },
+        _ => decode_lzw2(&img_file.image_data.alpha),
     };
     let converted_image = color_data
         .chunks_exact(2)
@@ -156,21 +158,26 @@ fn img_to_image(img_file: &ImgFile) -> Image {
 }
 
 fn ann_sprite_to_image(sprite: &ann_parser::Sprite) -> Image {
-    assert_eq!(
-        sprite.header.compression_type,
-        ann_parser::CompressionType::None
-    );
-    let converted_image = &sprite.image_data.color;
+    println!("{:?}", sprite.header);
+    let color_data = match sprite.header.compression_type {
+        ann_parser::CompressionType::None => sprite.image_data.color.to_owned(),
+        ann_parser::CompressionType::Lzw2 => decode_lzw2(&sprite.image_data.color),
+        ann_parser::CompressionType::Rle => decode_rle(&sprite.image_data.color, 2),
+        ann_parser::CompressionType::RleInLzw2 => decode_rle(&decode_lzw2(&sprite.image_data.color), 2),
+        _ => panic!(),
+    };
     let has_alpha = sprite.header.alpha_size_bytes > 0;
-    if has_alpha {
-        assert_eq!(
-            sprite.header.color_size_bytes,
-            sprite.header.alpha_size_bytes * 2
-        );
-    }
-    let converted_image = converted_image
+    let alpha_data = match sprite.header.compression_type {
+        _ if !has_alpha => vec![],
+        ann_parser::CompressionType::None => sprite.image_data.alpha.to_owned(),
+        ann_parser::CompressionType::Lzw2 => decode_lzw2(&sprite.image_data.alpha),
+        ann_parser::CompressionType::Rle => decode_rle(&sprite.image_data.alpha, 1),
+        ann_parser::CompressionType::RleInLzw2 => decode_rle(&decode_lzw2(&sprite.image_data.alpha), 1),
+        _ => panic!(),
+    };
+    let converted_image = color_data
         .chunks_exact(2)
-        .zip(sprite.image_data.alpha.iter().chain(iter::repeat(&255)))
+        .zip(alpha_data.iter().chain(iter::repeat(&255)))
         .map(|(x, y)| (Rgb565::from_rgb565_le([x[0], x[1]]), y))
         .map(|(x, y)| {
             let rgb = x.to_rgb888_components();

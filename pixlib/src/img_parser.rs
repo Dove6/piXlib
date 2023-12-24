@@ -62,7 +62,7 @@ pub fn header(input: &[u8]) -> IResult<&[u8], Header> {
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum CompressionType {
     None,
-    Clzw2,
+    Lzw2,
     Jpeg,
 }
 
@@ -70,7 +70,7 @@ fn compression_type(input: &[u8]) -> IResult<&[u8], CompressionType> {
     map_res(le_u32, |compression_type| {
         Ok(match compression_type {
             0 => CompressionType::None,
-            2 | 5 => CompressionType::Clzw2,
+            2 | 5 => CompressionType::Lzw2,
             4 => CompressionType::Jpeg,
             _ => return Err(Err::Error(Error::new(input, ErrorKind::Alt))),
         })
