@@ -8,7 +8,6 @@ mod rle_decoder;
 use ann_parser::AnnFile;
 use arr_parser::ArrFile;
 use bevy::{
-    core_pipeline::tonemapping::{DebandDither, Tonemapping},
     ecs::{component::Component, system::Res},
     math::Vec2,
     prelude::{
@@ -24,7 +23,7 @@ use bevy::{
         TextureAtlasSprite,
     },
     time::{Time, Timer, TimerMode},
-    window::{Window, WindowPlugin, PresentMode},
+    window::{PresentMode, Window, WindowPlugin},
     winit::WinitSettings,
     DefaultPlugins,
 };
@@ -54,7 +53,7 @@ fn main() {
                     }),
                     ..default()
                 })
-                .set(ImagePlugin::default_nearest()),
+                .set(ImagePlugin::default_linear()),
         )
         .insert_resource(WinitSettings::game())
         .add_systems(Startup, setup)
@@ -165,8 +164,6 @@ fn setup(
 ) {
     commands.spawn(Camera2dBundle {
         transform: Transform::from_xyz(WINDOW_SIZE.0 / 2.0, WINDOW_SIZE.1 / -2.0, 0.0),
-        tonemapping: Tonemapping::None,
-        deband_dither: DebandDither::Disabled,
         ..default()
     });
 
@@ -198,7 +195,7 @@ fn setup(
         }
         AmFile::Ann(ann_file) => {
             let mut texture_atlas_builder = TextureAtlasBuilder::default()
-                .format(TextureFormat::Rgba8Unorm)
+                .format(TextureFormat::Rgba8UnormSrgb)
                 .auto_format_conversion(false);
             for sprite in ann_file.sprites.iter() {
                 let image = image_data_to_image(
@@ -286,7 +283,7 @@ fn animate_sprite(
             PlaybackState::Forward if timer.just_finished() => {
                 let sequence = &animation.sequences[state.sequence_idx];
                 let mut frame_limit = sequence.frames.len();
-                if (sequence.looping_after == 0) {
+                if sequence.looping_after == 0 {
                     if state.frame_idx + 1 == frame_limit {
                         state.playing_state = PlaybackState::Stopped;
                         return;
@@ -371,7 +368,7 @@ fn image_data_to_image(
         },
         bevy::render::render_resource::TextureDimension::D2,
         converted_image,
-        TextureFormat::Rgba8Unorm,
+        TextureFormat::Rgba8UnormSrgb,
     )
 }
 
