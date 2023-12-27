@@ -1,5 +1,6 @@
 mod ann_parser;
 mod arr_parser;
+mod formats_common;
 mod img_parser;
 mod lzw2_decoder;
 mod rle_decoder;
@@ -7,22 +8,26 @@ mod rle_decoder;
 use ann_parser::AnnFile;
 use arr_parser::ArrFile;
 use bevy::{
+    core_pipeline::tonemapping::{DebandDither, Tonemapping},
     prelude::{
         default, App, Assets, Camera, Camera2dBundle, Color, Commands, Gizmos, GlobalTransform,
         Image, PluginGroup, Query, ResMut, Startup, Transform, Update,
     },
-    render::render_resource::{Extent3d, TextureFormat},
+    render::{
+        render_resource::{Extent3d, TextureFormat},
+        texture::ImagePlugin,
+    },
     sprite::{Anchor, Sprite, SpriteBundle},
     window::{Window, WindowPlugin},
     winit::WinitSettings,
     DefaultPlugins,
 };
+use formats_common::{ColorFormat, CompressionType, ImageData};
 use img_parser::ImgFile;
 use opticaldisc::iso::IsoFs;
-use rgb565::Rgb565;
 
-use crate::{lzw2_decoder::decode_lzw2, rle_decoder::decode_rle};
 use crate::{ann_parser::parse_ann, arr_parser::parse_arr, img_parser::parse_img};
+use crate::{lzw2_decoder::decode_lzw2, rle_decoder::decode_rle};
 use std::{
     fs::{self, File},
     io::Read,
@@ -33,13 +38,17 @@ const WINDOW_SIZE: (f32, f32) = (800., 600.);
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                resolution: WINDOW_SIZE.into(),
-                ..default()
-            }),
-            ..default()
-        }))
+        .add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        resolution: WINDOW_SIZE.into(),
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .set(ImagePlugin::default_nearest()),
+        )
         // Only run the app when there is user input. This will significantly reduce CPU/GPU use.
         .insert_resource(WinitSettings::desktop_app())
         .add_systems(Startup, setup)
@@ -56,7 +65,13 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
                 -img_file.header.y_position_px as f32,
                 0.0,
             ),
-            img_to_image(&img_file),
+            image_data_to_image(
+                &img_file.image_data,
+                (img_file.header.width_px, img_file.header.height_px),
+                img_file.header.color_format,
+                img_file.header.compression_type,
+                img_file.header.alpha_size_bytes > 0,
+            ),
         ),
         AmFile::Ann(ann_file) => {
             let sprite = &ann_file.sprites[0];
@@ -66,7 +81,16 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
                     -sprite.header.y_position_px as f32,
                     0.0,
                 ),
-                ann_sprite_to_image(sprite),
+                image_data_to_image(
+                    &sprite.image_data,
+                    (
+                        sprite.header.width_px as u32,
+                        sprite.header.height_px as u32,
+                    ),
+                    ann_file.header.color_format,
+                    sprite.header.compression_type,
+                    sprite.header.alpha_size_bytes > 0,
+                ),
             )
         }
         _ => panic!(),
@@ -76,6 +100,8 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 
     commands.spawn(Camera2dBundle {
         transform: Transform::from_xyz(WINDOW_SIZE.0 / 2.0, WINDOW_SIZE.1 / -2.0, 0.0),
+        tonemapping: Tonemapping::None,
+        deband_dither: DebandDither::Disabled,
         ..default()
     });
     commands.spawn(SpriteBundle {
@@ -119,86 +145,73 @@ fn parse_file() -> AmFile {
     parse_file_from_iso(&mut iso, &path_to_file, output_path.map(|v| v.as_ref()))
 }
 
-fn img_to_image(img_file: &ImgFile) -> Image {
-    let color_data = match img_file.header.compression_type {
-        img_parser::CompressionType::None => img_file.image_data.color.to_owned(),
-        img_parser::CompressionType::Lzw2 => decode_lzw2(&img_file.image_data.color),
+fn image_data_to_image(
+    image_data: &ImageData,
+    image_size_px: (u32, u32),
+    color_format: ColorFormat,
+    compression_type: CompressionType,
+    has_alpha: bool,
+) -> Image {
+    let color_data = match compression_type {
+        CompressionType::None => image_data.color.to_owned(),
+        CompressionType::Rle => decode_rle(&image_data.color, 2),
+        CompressionType::Lzw2 => decode_lzw2(&image_data.color),
+        CompressionType::RleInLzw2 => decode_rle(&decode_lzw2(&image_data.color), 2),
         _ => panic!(),
     };
-    let has_alpha = img_file.header.alpha_size_bytes > 0;
-    let alpha_data = match img_file.header.compression_type {
+    let alpha_data = match compression_type {
         _ if !has_alpha => vec![],
-        img_parser::CompressionType::None => img_file.image_data.alpha.to_owned(),
-        _ => decode_lzw2(&img_file.image_data.alpha),
+        CompressionType::None => image_data.alpha.to_owned(),
+        CompressionType::Rle => decode_rle(&image_data.alpha, 1),
+        CompressionType::Lzw2 | CompressionType::Jpeg => decode_lzw2(&image_data.alpha),
+        CompressionType::RleInLzw2 => decode_rle(&decode_lzw2(&image_data.alpha), 1),
+    };
+    let color_converter = match color_format {
+        ColorFormat::Rgb565 => rgb565_to_rgb888,
+        ColorFormat::Rgb555 => rgb555_to_rgb888,
     };
     let converted_image = color_data
         .chunks_exact(2)
+        .map(|rgb565| rgb565.try_into().unwrap())
+        .map(color_converter)
         .zip(alpha_data.iter().chain(iter::repeat(&255)))
-        .map(|(x, y)| (Rgb565::from_rgb565_le([x[0], x[1]]), y))
-        .map(|(x, y)| {
-            let rgb = x.to_rgb888_components();
-            let alpha = if has_alpha { *y } else { 255 };
-            [rgb[0], rgb[1], rgb[2], alpha]
-        })
-        .map(|x| x.map(|y| f32::try_from(y).unwrap() / 255f32))
-        .flatten()
-        .map(|x| x.to_le_bytes())
+        .map(|([r, g, b], a)| [r, g, b, *a])
         .flatten()
         .collect();
     Image::new(
         Extent3d {
-            width: img_file.header.width_px,
-            height: img_file.header.height_px,
+            width: image_size_px.0 as u32,
+            height: image_size_px.1 as u32,
             depth_or_array_layers: 1,
         },
         bevy::render::render_resource::TextureDimension::D2,
         converted_image,
-        TextureFormat::Rgba32Float,
+        TextureFormat::Rgba8Unorm,
     )
 }
 
-fn ann_sprite_to_image(sprite: &ann_parser::Sprite) -> Image {
-    println!("{:?}", sprite.header);
-    let color_data = match sprite.header.compression_type {
-        ann_parser::CompressionType::None => sprite.image_data.color.to_owned(),
-        ann_parser::CompressionType::Lzw2 => decode_lzw2(&sprite.image_data.color),
-        ann_parser::CompressionType::Rle => decode_rle(&sprite.image_data.color, 2),
-        ann_parser::CompressionType::RleInLzw2 => decode_rle(&decode_lzw2(&sprite.image_data.color), 2),
-        _ => panic!(),
-    };
-    let has_alpha = sprite.header.alpha_size_bytes > 0;
-    let alpha_data = match sprite.header.compression_type {
-        _ if !has_alpha => vec![],
-        ann_parser::CompressionType::None => sprite.image_data.alpha.to_owned(),
-        ann_parser::CompressionType::Lzw2 => decode_lzw2(&sprite.image_data.alpha),
-        ann_parser::CompressionType::Rle => decode_rle(&sprite.image_data.alpha, 1),
-        ann_parser::CompressionType::RleInLzw2 => decode_rle(&decode_lzw2(&sprite.image_data.alpha), 1),
-        _ => panic!(),
-    };
-    let converted_image = color_data
-        .chunks_exact(2)
-        .zip(alpha_data.iter().chain(iter::repeat(&255)))
-        .map(|(x, y)| (Rgb565::from_rgb565_le([x[0], x[1]]), y))
-        .map(|(x, y)| {
-            let rgb = x.to_rgb888_components();
-            let alpha = if has_alpha { *y } else { 255 };
-            [rgb[0], rgb[1], rgb[2], alpha]
-        })
-        .map(|x| x.map(|y| f32::try_from(y).unwrap() / 255f32))
-        .flatten()
-        .map(|x| x.to_le_bytes())
-        .flatten()
-        .collect();
-    Image::new(
-        Extent3d {
-            width: sprite.header.width_px as u32,
-            height: sprite.header.height_px as u32,
-            depth_or_array_layers: 1,
-        },
-        bevy::render::render_resource::TextureDimension::D2,
-        converted_image,
-        TextureFormat::Rgba32Float,
-    )
+fn rgb565_to_rgb888(rgb565: [u8; 2]) -> [u8; 3] {
+    let rgb565 = u16::from_le_bytes(rgb565);
+    let r5 = (rgb565 >> 11) & 0x1f;
+    let g6 = (rgb565 >> 5) & 0x3f;
+    let b5 = rgb565 & 0x1f;
+    [
+        (r5 * 255 / 31) as u8,
+        (g6 * 255 / 63) as u8,
+        (b5 * 255 / 31) as u8,
+    ]
+}
+
+fn rgb555_to_rgb888(rgb555: [u8; 2]) -> [u8; 3] {
+    let rgb555 = u16::from_le_bytes(rgb555);
+    let r5 = (rgb555 >> 10) & 0x1f;
+    let g5 = (rgb555 >> 5) & 0x1f;
+    let b5 = rgb555 & 0x1f;
+    [
+        (r5 * 255 / 31) as u8,
+        (g5 * 255 / 31) as u8,
+        (b5 * 255 / 31) as u8,
+    ]
 }
 
 fn read_iso(iso_file: &File) -> IsoFs<&File> {

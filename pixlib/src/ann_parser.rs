@@ -10,10 +10,12 @@ use nom::{
     Err, IResult, Needed,
 };
 
+use crate::formats_common::{ColorFormat, CompressionType, ImageData};
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Header {
     pub sprite_count: u16,
-    pub bit_depth: u16,
+    pub color_format: ColorFormat,
     pub sequence_count: u16,
     pub short_description: String,
     pub unknown1: u32,
@@ -60,7 +62,7 @@ pub fn header(input: &[u8]) -> IResult<&[u8], Header> {
         )| {
             Header {
                 sprite_count,
-                bit_depth,
+                color_format: ColorFormat::new(bit_depth as u32),
                 sequence_count,
                 short_description: from_cp1250(short_description, true).unwrap(),
                 unknown1,
@@ -188,7 +190,7 @@ pub fn random_sfx_list(
                 )
             })(input)
         } else {
-            Ok((input, None))  // not that simple (sometimes it's present despite seed being 0)
+            Ok((input, None)) // not that simple (sometimes it's present despite seed being 0)
         }
     }
 }
@@ -305,14 +307,6 @@ pub fn sprite_header(input: &[u8]) -> IResult<&[u8], SpriteHeader> {
     )(input)
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub enum CompressionType {
-    None,
-    Lzw2,
-    RleInLzw2,
-    Rle,
-}
-
 fn compression_type(input: &[u8]) -> IResult<&[u8], CompressionType> {
     map_res(le_u16, |compression_type| {
         Ok(match compression_type {
@@ -323,12 +317,6 @@ fn compression_type(input: &[u8]) -> IResult<&[u8], CompressionType> {
             _ => return Err(Err::Error(Error::new(input, ErrorKind::Alt))),
         })
     })(input)
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ImageData {
-    pub color: Vec<u8>,
-    pub alpha: Vec<u8>,
 }
 
 fn image_data<'a>(input: &'a [u8], header: &SpriteHeader) -> IResult<&'a [u8], ImageData> {

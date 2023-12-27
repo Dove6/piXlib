@@ -7,11 +7,13 @@ use nom::{
     Err, IResult, Needed,
 };
 
+use crate::formats_common::{ColorFormat, CompressionType, ImageData};
+
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub struct Header {
     pub width_px: u32,
     pub height_px: u32,
-    pub bit_depth: u32,
+    pub color_format: ColorFormat,
     pub color_size_bytes: u32,
     pub compression_type: CompressionType,
     pub alpha_size_bytes: u32,
@@ -48,7 +50,7 @@ pub fn header(input: &[u8]) -> IResult<&[u8], Header> {
             Header {
                 width_px,
                 height_px,
-                bit_depth,
+                color_format: ColorFormat::new(bit_depth),
                 color_size_bytes,
                 compression_type,
                 alpha_size_bytes,
@@ -57,13 +59,6 @@ pub fn header(input: &[u8]) -> IResult<&[u8], Header> {
             }
         },
     )(input)
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub enum CompressionType {
-    None,
-    Lzw2,
-    Jpeg,
 }
 
 fn compression_type(input: &[u8]) -> IResult<&[u8], CompressionType> {
@@ -75,12 +70,6 @@ fn compression_type(input: &[u8]) -> IResult<&[u8], CompressionType> {
             _ => return Err(Err::Error(Error::new(input, ErrorKind::Alt))),
         })
     })(input)
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ImageData {
-    pub color: Vec<u8>,
-    pub alpha: Vec<u8>,
 }
 
 fn image_data<'a>(input: &'a [u8], header: &Header) -> IResult<&'a [u8], ImageData> {
