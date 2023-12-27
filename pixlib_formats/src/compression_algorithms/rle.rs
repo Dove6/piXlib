@@ -30,7 +30,11 @@ pub enum DecompressionError {
 
 impl<'a> CodewordIterator<'a> {
     pub fn new(data: &'a [u8], element_size: usize) -> Self {
-        CodewordIterator { data, index: 0, element_size }
+        CodewordIterator {
+            data,
+            index: 0,
+            element_size,
+        }
     }
 
     fn try_increment_index(&mut self) -> bool {
@@ -75,7 +79,11 @@ impl<'a> Iterator for CodewordIterator<'a> {
             self.index += 1;
             let literals = &self.data[self.index - self.element_size..self.index];
 
-            Some(Ok(Codeword::Encoded { byte_offset, literals, count }))
+            Some(Ok(Codeword::Encoded {
+                byte_offset,
+                literals,
+                count,
+            }))
         } else {
             let count = (self.current_byte() & 0b01111111) as usize;
 
@@ -88,7 +96,10 @@ impl<'a> Iterator for CodewordIterator<'a> {
             self.index += 1;
             let literals = &self.data[self.index - count * self.element_size..self.index];
 
-            Some(Ok(Codeword::Literal { byte_offset, literals }))
+            Some(Ok(Codeword::Literal {
+                byte_offset,
+                literals,
+            }))
         }
     }
 }
@@ -103,7 +114,9 @@ pub fn decode_rle(data: &[u8], element_size: usize) -> Vec<u8> {
             Ok(Codeword::Literal { literals, .. }) => {
                 decompressed_data.extend_from_slice(literals);
             }
-            Ok(Codeword::Encoded { literals, count, .. }) => {
+            Ok(Codeword::Encoded {
+                literals, count, ..
+            }) => {
                 decompressed_data.extend(literals.iter().cycle().take(count * element_size));
             }
             Err(error) => panic!("Decompression error: {:?}", error),

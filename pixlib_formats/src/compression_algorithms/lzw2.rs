@@ -371,7 +371,8 @@ pub fn decode_lzw2(data: &[u8]) -> Vec<u8> {
                     );
                 }
                 for _ in 0..length {
-                    decompressed_data[decompressed_index] = decompressed_data[decompressed_index - distance];
+                    decompressed_data[decompressed_index] =
+                        decompressed_data[decompressed_index - distance];
                     decompressed_index += 1;
                 }
                 decompressed_data

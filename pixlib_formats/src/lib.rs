@@ -1,2 +1,2 @@
-mod file_formats;
 mod compression_algorithms;
+mod file_formats;

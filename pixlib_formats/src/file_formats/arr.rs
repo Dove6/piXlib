@@ -2,8 +2,8 @@ use std::fmt::Display;
 
 use codepage_strings::{Coding, ConvertError};
 use nom::{
-    combinator::{map, flat_map},
     combinator::map_res,
+    combinator::{flat_map, map},
     error::{Error, ErrorKind},
     multi::length_data,
     number::complete::le_i32,
@@ -54,7 +54,10 @@ impl Display for ElementData {
             ElementData::Integer(value) => f.write_fmt(format_args!("Integer: {}", value)),
             ElementData::String(value) => f.write_fmt(format_args!("String: {}", value)),
             ElementData::Boolean(value) => f.write_fmt(format_args!("Boolean: {}", value)),
-            ElementData::FixedPoint(value) => f.write_fmt(format_args!("Integer: {}", Into::<f64>::into(*value) / 10000f64)),
+            ElementData::FixedPoint(value) => f.write_fmt(format_args!(
+                "Integer: {}",
+                Into::<f64>::into(*value) / 10000f64
+            )),
         }
     }
 }
