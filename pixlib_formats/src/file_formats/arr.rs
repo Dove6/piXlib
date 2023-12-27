@@ -1,6 +1,5 @@
 use std::fmt::Display;
 
-use codepage_strings::{Coding, ConvertError};
 use nom::{
     combinator::map_res,
     combinator::{flat_map, map},
@@ -10,6 +9,8 @@ use nom::{
     number::complete::le_u32,
     Err, IResult,
 };
+
+use super::from_cp1250;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Header {
@@ -64,22 +65,15 @@ impl Display for ElementData {
 
 pub fn element_data(tag_type: ElementType) -> impl Fn(&[u8]) -> IResult<&[u8], ElementData> {
     move |input| match tag_type {
-        ElementType::Integer => map(le_i32, |value| ElementData::Integer(value))(input),
+        ElementType::Integer => map(le_i32, ElementData::Integer)(input),
         ElementType::String => map(element_data_string, ElementData::String)(input),
         ElementType::Boolean => map(le_u32, |value| ElementData::Boolean(value == 1))(input),
-        ElementType::FixedPoint => map(le_i32, |value| ElementData::FixedPoint(value))(input),
+        ElementType::FixedPoint => map(le_i32, ElementData::FixedPoint)(input),
     }
 }
 
 pub fn element_data_string(input: &[u8]) -> IResult<&[u8], String> {
-    map_res(length_data(le_u32), from_cp1250)(input)
-}
-
-fn from_cp1250(v: &[u8]) -> Result<String, ConvertError> {
-    Coding::new(1250)
-        .unwrap()
-        .decode(v)
-        .and_then(|v| Ok(v.into_owned()))
+    map_res(length_data(le_u32), |bytes| from_cp1250(bytes, false))(input)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -103,7 +97,7 @@ pub fn element(input: &[u8]) -> IResult<&[u8], Element> {
     })(input)
 }
 
-pub fn parse_arr(data: &Vec<u8>) -> ArrFile {
+pub fn parse_arr(data: &[u8]) -> ArrFile {
     println!("Detected data array file.");
     let (mut data, header) = header(data).unwrap();
     println!("{:?}", header);

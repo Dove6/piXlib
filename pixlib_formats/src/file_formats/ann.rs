@@ -1,4 +1,3 @@
-use codepage_strings::{Coding, ConvertError};
 use nom::{
     branch::alt,
     bytes::complete::{tag, take},
@@ -10,7 +9,7 @@ use nom::{
     Err, IResult, Needed,
 };
 
-use super::{ColorFormat, CompressionType, ImageData};
+use super::{from_cp1250, ColorFormat, CompressionType, ImageData};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Header {
@@ -76,16 +75,6 @@ pub fn header(input: &[u8]) -> IResult<&[u8], Header> {
             }
         },
     )(input)
-}
-
-fn from_cp1250(mut v: &[u8], null_terminated: bool) -> Result<String, ConvertError> {
-    if null_terminated {
-        v = v.split(|c| *c == 0).next().unwrap();
-    }
-    Coding::new(1250)
-        .unwrap()
-        .decode(v)
-        .and_then(|v| Ok(v.into_owned()))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -190,7 +179,7 @@ pub fn random_sfx_list(
                 )
             })(input)
         } else {
-            Ok((input, None)) // not that simple (sometimes it's present despite seed being 0)
+            Ok((input, None)) // TODO: not that simple (sometimes it's present despite seed being 0)
         }
     }
 }
@@ -345,14 +334,12 @@ pub fn sequences<'a>(mut input: &'a [u8], header: &Header) -> IResult<&'a [u8], 
             panic!();
         };
         input = new_input;
-        // println!("Sequence #{_i} {:?}", sequence_header);
         let mut frames = Vec::with_capacity(sequence_header.frame_count as usize);
         for _j in 0..sequence_header.frame_count {
             let Ok((new_input, frame)) = frame(input) else {
                 panic!();
             };
             input = new_input;
-            // println!(" Frame #{_j} {:?}", frame);
             frames.push(frame);
         }
         sequences.push(Sequence {
@@ -372,16 +359,15 @@ pub struct Sprite {
 pub fn sprites<'a>(mut input: &'a [u8], header: &Header) -> IResult<&'a [u8], Vec<Sprite>> {
     let mut sprite_headers = Vec::with_capacity(header.sprite_count as usize);
     let mut data_for_sprite = Vec::with_capacity(header.sprite_count as usize);
-    for _i in 0..header.sprite_count {
+    for _ in 0..header.sprite_count {
         let Ok((new_input, sprite_header)) = sprite_header(input) else {
             panic!();
         };
         input = new_input;
-        // println!("Sprite #{_i} {:?}", sprite_header);
         sprite_headers.push(sprite_header);
     }
-    for i in 0..(header.sprite_count as usize) {
-        let Ok((new_input, image_data)) = image_data(input, &sprite_headers[i]) else {
+    for sprite_header in sprite_headers.iter() {
+        let Ok((new_input, image_data)) = image_data(input, sprite_header) else {
             panic!();
         };
         input = new_input;
@@ -407,7 +393,7 @@ pub struct AnnFile {
     pub sprites: Vec<Sprite>,
 }
 
-pub fn parse_ann(data: &Vec<u8>) -> AnnFile {
+pub fn parse_ann(data: &[u8]) -> AnnFile {
     println!("Detected animation file.");
     let (data, header) = header(data).unwrap();
     println!("{:?}", header);

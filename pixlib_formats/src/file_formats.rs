@@ -1,6 +1,8 @@
-mod ann;
-mod arr;
-mod img;
+use codepage_strings::{Coding, ConvertError};
+
+pub mod ann;
+pub mod arr;
+pub mod img;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImageData {
@@ -31,4 +33,11 @@ pub enum CompressionType {
     Lzw2,
     RleInLzw2,
     Jpeg,
+}
+
+fn from_cp1250(mut v: &[u8], null_terminated: bool) -> Result<String, ConvertError> {
+    if null_terminated {
+        v = v.split(|c| *c == 0).next().unwrap();
+    }
+    Coding::new(1250).unwrap().decode(v).map(|v| v.into_owned())
 }

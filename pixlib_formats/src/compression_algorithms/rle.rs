@@ -37,14 +37,6 @@ impl<'a> CodewordIterator<'a> {
         }
     }
 
-    fn try_increment_index(&mut self) -> bool {
-        if self.index + 1 >= self.data.len() {
-            return false;
-        }
-        self.index += 1;
-        true
-    }
-
     fn try_increase_index(&mut self, length: usize) -> bool {
         if self.index + length >= self.data.len() {
             return false;
@@ -109,7 +101,6 @@ pub fn decode_rle(data: &[u8], element_size: usize) -> Vec<u8> {
     let mut decompressed_data = Vec::<u8>::new();
 
     for codeword in CodewordIterator::new(compressed_data, element_size) {
-        // println!("{:?}", codeword);
         match codeword {
             Ok(Codeword::Literal { literals, .. }) => {
                 decompressed_data.extend_from_slice(literals);

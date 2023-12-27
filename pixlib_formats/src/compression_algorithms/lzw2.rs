@@ -1,15 +1,5 @@
 use core::panic;
 
-pub trait IntoConst {
-    fn into_const<const L: usize>(&self) -> [u8; L];
-}
-
-impl IntoConst for [u8] {
-    fn into_const<const L: usize>(&self) -> [u8; L] {
-        self.try_into().unwrap()
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum Codeword<'a> {
     Literals {
@@ -59,11 +49,7 @@ impl<'a> CodewordIterator<'a> {
     }
 
     fn try_increment_index(&mut self) -> bool {
-        if self.index + 1 >= self.data.len() {
-            return false;
-        }
-        self.index += 1;
-        true
+        self.try_increase_index(1)
     }
 
     fn try_increase_index(&mut self, length: usize) -> bool {
@@ -88,13 +74,12 @@ impl<'a> Iterator for CodewordIterator<'a> {
         }
         if self.index == 0 {
             let initial_literal = try_parse_initial_literal(self.data);
-            if let Some(_) = initial_literal {
+            if initial_literal.is_some() {
                 return initial_literal;
             }
         }
 
         let original_index = self.index;
-        // print!("{original_index}");
         match get_high_nibble(self.current_byte()) {
             0b0000 => {
                 let length_bias: usize = 3;
@@ -322,8 +307,8 @@ fn try_parse_initial_literal(
 }
 
 pub fn decode_lzw2(data: &[u8]) -> Vec<u8> {
-    let decompressed_size = u32::from_le_bytes(data[..4].into_const()) as usize;
-    let compressed_size = u32::from_le_bytes(data[4..8].into_const()) as usize;
+    let decompressed_size = u32::from_le_bytes(data[..4].try_into().unwrap()) as usize;
+    let compressed_size = u32::from_le_bytes(data[4..8].try_into().unwrap()) as usize;
     assert_eq!(compressed_size + 8, data.len());
 
     let compressed_data = &data[8..];
@@ -333,15 +318,6 @@ pub fn decode_lzw2(data: &[u8]) -> Vec<u8> {
     let mut terminator_encountered = false;
 
     for codeword in CodewordIterator::new(compressed_data) {
-        // if let Ok(Codeword::Literals { detailed_type, literals }) = codeword { println!(", {}, ll {}", match detailed_type {
-        //     LiteralsType::Initial => "0001",
-        //     LiteralsType::Regular => "0000",
-        // }, literals.len()); }
-        // if let Ok(Codeword::Reference { detailed_type, length, distance, following_literals }) = codeword { println!(", {}, l {}, d {}, ll {}", match detailed_type {
-        //     ReferenceType::FarDistance => "0001",
-        //     ReferenceType::Medium => "0010",
-        //     ReferenceType::ShortLength => "0100",
-        // }, length, distance, following_literals.len()); }
         match codeword {
             Ok(_) if terminator_encountered => panic!("Codewords after terminator"),
             Ok(Codeword::Literals { literals, .. }) => {
@@ -357,10 +333,10 @@ pub fn decode_lzw2(data: &[u8]) -> Vec<u8> {
                 decompressed_index += literals.len();
             }
             Ok(Codeword::Reference {
-                detailed_type,
                 length,
                 distance,
                 following_literals,
+                ..
             }) => {
                 if decompressed_index + length + following_literals.len() > decompressed_data.len()
                 {

@@ -1,2 +1,2 @@
-mod lzw2;
-mod rle;
+pub mod lzw2;
+pub mod rle;
