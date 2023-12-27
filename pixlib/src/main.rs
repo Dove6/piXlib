@@ -9,7 +9,7 @@ use ann_parser::AnnFile;
 use arr_parser::ArrFile;
 use bevy::{
     ecs::{component::Component, system::Res},
-    math::Vec2,
+    math::{UVec2, Vec2},
     prelude::{
         default, App, Assets, Camera, Camera2dBundle, Color, Commands, Deref, DerefMut, Gizmos,
         GlobalTransform, Image, PluginGroup, Query, ResMut, Startup, Transform, Update,
@@ -36,7 +36,8 @@ use crate::{lzw2_decoder::decode_lzw2, rle_decoder::decode_rle};
 use std::{
     fs::{self, File},
     io::Read,
-    iter, ops::Add,
+    iter,
+    ops::Add,
 };
 
 const WINDOW_SIZE: (f32, f32) = (800., 600.);
@@ -202,6 +203,7 @@ fn setup(
             let mut texture_atlas_builder = TextureAtlasBuilder::default()
                 .format(TextureFormat::Rgba8UnormSrgb)
                 .auto_format_conversion(false)
+                .padding(UVec2::new(1, 1))
                 .max_size(Vec2::new(16384., 16384.));
             for sprite in ann_file.sprites.iter() {
                 let image = image_data_to_image(
@@ -229,9 +231,12 @@ fn setup(
                 .iter()
                 .enumerate()
                 .find(|(_, s)| s.frames.len() > 0)
-                .and_then(|(i, s)| Some(i));
+                .and_then(|(i, _)| Some(i));
             if let Some(first_non_empty_sequence_idx) = first_non_empty_sequence_idx {
-                let frame = animation.sequences[first_non_empty_sequence_idx].frames.first().unwrap();
+                let frame = animation.sequences[first_non_empty_sequence_idx]
+                    .frames
+                    .first()
+                    .unwrap();
                 let SpriteDefinition {
                     offset_px, size_px, ..
                 } = animation.sprites[frame.sprite_idx];
@@ -279,7 +284,10 @@ fn offset_by(anchor: Anchor, offset: (f32, f32)) -> Anchor {
     Anchor::Custom(anchor.as_vec() + Vec2::new(-offset.0, offset.1))
 }
 
-fn add_tuples<T: Add>(a: (T, T), b: (T, T)) -> (<T as std::ops::Add>::Output, <T as std::ops::Add>::Output) {
+fn add_tuples<T: Add>(
+    a: (T, T),
+    b: (T, T),
+) -> (<T as std::ops::Add>::Output, <T as std::ops::Add>::Output) {
     (a.0 + b.0, a.1 + b.1)
 }
 
@@ -320,7 +328,10 @@ fn animate_sprite(
                 let frame = &sequence.frames[state.frame_idx];
                 let sprite = &animation.sprites[frame.sprite_idx];
                 atlas_sprite.index = frame.sprite_idx;
-                atlas_sprite.update_anchor(get_anchor(add_tuples(sprite.offset_px, frame.offset_px), sprite.size_px));
+                atlas_sprite.update_anchor(get_anchor(
+                    add_tuples(sprite.offset_px, frame.offset_px),
+                    sprite.size_px,
+                ));
             }
             PlaybackState::Backward if timer.just_finished() => return,
             _ => return,
