@@ -49,6 +49,7 @@ fn main() {
                     primary_window: Some(Window {
                         resolution: WINDOW_SIZE.into(),
                         present_mode: PresentMode::AutoVsync,
+                        title: "piXlib".to_owned(),
                         ..default()
                     }),
                     ..default()
