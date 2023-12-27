@@ -9,16 +9,22 @@ use ann_parser::AnnFile;
 use arr_parser::ArrFile;
 use bevy::{
     core_pipeline::tonemapping::{DebandDither, Tonemapping},
+    ecs::{component::Component, system::Res},
+    math::Vec2,
     prelude::{
-        default, App, Assets, Camera, Camera2dBundle, Color, Commands, Gizmos, GlobalTransform,
-        Image, PluginGroup, Query, ResMut, Startup, Transform, Update,
+        default, App, Assets, Camera, Camera2dBundle, Color, Commands, Deref, DerefMut, Gizmos,
+        GlobalTransform, Image, PluginGroup, Query, ResMut, Startup, Transform, Update,
     },
     render::{
         render_resource::{Extent3d, TextureFormat},
         texture::ImagePlugin,
     },
-    sprite::{Anchor, Sprite, SpriteBundle},
-    window::{Window, WindowPlugin},
+    sprite::{
+        Anchor, Sprite, SpriteBundle, SpriteSheetBundle, TextureAtlas, TextureAtlasBuilder,
+        TextureAtlasSprite,
+    },
+    time::{Time, Timer, TimerMode},
+    window::{Window, WindowPlugin, PresentMode},
     winit::WinitSettings,
     DefaultPlugins,
 };
@@ -43,45 +49,159 @@ fn main() {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         resolution: WINDOW_SIZE.into(),
+                        present_mode: PresentMode::AutoVsync,
                         ..default()
                     }),
                     ..default()
                 })
                 .set(ImagePlugin::default_nearest()),
         )
-        // Only run the app when there is user input. This will significantly reduce CPU/GPU use.
-        .insert_resource(WinitSettings::desktop_app())
+        .insert_resource(WinitSettings::game())
         .add_systems(Startup, setup)
         .add_systems(Update, draw_cursor)
+        .add_systems(Update, animate_sprite)
         .run();
 }
 
-fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
-    let parsed_file = parse_file();
-    let (transform, image) = match parsed_file {
-        AmFile::Img(img_file) => (
-            Transform::from_xyz(
+#[derive(Component)]
+struct AnimationState {
+    pub playing_state: PlaybackState,
+    pub sequence_idx: usize,
+    pub frame_idx: usize,
+}
+
+impl Default for AnimationState {
+    fn default() -> Self {
+        Self {
+            playing_state: PlaybackState::Forward,
+            sequence_idx: 0,
+            frame_idx: 0,
+        }
+    }
+}
+
+enum PlaybackState {
+    Forward,
+    Backward,
+    ForwardPaused,
+    BackwardPaused,
+    Stopped,
+}
+
+#[derive(Component)]
+struct AnimationSequenceComponent {
+    pub sequences: Vec<AnimationSequence>,
+    pub sprites: Vec<SpriteDefinition>,
+}
+
+#[derive(Component, Deref, DerefMut)]
+struct AnimationTimer(Timer);
+
+impl AnimationSequenceComponent {
+    fn new(ann_file: &AnnFile) -> Self {
+        let sequences = ann_file
+            .sequences
+            .iter()
+            .map(|sequence: &ann_parser::Sequence| AnimationSequence {
+                name: sequence.header.name.clone(),
+                opacity: sequence.header.opacity,
+                looping_after: sequence.header.loop_after as usize,
+                frames: sequence
+                    .frames
+                    .iter()
+                    .zip(&sequence.header.frame_to_sprite_mapping)
+                    .map(|(frame, sprite_idx)| FrameDefinition {
+                        name: frame.name.clone(),
+                        offset_px: (frame.x_position_px as u32, frame.y_position_px as u32),
+                        opacity: frame.opacity,
+                        sprite_idx: *sprite_idx as usize,
+                    })
+                    .collect(),
+            })
+            .collect();
+        let sprites = ann_file
+            .sprites
+            .iter()
+            .map(|sprite| SpriteDefinition {
+                name: sprite.header.name.clone(),
+                size_px: (
+                    sprite.header.width_px as u32,
+                    sprite.header.height_px as u32,
+                ),
+                offset_px: (
+                    sprite.header.x_position_px as u32,
+                    sprite.header.y_position_px as u32,
+                ),
+            })
+            .collect();
+        Self { sequences, sprites }
+    }
+}
+
+struct AnimationSequence {
+    pub name: String,
+    pub opacity: u8,
+    pub looping_after: usize,
+    pub frames: Vec<FrameDefinition>,
+}
+
+struct FrameDefinition {
+    pub name: String,
+    pub offset_px: (u32, u32),
+    pub opacity: u8,
+    pub sprite_idx: usize,
+}
+
+struct SpriteDefinition {
+    pub name: String,
+    pub size_px: (u32, u32),
+    pub offset_px: (u32, u32),
+}
+
+fn setup(
+    mut commands: Commands,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut textures: ResMut<Assets<Image>>,
+) {
+    commands.spawn(Camera2dBundle {
+        transform: Transform::from_xyz(WINDOW_SIZE.0 / 2.0, WINDOW_SIZE.1 / -2.0, 0.0),
+        tonemapping: Tonemapping::None,
+        deband_dither: DebandDither::Disabled,
+        ..default()
+    });
+
+    match parse_file() {
+        AmFile::Img(img_file) => {
+            let transform = Transform::from_xyz(
                 img_file.header.x_position_px as f32,
                 -img_file.header.y_position_px as f32,
                 0.0,
-            ),
-            image_data_to_image(
+            );
+            let image = image_data_to_image(
                 &img_file.image_data,
                 (img_file.header.width_px, img_file.header.height_px),
                 img_file.header.color_format,
                 img_file.header.compression_type,
                 img_file.header.alpha_size_bytes > 0,
-            ),
-        ),
+            );
+            let texture = textures.add(image);
+
+            commands.spawn(SpriteBundle {
+                texture,
+                sprite: Sprite {
+                    anchor: Anchor::TopLeft,
+                    ..default()
+                },
+                transform,
+                ..default()
+            });
+        }
         AmFile::Ann(ann_file) => {
-            let sprite = &ann_file.sprites[0];
-            (
-                Transform::from_xyz(
-                    sprite.header.x_position_px as f32,
-                    -sprite.header.y_position_px as f32,
-                    0.0,
-                ),
-                image_data_to_image(
+            let mut texture_atlas_builder = TextureAtlasBuilder::default()
+                .format(TextureFormat::Rgba8Unorm)
+                .auto_format_conversion(false);
+            for sprite in ann_file.sprites.iter() {
+                let image = image_data_to_image(
                     &sprite.image_data,
                     (
                         sprite.header.width_px as u32,
@@ -90,29 +210,38 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
                     ann_file.header.color_format,
                     sprite.header.compression_type,
                     sprite.header.alpha_size_bytes > 0,
-                ),
-            )
+                );
+                let texture = textures.add(image);
+
+                texture_atlas_builder
+                    .add_texture(texture.id(), textures.get(texture.id()).unwrap());
+            }
+
+            let texture_atlas =
+                texture_atlases.add(texture_atlas_builder.finish(&mut textures).unwrap());
+            let mut sprite = TextureAtlasSprite::default();
+            let animation = AnimationSequenceComponent::new(&ann_file);
+            let SpriteDefinition {
+                offset_px, size_px, ..
+            } = animation.sprites[animation.sequences[0].frames[0].sprite_idx];
+            sprite.update_anchor(get_anchor(offset_px, size_px));
+
+            commands.spawn((
+                SpriteSheetBundle {
+                    sprite,
+                    texture_atlas,
+                    ..default()
+                },
+                animation,
+                AnimationState::default(),
+                AnimationTimer(Timer::from_seconds(
+                    1.0f32 / ann_file.header.frames_per_second as f32,
+                    TimerMode::Repeating,
+                )),
+            ));
         }
         _ => panic!(),
     };
-    let texture = images.add(image);
-    println!("Transform: {:?}", transform);
-
-    commands.spawn(Camera2dBundle {
-        transform: Transform::from_xyz(WINDOW_SIZE.0 / 2.0, WINDOW_SIZE.1 / -2.0, 0.0),
-        tonemapping: Tonemapping::None,
-        deband_dither: DebandDither::Disabled,
-        ..default()
-    });
-    commands.spawn(SpriteBundle {
-        texture,
-        sprite: Sprite {
-            anchor: Anchor::TopLeft,
-            ..default()
-        },
-        transform,
-        ..default()
-    });
 }
 
 fn draw_cursor(
@@ -129,6 +258,62 @@ fn draw_cursor(
     };
 
     gizmos.circle_2d(point, 10., Color::WHITE);
+}
+
+fn offset_by(anchor: Anchor, offset: (f32, f32)) -> Anchor {
+    Anchor::Custom(anchor.as_vec() - Vec2::new(offset.0, offset.1))
+}
+
+fn get_anchor(offset: (u32, u32), size: (u32, u32)) -> (f32, f32) {
+    (
+        offset.0 as f32 / size.0 as f32,
+        offset.1 as f32 / size.1 as f32,
+    )
+}
+
+fn animate_sprite(
+    time: Res<Time>,
+    mut query: Query<(
+        &AnimationSequenceComponent,
+        &mut AnimationTimer,
+        &mut AnimationState,
+        &mut TextureAtlasSprite,
+    )>,
+) {
+    for (animation, mut timer, mut state, mut atlas_sprite) in &mut query {
+        timer.tick(time.delta());
+        match state.playing_state {
+            PlaybackState::Forward if timer.just_finished() => {
+                let sequence = &animation.sequences[state.sequence_idx];
+                let mut frame_limit = sequence.frames.len();
+                if (sequence.looping_after == 0) {
+                    if state.frame_idx + 1 == frame_limit {
+                        state.playing_state = PlaybackState::Stopped;
+                        return;
+                    }
+                } else {
+                    frame_limit = frame_limit.min(sequence.looping_after);
+                }
+                state.frame_idx = (state.frame_idx + 1) % frame_limit;
+                let frame = &sequence.frames[state.frame_idx];
+                let sprite = &animation.sprites[frame.sprite_idx];
+                atlas_sprite.index = frame.sprite_idx;
+                atlas_sprite.update_anchor(get_anchor(sprite.offset_px, sprite.size_px));
+            }
+            PlaybackState::Backward if timer.just_finished() => return,
+            _ => return,
+        }
+    }
+}
+
+trait UpdatableAnchor {
+    fn update_anchor(&mut self, offset_from_top_left: (f32, f32));
+}
+
+impl UpdatableAnchor for TextureAtlasSprite {
+    fn update_anchor(&mut self, offset_from_top_left: (f32, f32)) {
+        self.anchor = offset_by(Anchor::TopLeft, offset_from_top_left);
+    }
 }
 
 fn parse_file() -> AmFile {
