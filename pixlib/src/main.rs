@@ -1,12 +1,3 @@
-mod ann_parser;
-mod arr_parser;
-mod formats_common;
-mod img_parser;
-mod lzw2_decoder;
-mod rle_decoder;
-
-use ann_parser::AnnFile;
-use arr_parser::ArrFile;
 use bevy::{
     ecs::{component::Component, system::Res},
     math::{UVec2, Vec2},
@@ -27,12 +18,17 @@ use bevy::{
     winit::WinitSettings,
     DefaultPlugins,
 };
-use formats_common::{ColorFormat, CompressionType, ImageData};
-use img_parser::ImgFile;
 use opticaldisc::iso::IsoFs;
+use pixlib_formats::{
+    compression_algorithms::{lzw2::decode_lzw2, rle::decode_rle},
+    file_formats::{
+        ann::{self, parse_ann, AnnFile},
+        arr::{parse_arr, ArrFile},
+        img::{parse_img, ImgFile},
+        ColorFormat, CompressionType, ImageData,
+    },
+};
 
-use crate::{ann_parser::parse_ann, arr_parser::parse_arr, img_parser::parse_img};
-use crate::{lzw2_decoder::decode_lzw2, rle_decoder::decode_rle};
 use std::{
     fs::{self, File},
     io::Read,
@@ -104,7 +100,7 @@ impl AnimationSequenceComponent {
         let sequences = ann_file
             .sequences
             .iter()
-            .map(|sequence: &ann_parser::Sequence| AnimationSequence {
+            .map(|sequence: &ann::Sequence| AnimationSequence {
                 name: sequence.header.name.clone(),
                 opacity: sequence.header.opacity,
                 looping_after: sequence.header.loop_after as usize,
@@ -230,8 +226,8 @@ fn setup(
                 .sequences
                 .iter()
                 .enumerate()
-                .find(|(_, s)| s.frames.len() > 0)
-                .and_then(|(i, _)| Some(i));
+                .find(|(_, s)| !s.frames.is_empty())
+                .map(|(i, _)| i);
             if let Some(first_non_empty_sequence_idx) = first_non_empty_sequence_idx {
                 let frame = animation.sequences[first_non_empty_sequence_idx]
                     .frames
@@ -310,7 +306,7 @@ fn animate_sprite(
     for (animation, mut timer, mut state, mut atlas_sprite) in &mut query {
         timer.tick(time.delta());
         let sequence = &animation.sequences[state.sequence_idx];
-        if sequence.frames.len() == 0 {
+        if sequence.frames.is_empty() {
             return;
         }
         match state.playing_state {
@@ -358,7 +354,7 @@ fn parse_file() -> AmFile {
     let path_to_file = args[2].to_ascii_uppercase();
     let output_path = args.get(3);
 
-    let iso_file = File::open(&path_to_iso).unwrap();
+    let iso_file = File::open(path_to_iso).unwrap();
     let mut iso = read_iso(&iso_file);
     parse_file_from_iso(&mut iso, &path_to_file, output_path.map(|v| v.as_ref()))
 }
@@ -393,13 +389,12 @@ fn image_data_to_image(
         .map(|rgb565| rgb565.try_into().unwrap())
         .map(color_converter)
         .zip(alpha_data.iter().chain(iter::repeat(&255)))
-        .map(|([r, g, b], a)| [r, g, b, *a])
-        .flatten()
+        .flat_map(|([r, g, b], a)| [r, g, b, *a])
         .collect();
     Image::new(
         Extent3d {
-            width: image_size_px.0 as u32,
-            height: image_size_px.1 as u32,
+            width: image_size_px.0,
+            height: image_size_px.1,
             depth_or_array_layers: 1,
         },
         bevy::render::render_resource::TextureDimension::D2,
@@ -454,14 +449,14 @@ fn parse_file_from_iso(
 ) -> AmFile {
     let mut buffer = Vec::<u8>::new();
     let bytes_read = iso
-        .open_file(&filename)
+        .open_file(filename)
         .unwrap()
         .read_to_end(&mut buffer)
         .unwrap();
     println!("Read file {} ({} bytes)", filename, bytes_read);
 
     if let Some(output_path) = output_filename {
-        fs::write(&output_path, &buffer).expect("Could not write file");
+        fs::write(output_path, &buffer).expect("Could not write file");
     }
 
     let extension = filename

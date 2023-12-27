@@ -1,11 +1,11 @@
 [package]
-name = "iso_browser"
+name = "pixlib"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 opticaldisc = { git = "https://github.com/althonos/opticaldisc.git", rev = "2816ea8c2cd9a8402bae5efbaa3037c1439e07f9" }
-nom = "7"
+pixlib_formats = { git = "https://github.com/Dove6/piXlib-formats.git" }
 codepage-strings = "1"
 bevy = { version = "0.12", features = [
     "bevy_asset",
@@ -26,4 +26,3 @@ bevy = { version = "0.12", features = [
     "jpeg",
     "wav",
 ] }
-rgb565 = "0.1"
