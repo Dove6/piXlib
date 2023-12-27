@@ -36,7 +36,7 @@ use crate::{lzw2_decoder::decode_lzw2, rle_decoder::decode_rle};
 use std::{
     fs::{self, File},
     io::Read,
-    iter,
+    iter, ops::Add,
 };
 
 const WINDOW_SIZE: (f32, f32) = (800., 600.);
@@ -62,7 +62,7 @@ fn main() {
         .run();
 }
 
-#[derive(Component)]
+#[derive(Component, Clone, Debug, PartialEq, Eq, Copy)]
 struct AnimationState {
     pub playing_state: PlaybackState,
     pub sequence_idx: usize,
@@ -79,6 +79,7 @@ impl Default for AnimationState {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
 enum PlaybackState {
     Forward,
     Backward,
@@ -87,13 +88,13 @@ enum PlaybackState {
     Stopped,
 }
 
-#[derive(Component)]
+#[derive(Component, Clone, Debug, PartialEq, Eq)]
 struct AnimationSequenceComponent {
     pub sequences: Vec<AnimationSequence>,
     pub sprites: Vec<SpriteDefinition>,
 }
 
-#[derive(Component, Deref, DerefMut)]
+#[derive(Component, Deref, DerefMut, Clone, Debug, PartialEq, Eq)]
 struct AnimationTimer(Timer);
 
 impl AnimationSequenceComponent {
@@ -137,6 +138,7 @@ impl AnimationSequenceComponent {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct AnimationSequence {
     pub name: String,
     pub opacity: u8,
@@ -144,6 +146,7 @@ struct AnimationSequence {
     pub frames: Vec<FrameDefinition>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct FrameDefinition {
     pub name: String,
     pub offset_px: (u32, u32),
@@ -151,6 +154,7 @@ struct FrameDefinition {
     pub sprite_idx: usize,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct SpriteDefinition {
     pub name: String,
     pub size_px: (u32, u32),
@@ -196,7 +200,8 @@ fn setup(
         AmFile::Ann(ann_file) => {
             let mut texture_atlas_builder = TextureAtlasBuilder::default()
                 .format(TextureFormat::Rgba8UnormSrgb)
-                .auto_format_conversion(false);
+                .auto_format_conversion(false)
+                .max_size(Vec2::new(16384., 16384.));
             for sprite in ann_file.sprites.iter() {
                 let image = image_data_to_image(
                     &sprite.image_data,
@@ -218,10 +223,19 @@ fn setup(
                 texture_atlases.add(texture_atlas_builder.finish(&mut textures).unwrap());
             let mut sprite = TextureAtlasSprite::default();
             let animation = AnimationSequenceComponent::new(&ann_file);
-            let SpriteDefinition {
-                offset_px, size_px, ..
-            } = animation.sprites[animation.sequences[0].frames[0].sprite_idx];
-            sprite.update_anchor(get_anchor(offset_px, size_px));
+            let first_non_empty_sequence_idx = animation
+                .sequences
+                .iter()
+                .enumerate()
+                .find(|(_, s)| s.frames.len() > 0)
+                .and_then(|(i, s)| Some(i));
+            if let Some(first_non_empty_sequence_idx) = first_non_empty_sequence_idx {
+                let frame = animation.sequences[first_non_empty_sequence_idx].frames.first().unwrap();
+                let SpriteDefinition {
+                    offset_px, size_px, ..
+                } = animation.sprites[frame.sprite_idx];
+                sprite.update_anchor(get_anchor(add_tuples(offset_px, frame.offset_px), size_px));
+            }
 
             commands.spawn((
                 SpriteSheetBundle {
@@ -230,7 +244,10 @@ fn setup(
                     ..default()
                 },
                 animation,
-                AnimationState::default(),
+                AnimationState {
+                    sequence_idx: first_non_empty_sequence_idx.unwrap_or(0),
+                    ..default()
+                },
                 AnimationTimer(Timer::from_seconds(
                     1.0f32 / ann_file.header.frames_per_second as f32,
                     TimerMode::Repeating,
@@ -258,7 +275,11 @@ fn draw_cursor(
 }
 
 fn offset_by(anchor: Anchor, offset: (f32, f32)) -> Anchor {
-    Anchor::Custom(anchor.as_vec() - Vec2::new(offset.0, offset.1))
+    Anchor::Custom(anchor.as_vec() + Vec2::new(-offset.0, offset.1))
+}
+
+fn add_tuples<T: Add>(a: (T, T), b: (T, T)) -> (<T as std::ops::Add>::Output, <T as std::ops::Add>::Output) {
+    (a.0 + b.0, a.1 + b.1)
 }
 
 fn get_anchor(offset: (u32, u32), size: (u32, u32)) -> (f32, f32) {
@@ -279,15 +300,18 @@ fn animate_sprite(
 ) {
     for (animation, mut timer, mut state, mut atlas_sprite) in &mut query {
         timer.tick(time.delta());
+        let sequence = &animation.sequences[state.sequence_idx];
+        if sequence.frames.len() == 0 {
+            return;
+        }
         match state.playing_state {
             PlaybackState::Forward if timer.just_finished() => {
-                let sequence = &animation.sequences[state.sequence_idx];
                 let mut frame_limit = sequence.frames.len();
                 if sequence.looping_after == 0 {
-                    if state.frame_idx + 1 == frame_limit {
-                        state.playing_state = PlaybackState::Stopped;
-                        return;
-                    }
+                    // if state.frame_idx + 1 == frame_limit {
+                    //     state.playing_state = PlaybackState::Stopped;
+                    //     return;
+                    // }
                 } else {
                     frame_limit = frame_limit.min(sequence.looping_after);
                 }
@@ -295,7 +319,7 @@ fn animate_sprite(
                 let frame = &sequence.frames[state.frame_idx];
                 let sprite = &animation.sprites[frame.sprite_idx];
                 atlas_sprite.index = frame.sprite_idx;
-                atlas_sprite.update_anchor(get_anchor(sprite.offset_px, sprite.size_px));
+                atlas_sprite.update_anchor(get_anchor(add_tuples(sprite.offset_px, frame.offset_px), sprite.size_px));
             }
             PlaybackState::Backward if timer.just_finished() => return,
             _ => return,
