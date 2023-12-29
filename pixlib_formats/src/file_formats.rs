@@ -41,7 +41,7 @@ pub enum CompressionType {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DecodedStr(String, Option<Vec<u8>>);
+pub struct DecodedStr(pub String, pub Option<Vec<u8>>);
 
 impl DecodedStr {
     pub fn rest(&self) -> &Option<Vec<u8>> {

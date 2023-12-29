@@ -97,7 +97,7 @@ pub struct SequenceHeader {
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum LoopingSettings {
-    LoopingAfter(u32),
+    LoopingAfter(usize),
     NoLooping,
 }
 
@@ -106,7 +106,7 @@ impl LoopingSettings {
         if value == 0 {
             Self::NoLooping
         } else {
-            Self::LoopingAfter(value)
+            Self::LoopingAfter(value.try_into().unwrap())
         }
     }
 }
