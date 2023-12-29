@@ -1,5 +1,7 @@
 use core::panic;
 
+use super::DecompressionError;
+
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum Codeword<'a> {
     Literal {
@@ -18,14 +20,6 @@ struct CodewordIterator<'a> {
     data: &'a [u8],
     index: usize,
     element_size: usize,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub enum DecompressionError {
-    NotEnoughBytes {
-        actual_length: usize,
-        required_length: Option<usize>,
-    },
 }
 
 impl<'a> CodewordIterator<'a> {
@@ -48,6 +42,20 @@ impl<'a> CodewordIterator<'a> {
     fn current_byte(&self) -> u8 {
         self.data[self.index]
     }
+
+    fn create_not_enough_bytes_error(
+        &self,
+        actual_length: usize,
+        required_length: Option<usize>,
+    ) -> DecompressionError {
+        DecompressionError {
+            position: self.index,
+            kind: super::DecompressionErrorKind::NotEnoughBytes {
+                actual_length,
+                required_length,
+            },
+        }
+    }
 }
 
 impl<'a> Iterator for CodewordIterator<'a> {
@@ -60,13 +68,12 @@ impl<'a> Iterator for CodewordIterator<'a> {
 
         let byte_offset = self.index;
         if get_most_significant_bit(self.current_byte()) {
-            let count = (self.current_byte() & 0b01111111) as usize;
+            let count: usize = (self.current_byte() & 0b01111111).into();
 
             if !self.try_increase_index(self.element_size) {
-                return Some(Err(DecompressionError::NotEnoughBytes {
-                    actual_length: 0,
-                    required_length: Some(self.element_size),
-                }));
+                return Some(Err(
+                    self.create_not_enough_bytes_error(0, Some(self.element_size))
+                ));
             }
             self.index += 1;
             let literals = &self.data[self.index - self.element_size..self.index];
@@ -77,13 +84,13 @@ impl<'a> Iterator for CodewordIterator<'a> {
                 count,
             }))
         } else {
-            let count = (self.current_byte() & 0b01111111) as usize;
+            let count: usize = (self.current_byte() & 0b01111111).into();
 
             if !self.try_increase_index(count * self.element_size) {
-                return Some(Err(DecompressionError::NotEnoughBytes {
-                    actual_length: self.data.len() - self.index,
-                    required_length: Some(count * self.element_size),
-                }));
+                return Some(Err(self.create_not_enough_bytes_error(
+                    self.data.len() - self.index,
+                    Some(count * self.element_size),
+                )));
             }
             self.index += 1;
             let literals = &self.data[self.index - count * self.element_size..self.index];

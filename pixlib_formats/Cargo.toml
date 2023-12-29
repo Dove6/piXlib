@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 codepage-strings = "1"
+lazy_static = "1.4"
 nom = "7"

@@ -1,6 +1,6 @@
 use nom::{
     bytes::complete::tag,
-    combinator::{map, map_res},
+    combinator::map_res,
     error::{Error, ErrorKind},
     number::complete::{le_i32, le_u32},
     sequence::tuple,
@@ -10,7 +10,7 @@ use nom::{
 use super::{ColorFormat, CompressionType, ImageData};
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub struct Header {
+pub struct ImgHeader {
     pub width_px: u32,
     pub height_px: u32,
     pub color_format: ColorFormat,
@@ -21,10 +21,10 @@ pub struct Header {
     pub y_position_px: i32,
 }
 
-pub fn header(input: &[u8]) -> IResult<&[u8], Header> {
-    map(
+pub fn header(input: &[u8]) -> IResult<&[u8], ImgHeader> {
+    map_res(
         tuple((
-            tag("PIK\0"),
+            tag(b"PIK\0"),
             le_u32,
             le_u32,
             le_u32,
@@ -47,16 +47,17 @@ pub fn header(input: &[u8]) -> IResult<&[u8], Header> {
             x_position_px,
             y_position_px,
         )| {
-            Header {
+            let color_format = ColorFormat::new(bit_depth)?;
+            Ok::<_, String>(ImgHeader {
                 width_px,
                 height_px,
-                color_format: ColorFormat::new(bit_depth),
+                color_format,
                 color_size_bytes,
                 compression_type,
                 alpha_size_bytes,
                 x_position_px,
                 y_position_px,
-            }
+            })
         },
     )(input)
 }
@@ -72,7 +73,7 @@ fn compression_type(input: &[u8]) -> IResult<&[u8], CompressionType> {
     })(input)
 }
 
-fn image_data<'a>(input: &'a [u8], header: &Header) -> IResult<&'a [u8], ImageData> {
+fn image_data<'a>(input: &'a [u8], header: &ImgHeader) -> IResult<&'a [u8], ImageData<'a>> {
     let color_size = usize::try_from(header.color_size_bytes).unwrap();
     let alpha_size = usize::try_from(header.alpha_size_bytes).unwrap();
     let total_size = color_size + alpha_size;
@@ -80,15 +81,15 @@ fn image_data<'a>(input: &'a [u8], header: &Header) -> IResult<&'a [u8], ImageDa
         return Err(Err::Incomplete(Needed::new(total_size)));
     }
 
-    let color = input[0..color_size].to_vec();
-    let alpha = input[color_size..total_size].to_vec();
+    let color = &input[0..color_size];
+    let alpha = &input[color_size..total_size];
     Ok((&input[total_size..], ImageData { color, alpha }))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ImgFile {
-    pub header: Header,
-    pub image_data: ImageData,
+pub struct ImgFile<'a> {
+    pub header: ImgHeader,
+    pub image_data: ImageData<'a>,
 }
 
 pub fn parse_img(data: &[u8]) -> ImgFile {

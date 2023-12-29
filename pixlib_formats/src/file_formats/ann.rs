@@ -1,7 +1,8 @@
+use codepage_strings::ConvertError;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take},
-    combinator::{flat_map, map, map_res},
+    combinator::{cond, flat_map, map, map_res},
     error::{Error, ErrorKind},
     multi::{count, length_data},
     number::complete::{le_i16, le_u16, le_u32, le_u8},
@@ -9,45 +10,45 @@ use nom::{
     Err, IResult, Needed,
 };
 
-use super::{from_cp1250, ColorFormat, CompressionType, ImageData};
+use super::{ColorFormat, CompressionType, DecodedStr, ImageData};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Header {
+pub struct AnnHeader {
     pub sprite_count: u16,
     pub color_format: ColorFormat,
     pub sequence_count: u16,
-    pub short_description: String,
+    pub short_description: DecodedStr,
     pub frames_per_second: u32,
     pub unknown2: u32,
     pub opacity: u8,
     pub unknown3: u32,
     pub unknown4: u32,
     pub unknown5: u32,
-    pub signature: String,
+    pub signature: DecodedStr,
     pub unknown6: u32,
 }
 
-pub fn header(input: &[u8]) -> IResult<&[u8], Header> {
+pub fn header(input: &[u8]) -> IResult<&[u8], AnnHeader> {
     map(
         tuple((
-            alt((tag::<&str, &[u8], _>("NVM\0"), tag("NVP\0"))),
+            alt((tag(b"NVM\0"), tag(b"NVP\0"))),
             le_u16,
+            map_res(le_u16, |bit_depth| ColorFormat::new(bit_depth.into())),
             le_u16,
-            le_u16,
-            take(13u8),
+            map_res(take(13u8), DecodedStr::from_bytes_null_terminated),
             le_u32,
             le_u32,
             le_u8,
             le_u32,
             le_u32,
             le_u32,
-            length_data(le_u32),
+            map_res(length_data(le_u32), DecodedStr::from_bytes_null_terminated),
             le_u32,
         )),
         |(
             _,
             sprite_count,
-            bit_depth,
+            color_format,
             sequence_count,
             short_description,
             frames_per_second,
@@ -59,18 +60,18 @@ pub fn header(input: &[u8]) -> IResult<&[u8], Header> {
             signature,
             unknown6,
         )| {
-            Header {
+            AnnHeader {
                 sprite_count,
-                color_format: ColorFormat::new(bit_depth as u32),
+                color_format,
                 sequence_count,
-                short_description: from_cp1250(short_description, true).unwrap(),
+                short_description,
                 frames_per_second,
                 unknown2,
                 opacity,
                 unknown3,
                 unknown4,
                 unknown5,
-                signature: from_cp1250(signature, false).unwrap(),
+                signature,
                 unknown6,
             }
         },
@@ -79,11 +80,11 @@ pub fn header(input: &[u8]) -> IResult<&[u8], Header> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SequenceHeader {
-    pub name: String,
+    pub name: DecodedStr,
     pub frame_count: u16,
     pub unknown1: u16,
     pub unknown2: u32,
-    pub loop_after: u32,
+    pub looping: LoopingSettings,
     pub unknown3: u32,
     pub unknown4: u32,
     pub unknown5: u16,
@@ -94,6 +95,22 @@ pub struct SequenceHeader {
     pub frame_to_sprite_mapping: Vec<u16>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+pub enum LoopingSettings {
+    LoopingAfter(u32),
+    NoLooping,
+}
+
+impl LoopingSettings {
+    fn new(value: u32) -> Self {
+        if value == 0 {
+            Self::NoLooping
+        } else {
+            Self::LoopingAfter(value)
+        }
+    }
+}
+
 pub fn sequence_header(input: &[u8]) -> IResult<&[u8], SequenceHeader> {
     flat_map(
         tuple((
@@ -101,7 +118,7 @@ pub fn sequence_header(input: &[u8]) -> IResult<&[u8], SequenceHeader> {
             le_u16,
             le_u16,
             le_u32,
-            le_u32,
+            map(le_u32, LoopingSettings::new),
             le_u32,
             le_u32,
             le_u16,
@@ -115,7 +132,7 @@ pub fn sequence_header(input: &[u8]) -> IResult<&[u8], SequenceHeader> {
             frame_count,
             unknown1,
             unknown2,
-            loop_after,
+            looping,
             unknown3,
             unknown4,
             unknown5,
@@ -124,22 +141,24 @@ pub fn sequence_header(input: &[u8]) -> IResult<&[u8], SequenceHeader> {
             unknown7,
             unknown8,
         )| {
-            map(
-                count(le_u16, frame_count as usize),
-                move |frame_to_sprite_mapping| SequenceHeader {
-                    name: from_cp1250(name, true).unwrap(),
-                    frame_count,
-                    unknown1,
-                    unknown2,
-                    loop_after,
-                    unknown3,
-                    unknown4,
-                    unknown5,
-                    opacity,
-                    unknown6,
-                    unknown7,
-                    unknown8,
-                    frame_to_sprite_mapping,
+            map_res(
+                count(le_u16, frame_count.into()),
+                move |frame_to_sprite_mapping| {
+                    Result::<_, ConvertError>::Ok(SequenceHeader {
+                        name: DecodedStr::from_bytes_null_terminated(name)?,
+                        frame_count,
+                        unknown1,
+                        unknown2,
+                        looping,
+                        unknown3,
+                        unknown4,
+                        unknown5,
+                        opacity,
+                        unknown6,
+                        unknown7,
+                        unknown8,
+                        frame_to_sprite_mapping,
+                    })
                 },
             )
         },
@@ -147,7 +166,7 @@ pub fn sequence_header(input: &[u8]) -> IResult<&[u8], SequenceHeader> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Frame {
+pub struct FrameHeader {
     pub unknown1: u32,
     pub unknown2: u32,
     pub x_position_px: i16,
@@ -158,33 +177,41 @@ pub struct Frame {
     pub opacity: u8,
     pub unknown5: u8,
     pub unknown6: u32,
-    pub name: String,
-    pub random_sfx_list: Option<Vec<String>>,
+    pub name: DecodedStr,
+    pub random_sfx_list: Option<SeparatedDecodedStr>,
 }
 
-pub fn random_sfx_list(
-    random_sfx_seed: u32,
-) -> impl Fn(&[u8]) -> IResult<&[u8], Option<Vec<String>>> {
-    move |input| {
-        if random_sfx_seed > 0 {
-            map(length_data(le_u32), |random_sfx_list: &[u8]| {
-                Some(
-                    random_sfx_list
-                        .split(|c| *c == 0)
-                        .next()
-                        .unwrap()
-                        .split(|c| *c == b';')
-                        .map(|sfx_name| from_cp1250(sfx_name, false).unwrap())
-                        .collect(),
-                )
-            })(input)
-        } else {
-            Ok((input, None)) // TODO: not that simple (sometimes it's present despite seed being 0)
-        }
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SeparatedDecodedStr(Vec<String>, Option<Vec<u8>>);
+
+impl SeparatedDecodedStr {
+    pub fn rest(&self) -> &Option<Vec<u8>> {
+        &self.1
+    }
+
+    pub fn with_rest(self, rest: Option<Vec<u8>>) -> Self {
+        Self(self.0, rest)
+    }
+
+    pub fn is_totally_empty(&self) -> bool {
+        self.0.is_empty() && self.1.as_ref().map(Vec::<u8>::is_empty).unwrap_or(true)
     }
 }
 
-pub fn frame(input: &[u8]) -> IResult<&[u8], Frame> {
+impl DecodedStr {
+    pub fn into_separated(self, separator: char) -> SeparatedDecodedStr {
+        let DecodedStr(value, rest) = self;
+        SeparatedDecodedStr(value.split(separator).map(str::to_owned).collect(), rest)
+    }
+}
+
+impl AsRef<[String]> for SeparatedDecodedStr {
+    fn as_ref(&self) -> &[String] {
+        &self.0
+    }
+}
+
+fn frame(input: &[u8]) -> IResult<&[u8], FrameHeader> {
     flat_map(
         tuple((
             le_u32,
@@ -212,22 +239,32 @@ pub fn frame(input: &[u8]) -> IResult<&[u8], Frame> {
             unknown6,
             name,
         )| {
-            map(random_sfx_list(random_sfx_seed), move |random_sfx_list| {
-                Frame {
-                    unknown1,
-                    unknown2,
-                    x_position_px,
-                    y_position_px,
-                    unknown3,
-                    random_sfx_seed,
-                    unknown4,
-                    opacity,
-                    unknown5,
-                    unknown6,
-                    name: from_cp1250(name, true).unwrap(),
-                    random_sfx_list,
-                }
-            })
+            let has_random_sfx_list = random_sfx_seed > 0; // TODO: not that simple (sometimes it's present despite seed being 0)
+            map_res(
+                cond(
+                    has_random_sfx_list,
+                    map(
+                        map_res(length_data(le_u32), DecodedStr::from_bytes_null_terminated),
+                        move |random_sfx_list| random_sfx_list.into_separated(';'),
+                    ),
+                ),
+                move |random_sfx_list| {
+                    Result::<_, ConvertError>::Ok(FrameHeader {
+                        unknown1,
+                        unknown2,
+                        x_position_px,
+                        y_position_px,
+                        unknown3,
+                        random_sfx_seed,
+                        unknown4,
+                        opacity,
+                        unknown5,
+                        unknown6,
+                        name: DecodedStr::from_bytes_null_terminated(name)?,
+                        random_sfx_list,
+                    })
+                },
+            )
         },
     )(input)
 }
@@ -245,7 +282,7 @@ pub struct SpriteHeader {
     pub unknown3: u32,
     pub unknown4: u16,
     pub alpha_size_bytes: u32,
-    pub name: String,
+    pub name: DecodedStr,
 }
 
 pub fn sprite_header(input: &[u8]) -> IResult<&[u8], SpriteHeader> {
@@ -262,7 +299,7 @@ pub fn sprite_header(input: &[u8]) -> IResult<&[u8], SpriteHeader> {
             le_u32,
             le_u16,
             le_u32,
-            take(20u8),
+            map_res(take(20u8), DecodedStr::from_bytes_null_terminated),
         )),
         |(
             width_px,
@@ -290,7 +327,7 @@ pub fn sprite_header(input: &[u8]) -> IResult<&[u8], SpriteHeader> {
                 unknown3,
                 unknown4,
                 alpha_size_bytes,
-                name: from_cp1250(name, true).unwrap(),
+                name,
             }
         },
     )(input)
@@ -308,7 +345,7 @@ fn compression_type(input: &[u8]) -> IResult<&[u8], CompressionType> {
     })(input)
 }
 
-fn image_data<'a>(input: &'a [u8], header: &SpriteHeader) -> IResult<&'a [u8], ImageData> {
+fn image_data<'a>(input: &'a [u8], header: &SpriteHeader) -> IResult<&'a [u8], ImageData<'a>> {
     let color_size = usize::try_from(header.color_size_bytes).unwrap();
     let alpha_size = usize::try_from(header.alpha_size_bytes).unwrap();
     let total_size = color_size + alpha_size;
@@ -316,25 +353,25 @@ fn image_data<'a>(input: &'a [u8], header: &SpriteHeader) -> IResult<&'a [u8], I
         return Err(Err::Incomplete(Needed::new(total_size)));
     }
 
-    let color = input[0..color_size].to_vec();
-    let alpha = input[color_size..total_size].to_vec();
+    let color = &input[0..color_size];
+    let alpha = &input[color_size..total_size];
     Ok((&input[total_size..], ImageData { color, alpha }))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Sequence {
     pub header: SequenceHeader,
-    pub frames: Vec<Frame>,
+    pub frames: Vec<FrameHeader>,
 }
 
-pub fn sequences<'a>(mut input: &'a [u8], header: &Header) -> IResult<&'a [u8], Vec<Sequence>> {
-    let mut sequences = Vec::with_capacity(header.sequence_count as usize);
+pub fn sequences<'a>(mut input: &'a [u8], header: &AnnHeader) -> IResult<&'a [u8], Vec<Sequence>> {
+    let mut sequences = Vec::with_capacity(header.sequence_count.into());
     for _i in 0..header.sequence_count {
         let Ok((new_input, sequence_header)) = sequence_header(input) else {
             panic!();
         };
         input = new_input;
-        let mut frames = Vec::with_capacity(sequence_header.frame_count as usize);
+        let mut frames = Vec::with_capacity(sequence_header.frame_count.into());
         for _j in 0..sequence_header.frame_count {
             let Ok((new_input, frame)) = frame(input) else {
                 panic!();
@@ -351,14 +388,14 @@ pub fn sequences<'a>(mut input: &'a [u8], header: &Header) -> IResult<&'a [u8], 
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Sprite {
+pub struct Sprite<'a> {
     pub header: SpriteHeader,
-    pub image_data: ImageData,
+    pub image_data: ImageData<'a>,
 }
 
-pub fn sprites<'a>(mut input: &'a [u8], header: &Header) -> IResult<&'a [u8], Vec<Sprite>> {
-    let mut sprite_headers = Vec::with_capacity(header.sprite_count as usize);
-    let mut data_for_sprite = Vec::with_capacity(header.sprite_count as usize);
+pub fn sprites<'a>(mut input: &'a [u8], header: &AnnHeader) -> IResult<&'a [u8], Vec<Sprite<'a>>> {
+    let mut sprite_headers = Vec::with_capacity(header.sprite_count.into());
+    let mut data_for_sprite = Vec::with_capacity(header.sprite_count.into());
     for _ in 0..header.sprite_count {
         let Ok((new_input, sprite_header)) = sprite_header(input) else {
             panic!();
@@ -387,10 +424,10 @@ pub fn sprites<'a>(mut input: &'a [u8], header: &Header) -> IResult<&'a [u8], Ve
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AnnFile {
-    pub header: Header,
+pub struct AnnFile<'a> {
+    pub header: AnnHeader,
     pub sequences: Vec<Sequence>,
-    pub sprites: Vec<Sprite>,
+    pub sprites: Vec<Sprite<'a>>,
 }
 
 pub fn parse_ann(data: &[u8]) -> AnnFile {

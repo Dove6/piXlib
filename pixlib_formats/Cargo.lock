@@ -116,6 +116,7 @@ name = "pixlib_formats"
 version = "0.1.0"
 dependencies = [
  "codepage-strings",
+ "lazy_static",
  "nom",
 ]
 

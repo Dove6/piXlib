@@ -1,5 +1,7 @@
 use core::panic;
 
+use super::DecompressionError;
+
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum Codeword<'a> {
     Literals {
@@ -34,15 +36,6 @@ struct CodewordIterator<'a> {
     index: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub enum DecompressionError {
-    NotEnoughBytes {
-        actual_length: usize,
-        required_length: Option<usize>,
-    },
-    UnknownCodeword,
-}
-
 impl<'a> CodewordIterator<'a> {
     pub fn new(data: &'a [u8]) -> Self {
         CodewordIterator { data, index: 0 }
@@ -62,6 +55,20 @@ impl<'a> CodewordIterator<'a> {
 
     fn current_byte(&self) -> u8 {
         self.data[self.index]
+    }
+
+    fn create_not_enough_bytes_error(
+        &self,
+        actual_length: usize,
+        required_length: Option<usize>,
+    ) -> DecompressionError {
+        DecompressionError {
+            position: self.index,
+            kind: super::DecompressionErrorKind::NotEnoughBytes {
+                actual_length,
+                required_length,
+            },
+        }
     }
 }
 
@@ -84,34 +91,31 @@ impl<'a> Iterator for CodewordIterator<'a> {
             0b0000 => {
                 let length_bias: usize = 3;
 
-                let mut length = (self.current_byte() & 0b1111) as usize;
+                let mut length: usize = (self.current_byte() & 0b1111).into();
                 if length == 0 {
                     length += 15;
                     if !self.try_increment_index() {
-                        return Some(Err(DecompressionError::NotEnoughBytes {
-                            actual_length: 1,
-                            required_length: None,
-                        }));
+                        return Some(Err(self.create_not_enough_bytes_error(1, None)));
                     }
                     while self.current_byte() == 0 {
                         length += 255;
                         if !self.try_increment_index() {
-                            return Some(Err(DecompressionError::NotEnoughBytes {
-                                actual_length: self.index - original_index,
-                                required_length: None,
-                            }));
+                            return Some(Err(self.create_not_enough_bytes_error(
+                                self.index - original_index,
+                                None,
+                            )));
                         }
                     }
-                    length += self.current_byte() as usize;
+                    length += Into::<usize>::into(self.current_byte());
                 }
 
                 let length = length + length_bias;
 
                 if !self.try_increase_index(length) {
-                    return Some(Err(DecompressionError::NotEnoughBytes {
-                        actual_length: self.data.len() - self.index,
-                        required_length: Some(length),
-                    }));
+                    return Some(Err(self.create_not_enough_bytes_error(
+                        self.data.len() - self.index,
+                        Some(length),
+                    )));
                 }
                 self.index += 1;
                 let literals = &self.data[self.index - length..self.index];
@@ -125,42 +129,33 @@ impl<'a> Iterator for CodewordIterator<'a> {
                 let length_bias: usize = 2;
                 let distance_bias: usize = 16384;
 
-                let distance = (((self.current_byte() as u16) & 0b00001000) << 11) as usize;
-                let mut length = (self.current_byte() & 0b111) as usize;
+                let distance = Into::<usize>::into(self.current_byte() & 0b00001000) << 11;
+                let mut length: usize = (self.current_byte() & 0b111).into();
                 if length == 0 {
                     length += 7;
                     if !self.try_increment_index() {
-                        return Some(Err(DecompressionError::NotEnoughBytes {
-                            actual_length: 1,
-                            required_length: None,
-                        }));
+                        return Some(Err(self.create_not_enough_bytes_error(1, None)));
                     }
                     while self.current_byte() == 0 {
                         length += 255;
                         if !self.try_increment_index() {
-                            return Some(Err(DecompressionError::NotEnoughBytes {
-                                actual_length: self.index - original_index,
-                                required_length: None,
-                            }));
+                            return Some(Err(self.create_not_enough_bytes_error(
+                                self.index - original_index,
+                                None,
+                            )));
                         }
                     }
-                    length += self.current_byte() as usize;
+                    length += Into::<usize>::into(self.current_byte());
                 }
                 if !self.try_increment_index() {
-                    return Some(Err(DecompressionError::NotEnoughBytes {
-                        actual_length: 0,
-                        required_length: Some(2),
-                    }));
+                    return Some(Err(self.create_not_enough_bytes_error(0, Some(2))));
                 }
-                let distance = distance + (self.current_byte() >> 2) as usize;
-                let following_literals_length = (self.current_byte() & 0b00000011) as usize;
+                let distance: usize = distance + (Into::<usize>::into(self.current_byte()) >> 2);
+                let following_literals_length: usize = (self.current_byte() & 0b00000011).into();
                 if !self.try_increment_index() {
-                    return Some(Err(DecompressionError::NotEnoughBytes {
-                        actual_length: 1,
-                        required_length: Some(2),
-                    }));
+                    return Some(Err(self.create_not_enough_bytes_error(1, Some(2))));
                 }
-                let distance = distance + ((self.current_byte() as u16) << 6) as usize;
+                let distance: usize = distance + (Into::<usize>::into(self.current_byte()) << 6);
 
                 if length == 1 && distance == 0 && following_literals_length == 0 {
                     self.index += 1;
@@ -170,10 +165,10 @@ impl<'a> Iterator for CodewordIterator<'a> {
                     let distance = distance + distance_bias;
 
                     if !self.try_increase_index(following_literals_length) {
-                        return Some(Err(DecompressionError::NotEnoughBytes {
-                            actual_length: self.data.len() - self.index,
-                            required_length: Some(following_literals_length),
-                        }));
+                        return Some(Err(self.create_not_enough_bytes_error(
+                            self.data.len() - self.index,
+                            Some(following_literals_length),
+                        )));
                     }
                     self.index += 1;
                     let following_literals =
@@ -191,50 +186,41 @@ impl<'a> Iterator for CodewordIterator<'a> {
                 let length_bias: usize = 2;
                 let distance_bias: usize = 1;
 
-                let mut length = (self.current_byte() & 0b11111) as usize;
+                let mut length: usize = (self.current_byte() & 0b11111).into();
                 if length == 0 {
                     length += 31;
                     if !self.try_increment_index() {
-                        return Some(Err(DecompressionError::NotEnoughBytes {
-                            actual_length: 1,
-                            required_length: None,
-                        }));
+                        return Some(Err(self.create_not_enough_bytes_error(1, None)));
                     }
                     while self.current_byte() == 0 {
                         length += 255;
                         if !self.try_increment_index() {
-                            return Some(Err(DecompressionError::NotEnoughBytes {
-                                actual_length: self.index - original_index,
-                                required_length: None,
-                            }));
+                            return Some(Err(self.create_not_enough_bytes_error(
+                                self.index - original_index,
+                                None,
+                            )));
                         }
                     }
-                    length += self.current_byte() as usize;
+                    length += Into::<usize>::into(self.current_byte());
                 }
                 if !self.try_increment_index() {
-                    return Some(Err(DecompressionError::NotEnoughBytes {
-                        actual_length: 0,
-                        required_length: Some(2),
-                    }));
+                    return Some(Err(self.create_not_enough_bytes_error(0, Some(2))));
                 }
-                let distance = ((self.current_byte() & 0b11111100) >> 2) as usize;
-                let following_literals_length = (self.current_byte() & 0b00000011) as usize;
+                let distance = Into::<usize>::into(self.current_byte() & 0b11111100) >> 2;
+                let following_literals_length: usize = (self.current_byte() & 0b00000011).into();
                 if !self.try_increment_index() {
-                    return Some(Err(DecompressionError::NotEnoughBytes {
-                        actual_length: 1,
-                        required_length: Some(2),
-                    }));
+                    return Some(Err(self.create_not_enough_bytes_error(1, Some(2))));
                 }
-                let distance = distance + ((self.current_byte() as u16) << 6) as usize;
+                let distance = distance + (Into::<usize>::into(self.current_byte()) << 6);
 
                 let length = length + length_bias;
                 let distance = distance + distance_bias;
 
                 if !self.try_increase_index(following_literals_length) {
-                    return Some(Err(DecompressionError::NotEnoughBytes {
-                        actual_length: self.data.len() - self.index,
-                        required_length: Some(following_literals_length),
-                    }));
+                    return Some(Err(self.create_not_enough_bytes_error(
+                        self.data.len() - self.index,
+                        Some(following_literals_length),
+                    )));
                 }
                 self.index += 1;
                 let following_literals =
@@ -251,25 +237,22 @@ impl<'a> Iterator for CodewordIterator<'a> {
                 let length_bias: usize = 1;
                 let distance_bias: usize = 1;
 
-                let length = ((self.current_byte() & 0b11100000) >> 5) as usize;
-                let distance = ((self.current_byte() & 0b00011100) >> 2) as usize;
-                let following_literals_length = (self.current_byte() & 0b00000011) as usize;
+                let length = Into::<usize>::into(self.current_byte() & 0b11100000) >> 5;
+                let distance = Into::<usize>::into(self.current_byte() & 0b00011100) >> 2;
+                let following_literals_length: usize = (self.current_byte() & 0b00000011).into();
                 if !self.try_increment_index() {
-                    return Some(Err(DecompressionError::NotEnoughBytes {
-                        actual_length: 1,
-                        required_length: Some(2),
-                    }));
+                    return Some(Err(self.create_not_enough_bytes_error(1, Some(2))));
                 }
-                let distance = distance + ((self.current_byte() as u16) << 3) as usize;
+                let distance = distance + (Into::<usize>::into(self.current_byte()) << 3);
 
                 let length = length + length_bias;
                 let distance = distance + distance_bias;
 
                 if !self.try_increase_index(following_literals_length) {
-                    return Some(Err(DecompressionError::NotEnoughBytes {
-                        actual_length: self.data.len() - self.index,
-                        required_length: Some(following_literals_length),
-                    }));
+                    return Some(Err(self.create_not_enough_bytes_error(
+                        self.data.len() - self.index,
+                        Some(following_literals_length),
+                    )));
                 }
                 self.index += 1;
                 let following_literals =
@@ -282,7 +265,10 @@ impl<'a> Iterator for CodewordIterator<'a> {
                     following_literals,
                 }))
             }
-            _ => Some(Err(DecompressionError::UnknownCodeword)),
+            _ => Some(Err(DecompressionError::new(
+                self.index,
+                super::DecompressionErrorKind::UnknownCodeword,
+            ))),
         }
     }
 }
@@ -293,12 +279,15 @@ fn try_parse_initial_literal(
     if get_high_nibble(compressed_data[0]) == 0b0000 {
         return None;
     }
-    let literal_length = compressed_data[0] as usize - 17;
+    let literal_length = Into::<usize>::into(compressed_data[0]) - 17;
     if literal_length >= compressed_data.len() {
-        return Some(Err(DecompressionError::NotEnoughBytes {
-            actual_length: compressed_data.len() - 1,
-            required_length: Some(literal_length),
-        }));
+        return Some(Err(DecompressionError::new(
+            0,
+            super::DecompressionErrorKind::NotEnoughBytes {
+                actual_length: compressed_data.len() - 1,
+                required_length: Some(literal_length),
+            },
+        )));
     }
     Some(Ok(Codeword::Literals {
         detailed_type: LiteralsType::Initial,
@@ -307,8 +296,12 @@ fn try_parse_initial_literal(
 }
 
 pub fn decode_lzw2(data: &[u8]) -> Vec<u8> {
-    let decompressed_size = u32::from_le_bytes(data[..4].try_into().unwrap()) as usize;
-    let compressed_size = u32::from_le_bytes(data[4..8].try_into().unwrap()) as usize;
+    let decompressed_size: usize = u32::from_le_bytes(data[..4].try_into().unwrap())
+        .try_into()
+        .unwrap();
+    let compressed_size: usize = u32::from_le_bytes(data[4..8].try_into().unwrap())
+        .try_into()
+        .unwrap();
     assert_eq!(compressed_size + 8, data.len());
 
     let compressed_data = &data[8..];
