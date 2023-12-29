@@ -22,7 +22,7 @@ use opticaldisc::iso::IsoFs;
 use pixlib_formats::{
     compression_algorithms::{lzw2::decode_lzw2, rle::decode_rle},
     file_formats::{
-        ann::{self, parse_ann, AnnFile},
+        ann::{self, parse_ann, AnnFile, LoopingSettings},
         arr::{parse_arr, ArrFile},
         img::{parse_img, ImgFile},
         ColorFormat, CompressionType, ImageData,
@@ -78,7 +78,7 @@ impl Default for AnimationState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
-enum PlaybackState {
+pub enum PlaybackState {
     Forward,
     Backward,
     ForwardPaused,
@@ -101,18 +101,18 @@ impl AnimationSequenceComponent {
             .sequences
             .iter()
             .map(|sequence: &ann::Sequence| AnimationSequence {
-                name: sequence.header.name.clone(),
+                name: sequence.header.name.0.clone(),
                 opacity: sequence.header.opacity,
-                looping_after: sequence.header.loop_after as usize,
+                looping: sequence.header.looping,
                 frames: sequence
                     .frames
                     .iter()
                     .zip(&sequence.header.frame_to_sprite_mapping)
                     .map(|(frame, sprite_idx)| FrameDefinition {
-                        name: frame.name.clone(),
-                        offset_px: (frame.x_position_px as u32, frame.y_position_px as u32),
+                        name: frame.name.0.clone(),
+                        offset_px: (frame.x_position_px.into(), frame.y_position_px.into()),
                         opacity: frame.opacity,
-                        sprite_idx: *sprite_idx as usize,
+                        sprite_idx: (*sprite_idx).into(),
                     })
                     .collect(),
             })
@@ -121,14 +121,14 @@ impl AnimationSequenceComponent {
             .sprites
             .iter()
             .map(|sprite| SpriteDefinition {
-                name: sprite.header.name.clone(),
+                name: sprite.header.name.0.clone(),
                 size_px: (
-                    sprite.header.width_px as u32,
-                    sprite.header.height_px as u32,
+                    sprite.header.width_px.into(),
+                    sprite.header.height_px.into(),
                 ),
                 offset_px: (
-                    sprite.header.x_position_px as u32,
-                    sprite.header.y_position_px as u32,
+                    sprite.header.x_position_px.into(),
+                    sprite.header.y_position_px.into(),
                 ),
             })
             .collect();
@@ -140,14 +140,14 @@ impl AnimationSequenceComponent {
 struct AnimationSequence {
     pub name: String,
     pub opacity: u8,
-    pub looping_after: usize,
+    pub looping: LoopingSettings,
     pub frames: Vec<FrameDefinition>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct FrameDefinition {
     pub name: String,
-    pub offset_px: (u32, u32),
+    pub offset_px: (i32, i32),
     pub opacity: u8,
     pub sprite_idx: usize,
 }
@@ -156,7 +156,7 @@ struct FrameDefinition {
 struct SpriteDefinition {
     pub name: String,
     pub size_px: (u32, u32),
-    pub offset_px: (u32, u32),
+    pub offset_px: (i32, i32),
 }
 
 fn setup(
@@ -169,7 +169,18 @@ fn setup(
         ..default()
     });
 
-    match parse_file() {
+    let Arguments {
+        path_to_iso,
+        path_to_file,
+        output_path,
+    } = get_arguments();
+
+    let iso_file = File::open(path_to_iso).unwrap();
+    let mut iso = read_iso(&iso_file);
+
+    let buffer = read_file_from_iso(&mut iso, &path_to_file, output_path.as_deref());
+
+    match parse_file(&buffer, &path_to_file) {
         AmFile::Img(img_file) => {
             let transform = Transform::from_xyz(
                 img_file.header.x_position_px as f32,
@@ -205,8 +216,8 @@ fn setup(
                 let image = image_data_to_image(
                     &sprite.image_data,
                     (
-                        sprite.header.width_px as u32,
-                        sprite.header.height_px as u32,
+                        sprite.header.width_px.into(),
+                        sprite.header.height_px.into(),
                     ),
                     ann_file.header.color_format,
                     sprite.header.compression_type,
@@ -287,7 +298,7 @@ fn add_tuples<T: Add>(
     (a.0 + b.0, a.1 + b.1)
 }
 
-fn get_anchor(offset: (u32, u32), size: (u32, u32)) -> (f32, f32) {
+fn get_anchor(offset: (i32, i32), size: (u32, u32)) -> (f32, f32) {
     (
         offset.0 as f32 / size.0 as f32,
         offset.1 as f32 / size.1 as f32,
@@ -312,13 +323,13 @@ fn animate_sprite(
         match state.playing_state {
             PlaybackState::Forward if timer.just_finished() => {
                 let mut frame_limit = sequence.frames.len();
-                if sequence.looping_after == 0 {
+                if let LoopingSettings::LoopingAfter(looping_after) = sequence.looping {
+                    frame_limit = frame_limit.min(looping_after);
+                } else {
                     // if state.frame_idx + 1 == frame_limit {
                     //     state.playing_state = PlaybackState::Stopped;
                     //     return;
                     // }
-                } else {
-                    frame_limit = frame_limit.min(sequence.looping_after);
                 }
                 state.frame_idx = (state.frame_idx + 1) % frame_limit;
                 let frame = &sequence.frames[state.frame_idx];
@@ -345,18 +356,26 @@ impl UpdatableAnchor for TextureAtlasSprite {
     }
 }
 
-fn parse_file() -> AmFile {
+struct Arguments {
+    path_to_iso: String,
+    path_to_file: String,
+    output_path: Option<String>,
+}
+
+fn get_arguments() -> Arguments {
     let args: Vec<_> = std::env::args().collect();
     if args.len() < 3 {
         panic!("Usage: iso_browser path_to_iso path_to_file_on_iso [output_path]");
     }
     let path_to_iso = args[1].clone();
-    let path_to_file = args[2].to_ascii_uppercase();
-    let output_path = args.get(3);
+    let path_to_file = args[2].to_ascii_uppercase().replace('\\', "/");
+    let output_path = args.get(3).map(|s| s.to_owned());
 
-    let iso_file = File::open(path_to_iso).unwrap();
-    let mut iso = read_iso(&iso_file);
-    parse_file_from_iso(&mut iso, &path_to_file, output_path.map(|v| v.as_ref()))
+    Arguments {
+        path_to_iso,
+        path_to_file,
+        output_path,
+    }
 }
 
 fn image_data_to_image(
@@ -368,17 +387,17 @@ fn image_data_to_image(
 ) -> Image {
     let color_data = match compression_type {
         CompressionType::None => image_data.color.to_owned(),
-        CompressionType::Rle => decode_rle(&image_data.color, 2),
-        CompressionType::Lzw2 => decode_lzw2(&image_data.color),
-        CompressionType::RleInLzw2 => decode_rle(&decode_lzw2(&image_data.color), 2),
+        CompressionType::Rle => decode_rle(image_data.color, 2),
+        CompressionType::Lzw2 => decode_lzw2(image_data.color),
+        CompressionType::RleInLzw2 => decode_rle(&decode_lzw2(image_data.color), 2),
         _ => panic!(),
     };
     let alpha_data = match compression_type {
         _ if !has_alpha => vec![],
         CompressionType::None => image_data.alpha.to_owned(),
-        CompressionType::Rle => decode_rle(&image_data.alpha, 1),
-        CompressionType::Lzw2 | CompressionType::Jpeg => decode_lzw2(&image_data.alpha),
-        CompressionType::RleInLzw2 => decode_rle(&decode_lzw2(&image_data.alpha), 1),
+        CompressionType::Rle => decode_rle(image_data.alpha, 1),
+        CompressionType::Lzw2 | CompressionType::Jpeg => decode_lzw2(image_data.alpha),
+        CompressionType::RleInLzw2 => decode_rle(&decode_lzw2(image_data.alpha), 1),
     };
     let color_converter = match color_format {
         ColorFormat::Rgb565 => rgb565_to_rgb888,
@@ -409,9 +428,9 @@ fn rgb565_to_rgb888(rgb565: [u8; 2]) -> [u8; 3] {
     let g6 = (rgb565 >> 5) & 0x3f;
     let b5 = rgb565 & 0x1f;
     [
-        (r5 * 255 / 31) as u8,
-        (g6 * 255 / 63) as u8,
-        (b5 * 255 / 31) as u8,
+        (r5 * 255 / 31).try_into().unwrap(),
+        (g6 * 255 / 63).try_into().unwrap(),
+        (b5 * 255 / 31).try_into().unwrap(),
     ]
 }
 
@@ -421,9 +440,9 @@ fn rgb555_to_rgb888(rgb555: [u8; 2]) -> [u8; 3] {
     let g5 = (rgb555 >> 5) & 0x1f;
     let b5 = rgb555 & 0x1f;
     [
-        (r5 * 255 / 31) as u8,
-        (g5 * 255 / 31) as u8,
-        (b5 * 255 / 31) as u8,
+        (r5 * 255 / 31).try_into().unwrap(),
+        (g5 * 255 / 31).try_into().unwrap(),
+        (b5 * 255 / 31).try_into().unwrap(),
     ]
 }
 
@@ -442,11 +461,11 @@ fn read_iso(iso_file: &File) -> IsoFs<&File> {
     iso
 }
 
-fn parse_file_from_iso(
+fn read_file_from_iso(
     iso: &mut IsoFs<&File>,
     filename: &str,
     output_filename: Option<&str>,
-) -> AmFile {
+) -> Vec<u8> {
     let mut buffer = Vec::<u8>::new();
     let bytes_read = iso
         .open_file(filename)
@@ -459,6 +478,10 @@ fn parse_file_from_iso(
         fs::write(output_path, &buffer).expect("Could not write file");
     }
 
+    buffer
+}
+
+fn parse_file<'a>(contents: &'a [u8], filename: &str) -> AmFile<'a> {
     let extension = filename
         .split('/')
         .last()
@@ -468,8 +491,8 @@ fn parse_file_from_iso(
         .unwrap();
 
     match extension {
-        "ANN" => AmFile::Ann(parse_ann(&buffer)),
-        "ARR" => AmFile::Arr(parse_arr(&buffer)),
+        "ANN" => AmFile::Ann(parse_ann(contents)),
+        "ARR" => AmFile::Arr(parse_arr(contents)),
         "CLASS" | "CNV" | "DEF" => {
             println!("Detected script file.");
             AmFile::None
@@ -486,7 +509,7 @@ fn parse_file_from_iso(
             println!("Detected font file.");
             AmFile::None
         }
-        "IMG" => AmFile::Img(parse_img(&buffer)),
+        "IMG" => AmFile::Img(parse_img(contents)),
         "INI" => {
             println!("Detected text configuration file.");
             AmFile::None
@@ -510,9 +533,9 @@ fn parse_file_from_iso(
     }
 }
 
-enum AmFile {
-    Ann(AnnFile),
+enum AmFile<'a> {
+    Ann(AnnFile<'a>),
     Arr(ArrFile),
-    Img(ImgFile),
+    Img(ImgFile<'a>),
     None,
 }
