@@ -2773,7 +2773,7 @@ dependencies = [
 [[package]]
 name = "pixlib_formats"
 version = "0.1.0"
-source = "git+https://github.com/Dove6/piXlib-formats.git?rev=a7ae7a58fcffefd39af40bc8dc9221ae4725bcbb#a7ae7a58fcffefd39af40bc8dc9221ae4725bcbb"
+source = "git+ssh://github.com/Dove6/piXlib-formats.git?rev=a7ae7a58fcffefd39af40bc8dc9221ae4725bcbb#a7ae7a58fcffefd39af40bc8dc9221ae4725bcbb"
 dependencies = [
  "codepage-strings",
  "lazy_static",

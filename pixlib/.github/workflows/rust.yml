@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+    - uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.FORMATS_DEPLOY_KEY }}
     - name: Build
       run: cargo build --verbose
     - name: Run tests
@@ -22,6 +25,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+    - uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.FORMATS_DEPLOY_KEY }}
     - name: Check formatting
       run: cargo fmt --check
     - name: Check code quality
