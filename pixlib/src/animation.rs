@@ -1,0 +1,111 @@
+mod animation_sequence_component;
+mod animation_state;
+mod animation_timer;
+mod playback_state;
+
+pub use animation_sequence_component::AnimationDefinition;
+pub use animation_state::AnimationState;
+pub use animation_timer::AnimationTimer;
+pub use playback_state::PlaybackState;
+
+use bevy::{
+    asset::Assets,
+    ecs::{bundle::Bundle, system::ResMut},
+    math::{UVec2, Vec2},
+    prelude::default,
+    render::{render_resource::TextureFormat, texture::Image},
+    sprite::{
+        SpriteSheetBundle, TextureAtlas, TextureAtlasBuilder, TextureAtlasBuilderError,
+        TextureAtlasSprite,
+    },
+    time::{Timer, TimerMode},
+};
+use pixlib_formats::file_formats::ann::AnnFile;
+
+use crate::{
+    anchors::{add_tuples, get_anchor, UpdatableAnchor},
+    image::image_data_to_image,
+};
+
+use self::animation_sequence_component::SpriteDefinition;
+
+#[derive(Bundle, Clone)]
+pub struct AnimationBundle {
+    pub sprite_sheet: SpriteSheetBundle,
+    pub animation: AnimationDefinition,
+    pub state: AnimationState,
+    pub timer: AnimationTimer,
+}
+
+pub fn ann_file_to_animation_bundle(
+    ann_file: &AnnFile,
+    mut textures: &mut ResMut<Assets<Image>>,
+    texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
+) -> AnimationBundle {
+    let texture_atlas = texture_atlases.add(build_texture_atlas(ann_file, &mut textures).unwrap());
+    let mut sprite = TextureAtlasSprite::default();
+    let animation = AnimationDefinition::new(&ann_file);
+
+    let first_non_empty_sequence_idx = animation
+        .sequences
+        .iter()
+        .enumerate()
+        .find(|(_, s)| !s.frames.is_empty())
+        .map(|(i, _)| i);
+    if let Some(first_non_empty_sequence_idx) = first_non_empty_sequence_idx {
+        let frame = animation.sequences[first_non_empty_sequence_idx]
+            .frames
+            .first()
+            .unwrap();
+        let SpriteDefinition {
+            offset_px, size_px, ..
+        } = animation.sprites[frame.sprite_idx];
+        sprite.update_anchor(get_anchor(add_tuples(offset_px, frame.offset_px), size_px));
+    }
+
+    AnimationBundle {
+        sprite_sheet: SpriteSheetBundle {
+            sprite,
+            texture_atlas,
+            ..default()
+        },
+        animation,
+        state: AnimationState {
+            sequence_idx: first_non_empty_sequence_idx.unwrap_or(0),
+            ..default()
+        },
+        timer: AnimationTimer(Timer::from_seconds(
+            1.0f32 / ann_file.header.frames_per_second as f32,
+            TimerMode::Repeating,
+        )),
+    }
+}
+
+fn build_texture_atlas(
+    ann_file: &AnnFile,
+    mut textures: &mut ResMut<Assets<Image>>,
+) -> Result<TextureAtlas, TextureAtlasBuilderError> {
+    let mut texture_atlas_builder = TextureAtlasBuilder::default()
+        .format(TextureFormat::Rgba8UnormSrgb)
+        .auto_format_conversion(false)
+        .padding(UVec2::new(1, 1))
+        .max_size(Vec2::new(16384., 16384.));
+
+    for sprite in ann_file.sprites.iter() {
+        let image = image_data_to_image(
+            &sprite.image_data,
+            (
+                sprite.header.width_px.into(),
+                sprite.header.height_px.into(),
+            ),
+            ann_file.header.color_format,
+            sprite.header.compression_type,
+            sprite.header.alpha_size_bytes > 0,
+        );
+        let texture = textures.add(image);
+
+        texture_atlas_builder.add_texture(texture.id(), textures.get(texture.id()).unwrap());
+    }
+
+    texture_atlas_builder.finish(&mut textures)
+}
