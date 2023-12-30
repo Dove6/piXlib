@@ -39,12 +39,12 @@ pub struct AnimationBundle {
 
 pub fn ann_file_to_animation_bundle(
     ann_file: &AnnFile,
-    mut textures: &mut ResMut<Assets<Image>>,
+    textures: &mut ResMut<Assets<Image>>,
     texture_atlases: &mut ResMut<Assets<TextureAtlas>>,
 ) -> AnimationBundle {
-    let texture_atlas = texture_atlases.add(build_texture_atlas(ann_file, &mut textures).unwrap());
+    let texture_atlas = texture_atlases.add(build_texture_atlas(ann_file, textures).unwrap());
     let mut sprite = TextureAtlasSprite::default();
-    let animation = AnimationDefinition::new(&ann_file);
+    let animation = AnimationDefinition::new(ann_file);
 
     let first_non_empty_sequence_idx = animation
         .sequences
@@ -83,7 +83,7 @@ pub fn ann_file_to_animation_bundle(
 
 fn build_texture_atlas(
     ann_file: &AnnFile,
-    mut textures: &mut ResMut<Assets<Image>>,
+    textures: &mut ResMut<Assets<Image>>,
 ) -> Result<TextureAtlas, TextureAtlasBuilderError> {
     let mut texture_atlas_builder = TextureAtlasBuilder::default()
         .format(TextureFormat::Rgba8UnormSrgb)
@@ -107,5 +107,5 @@ fn build_texture_atlas(
         texture_atlas_builder.add_texture(texture.id(), textures.get(texture.id()).unwrap());
     }
 
-    texture_atlas_builder.finish(&mut textures)
+    texture_atlas_builder.finish(textures)
 }

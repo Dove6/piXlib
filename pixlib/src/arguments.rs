@@ -4,10 +4,18 @@ pub struct Arguments {
     pub output_path: Option<String>,
 }
 
-pub fn get_arguments() -> Result<Arguments, ()> {
+#[derive(Debug)]
+pub enum ArgumentsParsingError {
+    NotEnoughArguments { expected: usize, actual: usize },
+}
+
+pub fn get_arguments() -> Result<Arguments, ArgumentsParsingError> {
     let args: Vec<_> = std::env::args().collect();
     if args.len() < 3 {
-        return Err(());
+        return Err(ArgumentsParsingError::NotEnoughArguments {
+            expected: 2,
+            actual: args.len() - 1,
+        });
     }
     let path_to_iso = args[1].clone();
     let path_to_file = args[2].to_ascii_uppercase().replace('\\', "/");

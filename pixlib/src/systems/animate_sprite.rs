@@ -26,11 +26,11 @@ pub fn animate_sprite(
                 let mut frame_limit = sequence.frames.len();
                 if let LoopingSettings::LoopingAfter(looping_after) = sequence.looping {
                     frame_limit = frame_limit.min(looping_after);
-                } else if !debug_settings.force_animation_infinite_looping {
-                    if state.frame_idx + 1 == frame_limit {
-                        state.playing_state = PlaybackState::Stopped;
-                        return;
-                    }
+                } else if state.frame_idx + 1 == frame_limit
+                    && !debug_settings.force_animation_infinite_looping
+                {
+                    state.playing_state = PlaybackState::Stopped;
+                    return;
                 }
                 state.frame_idx = (state.frame_idx + 1) % frame_limit;
                 let frame = &sequence.frames[state.frame_idx];

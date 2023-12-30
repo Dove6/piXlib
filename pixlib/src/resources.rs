@@ -6,15 +6,7 @@ pub struct WindowConfiguration {
     pub title: &'static str,
 }
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct DebugSettings {
     pub force_animation_infinite_looping: bool,
-}
-
-impl Default for DebugSettings {
-    fn default() -> Self {
-        Self {
-            force_animation_infinite_looping: false,
-        }
-    }
 }

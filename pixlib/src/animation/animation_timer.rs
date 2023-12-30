@@ -1,4 +1,8 @@
-use bevy::{time::Timer, prelude::{DerefMut, Deref}, ecs::component::Component};
+use bevy::{
+    ecs::component::Component,
+    prelude::{Deref, DerefMut},
+    time::Timer,
+};
 
 #[derive(Component, Deref, DerefMut, Clone, Debug, PartialEq, Eq)]
 pub struct AnimationTimer(pub Timer);

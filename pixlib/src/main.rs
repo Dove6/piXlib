@@ -17,7 +17,7 @@ use resources::{DebugSettings, WindowConfiguration};
 use systems::{animate_sprite, draw_cursor, setup};
 
 const WINDOW_SIZE: (usize, usize) = (800, 600);
-const WINDOW_TITLE: &'static str = "piXlib";
+const WINDOW_TITLE: &str = "piXlib";
 
 fn main() {
     App::new()
@@ -41,7 +41,6 @@ fn main() {
         })
         .insert_resource(DebugSettings {
             force_animation_infinite_looping: true,
-            ..default()
         })
         .add_systems(Startup, setup)
         .add_systems(Update, draw_cursor)
