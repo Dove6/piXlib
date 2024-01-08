@@ -2768,6 +2768,7 @@ dependencies = [
  "codepage-strings",
  "opticaldisc",
  "pixlib_formats",
+ "regex",
 ]
 
 [[package]]

@@ -26,3 +26,4 @@ bevy = { version = "0.12", features = [
     "jpeg",
     "wav",
 ] }
+regex = "1.10"
