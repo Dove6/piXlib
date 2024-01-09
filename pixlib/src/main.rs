@@ -17,11 +17,11 @@ use bevy::{
     winit::WinitSettings,
     DefaultPlugins,
 };
-use resources::{DebugSettings, GamePaths, ProgramArguments, WindowConfiguration, ChosenScene};
+use resources::{ChosenScene, DebugSettings, GamePaths, ProgramArguments, WindowConfiguration};
 use states::AppState;
 use systems::{
-    animate_sprite, cleanup_root, draw_cursor, handle_dropped_iso, navigate_chooser, setup,
-    setup_chooser, setup_viewer,
+    animate_sprite, cleanup_root, detect_return_to_chooser, draw_cursor, handle_dropped_iso,
+    navigate_chooser, setup, setup_chooser, setup_viewer, update_chooser_labels,
 };
 
 const WINDOW_SIZE: (usize, usize) = (800, 600);
@@ -69,13 +69,14 @@ fn main() {
         .add_systems(OnEnter(AppState::SceneChooser), setup_chooser)
         .add_systems(
             Update,
-            (handle_dropped_iso, navigate_chooser).run_if(in_state(AppState::SceneChooser)),
+            (handle_dropped_iso, navigate_chooser, update_chooser_labels)
+                .run_if(in_state(AppState::SceneChooser)),
         )
         .add_systems(OnExit(AppState::SceneChooser), cleanup_root)
         .add_systems(OnEnter(AppState::SceneViewer), setup_viewer)
         .add_systems(
             Update,
-            animate_sprite.run_if(in_state(AppState::SceneViewer)),
+            (animate_sprite, detect_return_to_chooser).run_if(in_state(AppState::SceneViewer)),
         )
         .add_systems(OnExit(AppState::SceneViewer), cleanup_root)
         .run();

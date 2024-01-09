@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use bevy::{
     ecs::{
         component::Component,
@@ -17,19 +15,21 @@ use bevy::{
 
 use crate::{
     iso::read_game_definition,
-    resources::{ChosenScene, GamePaths, ProgramArguments, RootEntityToDespawn},
+    resources::{ChosenScene, GamePaths, ProgramArguments, RootEntityToDespawn, SceneDefinition},
 };
 
-const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SceneDefinition {
-    pub name: String,
-    pub path: PathBuf,
+#[derive(Component, Clone, Debug, PartialEq, Eq)]
+pub struct SceneListComponent {
+    pub scenes: Vec<SceneDefinition>,
+    pub current_index: usize,
 }
 
-#[derive(Component, Clone, Debug, PartialEq, Eq)]
-pub struct SceneListComponent(pub Vec<SceneDefinition>);
+#[derive(Component, Clone, Debug, PartialEq, Eq, Copy)]
+pub enum ButtonFunctionComponent {
+    DecrementIndex,
+    IncrementIndex,
+    Display { offset: usize },
+}
 
 pub fn setup_chooser(
     arguments: Res<ProgramArguments>,
@@ -54,8 +54,10 @@ pub fn setup_chooser(
             scenes.push(SceneDefinition {
                 name: object_name.clone(),
                 path: properties["PATH"].replace('\\', "/").into(),
+                background: if properties.contains_key("BACKGROUND") { Some(properties["BACKGROUND"].clone()) } else { None },
             });
         }
+        scenes.sort();
     }
     println!("scenes: {:?}", scenes);
 
@@ -71,28 +73,85 @@ pub fn setup_chooser(
                 },
                 ..default()
             },
-            SceneListComponent(scenes),
+            SceneListComponent {
+                scenes,
+                current_index: 0,
+            },
         ))
         .with_children(|parent| {
             parent
-                .spawn(ButtonBundle {
-                    style: Style {
-                        width: Val::Px(150.0),
-                        height: Val::Px(65.0),
-                        border: UiRect::all(Val::Px(5.0)),
-                        // horizontally center child text
-                        justify_content: JustifyContent::Center,
-                        // vertically center child text
-                        align_items: AlignItems::Center,
+                .spawn((
+                    ButtonBundle {
+                        style: Style {
+                            width: Val::Px(150.0),
+                            height: Val::Px(65.0),
+                            border: UiRect::all(Val::Px(5.0)),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        border_color: BorderColor(Color::BLACK),
                         ..default()
                     },
-                    border_color: BorderColor(Color::BLACK),
-                    background_color: NORMAL_BUTTON.into(),
-                    ..default()
-                })
+                    ButtonFunctionComponent::DecrementIndex,
+                ))
                 .with_children(|parent| {
                     parent.spawn(TextBundle::from_section(
-                        "Button",
+                        "<",
+                        TextStyle {
+                            font_size: 40.0,
+                            color: Color::rgb(0.9, 0.9, 0.9),
+                            ..default()
+                        },
+                    ));
+                });
+            parent
+                .spawn((
+                    ButtonBundle {
+                        style: Style {
+                            width: Val::Px(300.0),
+                            height: Val::Px(65.0),
+                            border: UiRect::all(Val::Px(5.0)),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        border_color: BorderColor(Color::BLACK),
+                        ..default()
+                    },
+                    ButtonFunctionComponent::Display { offset: 0 },
+                ))
+                .with_children(|parent| {
+                    parent.spawn(TextBundle::from_section(
+                        "(scene name)",
+                        TextStyle {
+                            font_size: 40.0,
+                            color: Color::rgb(0.9, 0.9, 0.9),
+                            ..default()
+                        },
+                    ));
+                });
+            parent
+                .spawn((
+                    ButtonBundle {
+                        style: Style {
+                            width: Val::Px(150.0),
+                            height: Val::Px(65.0),
+                            border: UiRect::all(Val::Px(5.0)),
+                            // horizontally center child text
+                            justify_content: JustifyContent::Center,
+                            // vertically center child text
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        border_color: BorderColor(Color::BLACK),
+                        ..default()
+                    },
+                    ButtonFunctionComponent::IncrementIndex,
+                ))
+                .with_children(|parent| {
+                    parent.spawn(TextBundle::from_section(
+                        ">",
                         TextStyle {
                             font_size: 40.0,
                             color: Color::rgb(0.9, 0.9, 0.9),
@@ -102,5 +161,5 @@ pub fn setup_chooser(
                 });
         })
         .id();
-    commands.insert_resource(RootEntityToDespawn(root_entity));
+    commands.insert_resource(RootEntityToDespawn(Some(root_entity)));
 }

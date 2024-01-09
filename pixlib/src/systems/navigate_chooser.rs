@@ -1,15 +1,17 @@
 use bevy::{
     ecs::{
         query::{Changed, With},
-        system::{Query, ResMut}, schedule::NextState,
+        schedule::NextState,
+        system::{Query, ResMut},
     },
-    hierarchy::Children,
+    hierarchy::{Children, Parent},
     render::color::Color,
-    text::Text,
     ui::{widget::Button, BackgroundColor, BorderColor, Interaction},
 };
 
-use crate::states::AppState;
+use crate::{resources::ChosenScene, states::AppState};
+
+use super::setup_chooser::{ButtonFunctionComponent, SceneListComponent};
 
 const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
@@ -19,32 +21,63 @@ pub fn navigate_chooser(
     mut interaction_query: Query<
         (
             &Interaction,
+            &ButtonFunctionComponent,
             &mut BackgroundColor,
             &mut BorderColor,
             &Children,
+            &Parent,
         ),
         (Changed<Interaction>, With<Button>),
     >,
-    mut text_query: Query<&mut Text>,
+    mut scene_list_component_query: Query<&mut SceneListComponent>,
+    mut chosen_scene: ResMut<ChosenScene>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
-    for (interaction, mut color, mut border_color, children) in &mut interaction_query {
-        let mut text = text_query.get_mut(children[0]).unwrap();
+    for (interaction, button_function, mut color, mut border_color, children, parent) in
+        &mut interaction_query
+    {
         match *interaction {
-            Interaction::Pressed => {
-                text.sections[0].value = "Press".to_string();
-                *color = PRESSED_BUTTON.into();
-                border_color.0 = Color::RED;
-            }
             Interaction::Hovered => {
-                text.sections[0].value = "Hover".to_string();
                 *color = HOVERED_BUTTON.into();
                 border_color.0 = Color::WHITE;
             }
             Interaction::None => {
-                text.sections[0].value = "Button".to_string();
                 *color = NORMAL_BUTTON.into();
                 border_color.0 = Color::BLACK;
+            }
+            Interaction::Pressed => {
+                *color = PRESSED_BUTTON.into();
+                border_color.0 = Color::RED;
+                let scene_list_component = scene_list_component_query.get(parent.get()).unwrap();
+                if scene_list_component.scenes.len() > 0 {
+                    if matches!(
+                        *button_function,
+                        ButtonFunctionComponent::IncrementIndex
+                            | ButtonFunctionComponent::DecrementIndex,
+                    ) {
+                        let mut scene_list_component =
+                            scene_list_component_query.get_mut(parent.get()).unwrap();
+                        if *button_function == ButtonFunctionComponent::IncrementIndex {
+                            scene_list_component.current_index =
+                                (scene_list_component.current_index + 1)
+                                    % scene_list_component.scenes.len();
+                        } else if *button_function == ButtonFunctionComponent::DecrementIndex {
+                            scene_list_component.current_index = (scene_list_component
+                                .current_index
+                                + scene_list_component.scenes.len()
+                                - 1)
+                                % scene_list_component.scenes.len();
+                        }
+                    } else if let ButtonFunctionComponent::Display { offset } = button_function {
+                        let displayed_index = scene_list_component.current_index + offset;
+                        chosen_scene.scene_definition = Some(
+                            scene_list_component.scenes
+                                [displayed_index % scene_list_component.scenes.len()]
+                            .clone(),
+                        );
+                        next_state.set(AppState::SceneViewer);
+                    }
+                }
             }
         }
     }

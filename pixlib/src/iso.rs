@@ -119,7 +119,7 @@ fn parse_cnv(data: &[u8]) -> CnvFile {
     let mut objects = HashMap::new();
     for line in DecodedStr::from_bytes(&decode_cnv(data)).unwrap().0.lines() {
         let line = line.trim();
-        println!("Line: {line}");
+        // println!("Line: {line}");
         if line.starts_with('#') || line.is_empty() {
             continue;
         }

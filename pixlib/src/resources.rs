@@ -1,7 +1,6 @@
-use std::{env::Args, path::PathBuf, fs::File};
+use std::{env::Args, path::PathBuf};
 
 use bevy::ecs::{system::Resource, entity::Entity};
-use opticaldisc::iso::IsoFs;
 
 #[derive(Resource, Debug, Clone, PartialEq, Eq, Copy)]
 pub struct WindowConfiguration {
@@ -25,14 +24,21 @@ pub struct GamePaths {
     pub classes_directory: PathBuf,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SceneDefinition {
+    pub name: String,
+    pub path: PathBuf,
+    pub background: Option<String>,
+}
+
 #[derive(Resource, Default, Debug, Clone, PartialEq, Eq)]
 pub struct ChosenScene {
     pub iso_file_path: Option<PathBuf>,
-    pub scene_name: Option<String>,
+    pub scene_definition: Option<SceneDefinition>,
 }
 
 #[derive(Resource, Debug, Clone, PartialEq, Eq)]
-pub struct RootEntityToDespawn(pub Entity);
+pub struct RootEntityToDespawn(pub Option<Entity>);
 
 #[derive(Resource, Debug, Clone, PartialEq, Eq)]
 pub struct ProgramArguments {
