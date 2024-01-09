@@ -15,7 +15,7 @@ pub fn update_chooser_labels(
     mut text_query: Query<&mut Text>,
 ) {
     for (scene_list_component, children) in &scene_list_component_query {
-        if scene_list_component.scenes.len() == 0 {
+        if scene_list_component.scenes.is_empty() {
             continue;
         }
         for (button_function, button_children) in button_query.iter_many(children) {

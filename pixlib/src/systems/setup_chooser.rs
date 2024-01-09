@@ -54,7 +54,11 @@ pub fn setup_chooser(
             scenes.push(SceneDefinition {
                 name: object_name.clone(),
                 path: properties["PATH"].replace('\\', "/").into(),
-                background: if properties.contains_key("BACKGROUND") { Some(properties["BACKGROUND"].clone()) } else { None },
+                background: if properties.contains_key("BACKGROUND") {
+                    Some(properties["BACKGROUND"].clone())
+                } else {
+                    None
+                },
             });
         }
         scenes.sort();

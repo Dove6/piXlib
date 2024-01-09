@@ -11,8 +11,7 @@ use bevy::{
 };
 
 use std::fs::File;
-use std::iter;
-use std::path::PathBuf;
+use std::path::Path;
 
 pub fn setup_viewer(
     game_paths: Res<GamePaths>,
@@ -33,7 +32,7 @@ pub fn setup_viewer(
         .data_directory
         .join(scene_definition.path.to_str().unwrap().replace('\\', "/"));
 
-    let iso_file = File::open(&iso_file_path).unwrap();
+    let iso_file = File::open(iso_file_path).unwrap();
     let mut iso = read_iso(&iso_file);
 
     let file_path_inside_iso =
@@ -49,21 +48,22 @@ pub fn setup_viewer(
             }
             match parse_file(&buffer, &file_path_inside_iso) {
                 AmFile::Cnv(cnv_file) => {
-                    for image_path in initial_images.into_iter().chain(cnv_file
-                        .0
-                        .iter()
-                        .filter(|(_, parameters)| {
-                            parameters.contains_key("TYPE")
-                                && parameters["TYPE"] == "IMAGE"
-                                && parameters.contains_key("FILENAME")
-                        })
-                        .map(|(_, parameters)| {
-                            get_path_to_scene_file(
-                                &scene_path,
-                                parameters.get("FILENAME").as_ref().unwrap(),
-                            )
-                        }))
-                    {
+                    for image_path in initial_images.into_iter().chain(
+                        cnv_file
+                            .0
+                            .iter()
+                            .filter(|(_, parameters)| {
+                                parameters.contains_key("TYPE")
+                                    && parameters["TYPE"] == "IMAGE"
+                                    && parameters.contains_key("FILENAME")
+                            })
+                            .map(|(_, parameters)| {
+                                get_path_to_scene_file(
+                                    &scene_path,
+                                    parameters.get("FILENAME").as_ref().unwrap(),
+                                )
+                            }),
+                    ) {
                         println!("Handling image file: {image_path}");
                         let buffer = read_file_from_iso(&mut iso, &image_path, None);
                         match parse_file(&buffer, &image_path) {
@@ -109,6 +109,6 @@ pub fn setup_viewer(
     commands.insert_resource(RootEntityToDespawn(Some(root_entity)));
 }
 
-fn get_path_to_scene_file(scene_path: &PathBuf, filename: &str) -> String {
+fn get_path_to_scene_file(scene_path: &Path, filename: &str) -> String {
     scene_path.join(filename).to_str().unwrap().to_owned()
 }

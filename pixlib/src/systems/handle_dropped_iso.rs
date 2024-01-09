@@ -13,7 +13,7 @@ use super::setup_chooser::SceneListComponent;
 pub fn handle_dropped_iso(
     mut event_reader: EventReader<FileDragAndDrop>,
     mut chosen_scene: ResMut<ChosenScene>,
-    mut query: Query<&mut SceneListComponent>,
+    mut _query: Query<&mut SceneListComponent>,
 ) {
     for event in event_reader.read() {
         println!("{:?}", event);

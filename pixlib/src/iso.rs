@@ -123,25 +123,27 @@ fn parse_cnv(data: &[u8]) -> CnvFile {
         if line.starts_with('#') || line.is_empty() {
             continue;
         }
-        if let Some(object_captures) = object_definition_regex.captures(&line) {
+        if let Some(object_captures) = object_definition_regex.captures(line) {
             let object_name = object_captures.get(1).unwrap().as_str().to_uppercase();
             if objects.contains_key(&object_name) {
                 panic!("Object {} re-declared!", &object_name);
             }
             objects.insert(object_name, HashMap::new());
-        } else if let Some(property_captures) = property_definition_regex.captures(&line) {
+        } else if let Some(property_captures) = property_definition_regex.captures(line) {
             let object_name = property_captures.get(1).unwrap().as_str().to_uppercase();
             let property_name = property_captures.get(2).unwrap().as_str().to_uppercase();
             let property_value = property_captures.get(3).unwrap().as_str().to_owned();
             if !objects.contains_key(&object_name) {
-                continue;  // TODO: don't ignore errors
+                continue; // TODO: don't ignore errors
             }
-            let properties = objects.get_mut(&object_name).expect(&format!(
-                "Trying to set property {} of undeclared object {}!",
-                property_name, object_name
-            ));
+            let properties = objects.get_mut(&object_name).unwrap_or_else(|| {
+                panic!(
+                    "Trying to set property {} of undeclared object {}!",
+                    property_name, object_name
+                )
+            });
             if properties.contains_key(&property_name) {
-                continue;  // TODO: don't ignore errors
+                continue; // TODO: don't ignore errors
                 panic!(
                     "Property {} re-declared for object {}!",
                     &property_name, &object_name
@@ -156,7 +158,7 @@ fn parse_cnv(data: &[u8]) -> CnvFile {
 }
 
 pub fn read_game_definition(iso_file_path: &Path, game_paths: &GamePaths) -> CnvFile {
-    let mut iso = opticaldisc::iso::IsoFs::new(File::open(&iso_file_path).unwrap()).unwrap();
+    let mut iso = opticaldisc::iso::IsoFs::new(File::open(iso_file_path).unwrap()).unwrap();
     let mut buffer = Vec::<u8>::new();
     let game_definition_path = game_paths
         .data_directory

@@ -1,6 +1,6 @@
 use std::{env::Args, path::PathBuf};
 
-use bevy::ecs::{system::Resource, entity::Entity};
+use bevy::ecs::{entity::Entity, system::Resource};
 
 #[derive(Resource, Debug, Clone, PartialEq, Eq, Copy)]
 pub struct WindowConfiguration {
@@ -51,8 +51,8 @@ impl TryFrom<Args> for ProgramArguments {
     fn try_from(value: Args) -> Result<Self, Self::Error> {
         let mut args = value.skip(1);
         let path_to_iso = args.next().ok_or(())?;
-        return Ok(ProgramArguments {
+        Ok(ProgramArguments {
             path_to_iso: path_to_iso.into(),
-        });
+        })
     }
 }
