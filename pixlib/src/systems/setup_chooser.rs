@@ -14,7 +14,7 @@ use bevy::{
 };
 
 use crate::{
-    iso::read_game_definition,
+    iso::{read_game_definition, CnvType},
     resources::{ChosenScene, GamePaths, ProgramArguments, RootEntityToDespawn, SceneDefinition},
 };
 
@@ -44,18 +44,17 @@ pub fn setup_chooser(
     if let Some(iso_file_path) = &chosen_scene.iso_file_path {
         let game_definition = read_game_definition(iso_file_path, &game_paths);
         println!("game_definition: {:?}", game_definition);
-        for (object_name, properties) in game_definition.0.iter() {
-            if !properties.contains_key("TYPE")
-                || properties["TYPE"].to_uppercase() != "SCENE"
-                || !properties.contains_key("PATH")
+        for (object_name, cnv_object) in game_definition.0.iter() {
+            if !matches!(cnv_object.r#type, Some(CnvType::Scene))
+                || !cnv_object.properties.contains_key("PATH")
             {
                 continue;
             }
             scenes.push(SceneDefinition {
                 name: object_name.clone(),
-                path: properties["PATH"].replace('\\', "/").into(),
-                background: if properties.contains_key("BACKGROUND") {
-                    Some(properties["BACKGROUND"].clone())
+                path: cnv_object.properties["PATH"].replace('\\', "/").into(),
+                background: if cnv_object.properties.contains_key("BACKGROUND") {
+                    Some(cnv_object.properties["BACKGROUND"].clone())
                 } else {
                     None
                 },

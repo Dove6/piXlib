@@ -110,7 +110,35 @@ pub fn parse_file<'a>(contents: &'a [u8], filename: &str) -> AmFile<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CnvFile(pub HashMap<String, HashMap<String, String>>);
+pub enum CnvType {
+    Image,
+    Animation,
+    Scene,
+    Other(String),
+}
+
+impl CnvType {
+    fn new(name: &str) -> Self {
+        let name = name.to_uppercase();
+        match name.as_ref() {
+            "IMAGE" => Self::Image,
+            "ANIMO" => Self::Animation,
+            "SCENE" => Self::Scene,
+            _ => Self::Other(name),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CnvObject {
+    pub name: String,
+    pub r#type: Option<CnvType>,
+    pub index: Option<usize>,
+    pub properties: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CnvFile(pub HashMap<String, CnvObject>);
 
 fn parse_cnv(data: &[u8]) -> CnvFile {
     let object_definition_regex = Regex::new(r"(?i)^object\s*=\s*(.*)$").unwrap();
@@ -118,6 +146,7 @@ fn parse_cnv(data: &[u8]) -> CnvFile {
         Regex::new(r"(?i)^([^:\s]*)\s*:\s*([^=\s]*)\s*=\s*(.*)$").unwrap();
 
     let mut objects = HashMap::new();
+    let mut object_counter: usize = 0;
     for line in DecodedStr::from_bytes(&decode_cnv(data)).unwrap().0.lines() {
         let line = line.trim();
         // println!("Line: {line}");
@@ -129,7 +158,15 @@ fn parse_cnv(data: &[u8]) -> CnvFile {
             if objects.contains_key(&object_name) {
                 panic!("Object {} re-declared!", &object_name);
             }
-            objects.insert(object_name, HashMap::new());
+            objects.insert(
+                object_name.clone(),
+                CnvObject {
+                    name: object_name,
+                    index: Some(object_counter),
+                    ..CnvObject::default()
+                },
+            );
+            object_counter += 1;
         } else if let Some(property_captures) = property_definition_regex.captures(line) {
             let object_name = property_captures.get(1).unwrap().as_str().to_uppercase();
             let property_name = property_captures.get(2).unwrap().as_str().to_uppercase();
@@ -137,21 +174,31 @@ fn parse_cnv(data: &[u8]) -> CnvFile {
             if !objects.contains_key(&object_name) {
                 continue; // TODO: don't ignore errors
             }
-            let properties = objects.get_mut(&object_name).unwrap_or_else(|| {
+            let cnv_object = objects.get_mut(&object_name).unwrap_or_else(|| {
                 panic!(
                     "Trying to set property {} of undeclared object {}!",
                     property_name, object_name
                 )
             });
-            if properties.contains_key(&property_name) {
-                continue; // TODO: don't ignore errors
+            match property_name.as_ref() {
+                "TYPE" => {
+                    if cnv_object.r#type.is_some() {
+                        // panic!()
+                    }
+                    cnv_object.r#type = Some(CnvType::new(&property_value));
+                }
+                _ => {
+                    if cnv_object.properties.contains_key(&property_name) {
+                        continue; // TODO: don't ignore errors
 
-                // panic!(
-                //     "Property {} re-declared for object {}!",
-                //     &property_name, &object_name
-                // );
+                        // panic!(
+                        //     "Property {} re-declared for object {}!",
+                        //     &property_name, &object_name
+                        // );
+                    }
+                    cnv_object.properties.insert(property_name, property_value);
+                }
             }
-            properties.insert(property_name, property_value);
         } else {
             panic!("Unexpected line: {}", line);
         }
