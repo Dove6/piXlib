@@ -1,13 +1,8 @@
 use bevy::ecs::schedule::States;
 
-#[derive(States, Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(States, Default, Debug, Clone, Eq, PartialEq, Hash)]
 pub enum AppState {
+    #[default]
     SceneChooser,
     SceneViewer,
-}
-
-impl Default for AppState {
-    fn default() -> Self {
-        Self::SceneChooser
-    }
 }

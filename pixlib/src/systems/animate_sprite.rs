@@ -2,7 +2,12 @@ use crate::anchors::{add_tuples, get_anchor, UpdatableAnchor};
 use crate::animation::PlaybackState;
 use crate::animation::{AnimationDefinition, AnimationState, AnimationTimer};
 use crate::resources::DebugSettings;
-use bevy::{ecs::system::Res, prelude::Query, sprite::TextureAtlasSprite, time::Time};
+use bevy::{
+    ecs::system::Res,
+    prelude::Query,
+    sprite::{Sprite, TextureAtlas},
+    time::Time,
+};
 use pixlib_formats::file_formats::ann::LoopingSettings;
 
 pub fn animate_sprite(
@@ -12,10 +17,11 @@ pub fn animate_sprite(
         &AnimationDefinition,
         &mut AnimationTimer,
         &mut AnimationState,
-        &mut TextureAtlasSprite,
+        &mut Sprite,
+        &mut TextureAtlas,
     )>,
 ) {
-    for (animation, mut timer, mut state, mut atlas_sprite) in &mut query {
+    for (animation, mut timer, mut state, mut atlas_sprite, mut atlas) in &mut query {
         timer.tick(time.delta());
         let sequence = &animation.sequences[state.sequence_idx];
         if sequence.frames.is_empty() {
@@ -35,7 +41,7 @@ pub fn animate_sprite(
                 state.frame_idx = (state.frame_idx + 1) % frame_limit;
                 let frame = &sequence.frames[state.frame_idx];
                 let sprite = &animation.sprites[frame.sprite_idx];
-                atlas_sprite.index = frame.sprite_idx;
+                atlas.index = frame.sprite_idx;
                 atlas_sprite.update_anchor(get_anchor(
                     add_tuples(sprite.offset_px, frame.offset_px),
                     sprite.size_px,

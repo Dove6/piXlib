@@ -2,7 +2,7 @@ use std::ops::Add;
 
 use bevy::{
     math::Vec2,
-    sprite::{Anchor, TextureAtlasSprite},
+    sprite::{Anchor, Sprite},
 };
 
 pub fn add_tuples<T: Add>(
@@ -23,7 +23,7 @@ pub trait UpdatableAnchor {
     fn update_anchor(&mut self, offset_from_top_left: (f32, f32));
 }
 
-impl UpdatableAnchor for TextureAtlasSprite {
+impl UpdatableAnchor for Sprite {
     fn update_anchor(&mut self, offset_from_top_left: (f32, f32)) {
         self.anchor = offset_by(Anchor::TopLeft, offset_from_top_left);
     }

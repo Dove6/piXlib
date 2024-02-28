@@ -7,7 +7,7 @@ use bevy::prelude::SpatialBundle;
 use bevy::{
     ecs::system::Res,
     prelude::{Assets, Commands, Image, ResMut},
-    sprite::TextureAtlas,
+    sprite::TextureAtlasLayout,
 };
 
 use std::fs::File;
@@ -17,7 +17,7 @@ pub fn setup_viewer(
     game_paths: Res<GamePaths>,
     chosen_scene: Res<ChosenScene>,
     mut commands: Commands,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     mut textures: ResMut<Assets<Image>>,
 ) {
     let ChosenScene {

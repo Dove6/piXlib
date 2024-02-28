@@ -5,6 +5,7 @@ use bevy::{
     ecs::system::ResMut,
     prelude::default,
     render::{
+        render_asset::RenderAssetUsages,
         render_resource::{Extent3d, TextureFormat},
         texture::Image,
     },
@@ -86,6 +87,7 @@ pub fn image_data_to_image(
         bevy::render::render_resource::TextureDimension::D2,
         converted_image,
         TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
     )
 }
 

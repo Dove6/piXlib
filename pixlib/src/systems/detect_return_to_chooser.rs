@@ -3,13 +3,13 @@ use bevy::{
         schedule::NextState,
         system::{Res, ResMut},
     },
-    input::{keyboard::KeyCode, Input},
+    input::{keyboard::KeyCode, ButtonInput},
 };
 
 use crate::states::AppState;
 
 pub fn detect_return_to_chooser(
-    keyboard: Res<Input<KeyCode>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
     if keyboard.pressed(KeyCode::Escape) {

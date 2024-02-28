@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments, clippy::type_complexity)]
+
 pub mod anchors;
 pub mod animation;
 pub mod arguments;
@@ -63,7 +65,7 @@ fn main() {
             ProgramArguments::try_from(env::args()).expect("Usage: pixlib path_to_iso"),
         )
         .insert_resource(ChosenScene::default())
-        .add_state::<AppState>()
+        .init_state::<AppState>()
         .add_systems(Startup, setup)
         .add_systems(Update, draw_cursor)
         .add_systems(OnEnter(AppState::SceneChooser), setup_chooser)

@@ -7,7 +7,7 @@ edition = "2021"
 opticaldisc = { git = "https://github.com/althonos/opticaldisc.git", rev = "2816ea8c2cd9a8402bae5efbaa3037c1439e07f9" }
 pixlib_formats = { git = "ssh://github.com/Dove6/piXlib-formats.git", rev = "a7ae7a58fcffefd39af40bc8dc9221ae4725bcbb" }
 codepage-strings = "1"
-bevy = { version = "0.12", features = [
+bevy = { version = "0.13", default_features = false, features = [
     "bevy_asset",
     "bevy_audio",
     "bevy_core_pipeline",

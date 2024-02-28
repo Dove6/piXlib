@@ -5,6 +5,7 @@ use std::{
     path::Path,
 };
 
+use bevy::log::info;
 use opticaldisc::iso::IsoFs;
 use pixlib_formats::file_formats::{
     ann::{parse_ann, AnnFile},
@@ -27,7 +28,7 @@ pub enum AmFile<'a> {
 pub fn read_iso(iso_file: &File) -> IsoFs<&File> {
     let mut iso = opticaldisc::iso::IsoFs::new(iso_file).unwrap();
 
-    println!("Loaded ISO file.");
+    info!("Loaded ISO file.");
     for entry in iso.read_dir("/").unwrap().iter() {
         println!(
             "Entry discovered: {}, is file? {}",
@@ -144,10 +145,11 @@ fn parse_cnv(data: &[u8]) -> CnvFile {
             });
             if properties.contains_key(&property_name) {
                 continue; // TODO: don't ignore errors
-                panic!(
-                    "Property {} re-declared for object {}!",
-                    &property_name, &object_name
-                );
+
+                // panic!(
+                //     "Property {} re-declared for object {}!",
+                //     &property_name, &object_name
+                // );
             }
             properties.insert(property_name, property_value);
         } else {
