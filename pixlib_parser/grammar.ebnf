@@ -1,0 +1,217 @@
+ignored_program
+    = [ BANG ], program;
+program
+    = IDENTIFIER
+    | block;
+block
+    = LEFT_BRACE, { ignored_statement }, RIGHT_BRACE;
+ignored_statement
+    = [ BANG ], statement;
+statement
+    = call, SEMICOLON, { SEMICOLON };
+call
+    = global_call
+    | name_resolution, [ method_call ];
+global_call
+    = AT, IDENTIFIER, call_head;
+name_resolution
+    = [ OP_ASTERISK ], expression;
+method_call
+    = OP_CARET, IDENTIFIER, call_head;
+call_head
+    = LEFT_PARENTHESIS, [ argument_list ], RIGHT_PARENTHESIS;
+argument_list
+    = argument, { COMMA, argument };
+argument
+    = expression;
+expression
+    = LITERAL_OR_IDENTIFIER
+    | operation
+    | block;
+operation
+    = LEFT_BRACKET, operand, { operator, operand }, RIGHT_BRACKET;
+operand
+    = OPERATION_LITERAL_OR_IDENTIFIER, [ operation_method_call ]
+    | operation;
+operator
+    = OP_PLUS
+    | OP_MINUS
+    | OP_ASTERISK
+    | OP_AT
+    | OP_PERCENT;
+operation_method_call
+    = OP_CARET, OPERATION_IDENTIFIER, operation_call_head;
+operation_call_head
+    = LEFT_PARENTHESIS, [ operation_argument_list ], RIGHT_PARENTHESIS;
+operation_argument_list
+    = operation_argument, { COMMA, operation_argument };
+operation_argument
+    = operand;
+
+
+(* Lexemes - identifiers and literals *)
+
+LITERAL_OR_IDENTIFIER
+    = LITERAL
+    | IDENTIFIER;
+LITERAL
+    = STRING
+    | INTEGER
+    | FLOATING_POINT
+    | BOOLEAN;
+IDENTIFIER
+    = IDENTIFIER_CHAR, { IDENTIFIER_CHAR };
+OPERATION_LITERAL_OR_IDENTIFIER
+    = OPERATION_LITERAL
+    | OPERATION_IDENTIFIER;
+OPERATION_LITERAL
+    = STRING
+    | NON_NEGATIVE_INTEGER
+    | NON_NEGATIVE_FLOATING_POINT
+    | BOOLEAN;
+OPERATION_IDENTIFIER
+    = OPERATION_IDENTIFIER_CHAR, { OPERATION_IDENTIFIER_CHAR };
+
+
+ALPHANUMERIC
+    = LETTER
+    | DIGIT;
+STRING
+    = "\"", ALPHANUMERIC, { ALPHANUMERIC }, "\""
+    | ALPHANUMERIC, { ALPHANUMERIC };
+INTEGER
+    = "0"
+    | [ "-" ], NON_ZERO_DIGIT, { DIGIT };
+NON_NEGATIVE_INTEGER
+    = "0"
+    | NON_ZERO_DIGIT, { DIGIT };
+FLOATING_POINT
+    = INTEGER, ".", DIGIT, { DIGIT };
+NON_NEGATIVE_FLOATING_POINT
+    = NON_NEGATIVE_INTEGER, ".", DIGIT, { DIGIT };
+BOOLEAN
+    = KW_TRUE
+    | KW_FALSE;
+IDENTIFIER_CHAR
+    = IDENTIFIER_SYMBOL
+    | ALPHANUMERIC;
+OPERATION_IDENTIFIER_CHAR
+    = OPERATION_IDENTIFIER_SYMBOL
+    | ALPHANUMERIC;
+IDENTIFIER_SYMBOL
+    = "_"
+    | "-";
+OPERATION_IDENTIFIER_SYMBOL
+    = "_";
+
+
+(* Lexemes - keywords, operators and symbols *)
+
+KW_THIS           = "THIS";
+KW_TRUE           = "TRUE";
+KW_FALSE          = "FALSE";
+OP_PLUS           = "+";
+OP_MINUS          = "-";
+OP_ASTERISK       = "*";
+OP_AT             = "@";
+OP_PERCENT        = "%";
+OP_CARET          = "^";
+COMMA             = ",";
+HASH              = "#";
+BANG              = "!";
+SEMICOLON         = ";";
+AT                = "@";
+LEFT_PARENTHESIS  = "(";
+RIGHT_PARENTHESIS = ")";
+LEFT_BRACKET      = "[";
+RIGHT_BRACKET     = "]";
+LEFT_BRACE        = "{";
+RIGHT_BRACE       = "}";
+
+
+(* Basic definitions - letters and digits *)
+
+LETTER
+    = "A"
+    | "Ą"
+    | "B"
+    | "C"
+    | "Ć"
+    | "D"
+    | "E"
+    | "Ę"
+    | "F"
+    | "G"
+    | "H"
+    | "I"
+    | "J"
+    | "K"
+    | "L"
+    | "Ł"
+    | "M"
+    | "N"
+    | "Ń"
+    | "O"
+    | "Ó"
+    | "P"
+    | "Q"
+    | "R"
+    | "S"
+    | "Ś"
+    | "T"
+    | "U"
+    | "V"
+    | "W"
+    | "X"
+    | "Y"
+    | "Z"
+    | "Ź"
+    | "Ż"
+    | "a"
+    | "ą"
+    | "b"
+    | "c"
+    | "ć"
+    | "d"
+    | "e"
+    | "ę"
+    | "f"
+    | "g"
+    | "h"
+    | "i"
+    | "j"
+    | "k"
+    | "l"
+    | "ł"
+    | "m"
+    | "n"
+    | "ń"
+    | "o"
+    | "ó"
+    | "p"
+    | "q"
+    | "r"
+    | "s"
+    | "ś"
+    | "t"
+    | "u"
+    | "v"
+    | "w"
+    | "x"
+    | "y"
+    | "z"
+    | "ź"
+    | "ż";
+DIGIT
+    = "0"
+    | NON_ZERO_DIGIT;
+NON_ZERO_DIGIT
+    = "1"
+    | "2"
+    | "3"
+    | "4"
+    | "5"
+    | "6"
+    | "7"
+    | "8"
+    | "9";
