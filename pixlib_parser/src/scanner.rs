@@ -1,6 +1,6 @@
 use std::io::Read;
 
-use crate::common::Position;
+use crate::common::{Bounds, Element, Position, PositionalIterator};
 
 lazy_static::lazy_static! {
     pub static ref CP1250_LUT: [char; 128] = [
@@ -90,8 +90,7 @@ impl<'lut, R: Read> Iterator for CodepageDecoder<'lut, R> {
 pub struct CnvScanner<I: Iterator<Item = std::io::Result<char>>> {
     input: I,
     buffer: Vec<char>,
-    pub current_character: Option<char>,
-    pub current_position: Position,
+    pub current_element: Element<char>,
     next_position: Position,
 }
 
@@ -101,9 +100,8 @@ impl<I: Iterator<Item = std::io::Result<char>>> CnvScanner<I> {
     pub fn new(input: I) -> Self {
         Self {
             input,
-            buffer: Vec::<_>::with_capacity(Self::BUFFER_SIZE),
-            current_character: None,
-            current_position: Position::default(),
+            buffer: Vec::with_capacity(Self::BUFFER_SIZE),
+            current_element: Element::BeforeStream,
             next_position: Position::default(),
         }
     }
@@ -129,21 +127,40 @@ impl<I: Iterator<Item = std::io::Result<char>>> CnvScanner<I> {
             _ => MatchingResult::Nothing,
         }
     }
+}
 
-    pub fn advance(&mut self) -> std::io::Result<()> {
+impl<I: Iterator<Item = std::io::Result<char>>> PositionalIterator for CnvScanner<I> {
+    type Item = char;
+
+    fn advance(&mut self) -> std::io::Result<Element<Self::Item>> {
         self.refill_buffer()?;
-        self.current_position = self.next_position;
-        if self.buffer.is_empty() {
-            self.current_character = None;
-        } else if let MatchingResult::Newline { length } = self.match_newline() {
-            self.buffer.drain(..length);
-            self.current_character = Some('\n');
-            self.next_position = self.next_position.with_incremented_line(length);
+        let new_element = if self.buffer.is_empty() {
+            Element::AfterStream
         } else {
-            self.current_character = Some(self.buffer.remove(0));
-            self.next_position = self.next_position.with_incremented_column();
-        }
-        Ok(())
+            let current_bounds = Bounds {
+                start: self.next_position,
+                end: self.next_position,
+            };
+            if let MatchingResult::Newline { length } = self.match_newline() {
+                self.next_position = self.next_position.with_incremented_line(length);
+                Element::WithinStream {
+                    element: '\n',
+                    bounds: current_bounds,
+                }
+            } else {
+                self.next_position = self.next_position.with_incremented_column();
+                Element::WithinStream {
+                    element: self.buffer.remove(0),
+                    bounds: current_bounds,
+                }
+            }
+        };
+        let superseded_element = std::mem::replace(&mut self.current_element, new_element);
+        Ok(superseded_element)
+    }
+
+    fn get_current_element(&self) -> &Element<Self::Item> {
+        &self.current_element
     }
 }
 
@@ -159,29 +176,21 @@ mod tests {
     use proptest::prelude::*;
     use test_case::test_case;
 
+    fn make_iter_from(string: &str) -> impl Iterator<Item = std::io::Result<char>> + '_ {
+        string.chars().map(|x| Ok(x)).into_iter()
+    }
+
     #[test]
     fn output_should_be_empty_before_advancing_for_the_first_time() {
-        let scanner = CnvScanner::new("any input".chars().map(|x| Ok(x)));
-        assert_eq!(scanner.current_character, None);
-        assert_eq!(scanner.current_position, Position::default());
+        let scanner = CnvScanner::new(make_iter_from("any input"));
+        assert_eq!(scanner.get_current_element(), &Element::BeforeStream);
     }
 
     #[test]
     fn empty_input_should_result_in_no_output() {
-        let mut scanner = CnvScanner::new("".chars().map(|x| Ok(x)));
+        let mut scanner = CnvScanner::new(make_iter_from(""));
         scanner.advance().unwrap();
-        assert_eq!(scanner.current_character, None);
-        scanner.advance().unwrap();
-        assert_eq!(scanner.current_character, None);
-    }
-
-    #[test]
-    fn position_should_not_be_incremented_after_etx() {
-        let mut scanner = CnvScanner::new("".chars().map(|x| Ok(x)));
-        scanner.advance().unwrap();
-        let previous_position = scanner.current_position;
-        scanner.advance().unwrap();
-        assert_eq!(scanner.current_position, previous_position);
+        assert_eq!(scanner.get_current_element(), &Element::AfterStream);
     }
 
     #[test_case("\n\r")]
@@ -192,26 +201,38 @@ mod tests {
     fn newline_sequences_should_be_recognized_correctly(input: &str) {
         let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
         scanner.advance().unwrap();
-        assert_eq!(scanner.current_character, Some('\n'));
+        assert!(matches!(
+            scanner.get_current_element(),
+            &Element::WithinStream {
+                element: '\n',
+                bounds: _
+            }
+        ));
     }
 
-    #[test_case("\n\r")]
-    #[test_case("\n")]
-    #[test_case("\r\n")]
-    #[test_case("\r")]
-    #[test_case("\x1e")]
+    #[test_case("\n\rA")]
+    #[test_case("\nA")]
+    #[test_case("\r\nA")]
+    #[test_case("\rA")]
+    #[test_case("\x1eA")]
     fn newline_sequences_should_increment_line_position(input: &str) {
+        let expected_position = Position {
+            character: input.len() - 1,
+            line: 2,
+            column: 1,
+        };
         let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
         scanner.advance().unwrap();
         scanner.advance().unwrap();
-        assert_eq!(
-            scanner.current_position,
-            Position {
-                character: input.len(),
-                line: 2,
-                column: 1
-            }
-        );
+        let &Element::WithinStream {
+            element: _,
+            bounds: current_bounds,
+        } = scanner.get_current_element()
+        else {
+            panic!();
+        };
+        assert_eq!(current_bounds.start, expected_position);
+        assert_eq!(current_bounds.end, expected_position);
     }
 
     proptest! {
@@ -220,16 +241,32 @@ mod tests {
             let character = alphanumeric.chars().next().unwrap();
             let mut scanner = CnvScanner::new(std::iter::once(Ok(character)));
             scanner.advance().unwrap();
-            assert_eq!(scanner.current_character, Some(character));
+            let &Element::WithinStream {
+                element: current_element,
+                bounds: _,
+            } = scanner.get_current_element()
+            else {
+                panic!();
+            };
+            assert_eq!(current_element, character);
         }
 
         #[test]
         fn non_newline_characters_should_increment_position_properly(alphanumeric in "[a-zA-Z0-9]") {
             let character = alphanumeric.chars().next().unwrap();
+            let expected_position = Position { character: 1, line: 1, column: 2 };
             let mut scanner = CnvScanner::new(std::iter::once(Ok(character)));
             scanner.advance().unwrap();
             scanner.advance().unwrap();
-            assert_eq!(scanner.current_position, Position { character: 1, line: 1, column: 2 });
+            let &Element::WithinStream {
+                element: _,
+                bounds: current_bounds,
+            } = scanner.get_current_element()
+            else {
+                panic!();
+            };
+            assert_eq!(current_bounds.start, expected_position);
+            assert_eq!(current_bounds.end, expected_position);
         }
     }
 
@@ -239,14 +276,20 @@ mod tests {
         let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
         for i in 0..=input.len() {
             scanner.advance().unwrap();
-            assert_eq!(
-                scanner.current_position,
-                Position {
-                    character: i,
-                    line: 1,
-                    column: 1 + i
-                }
-            );
+            let &Element::WithinStream {
+                element: _,
+                bounds: current_bounds,
+            } = scanner.get_current_element()
+            else {
+                panic!();
+            };
+            let expected_position = Position {
+                character: i,
+                line: 1,
+                column: 1 + i,
+            };
+            assert_eq!(current_bounds.start, expected_position);
+            assert_eq!(current_bounds.end, expected_position);
         }
     }
 
@@ -254,10 +297,19 @@ mod tests {
     fn sequence_of_non_newline_characters_should_be_passed_through_properly() {
         let input = "abcd1234";
         let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
-        for i in 0..=input.len() {
+        for i in 0..input.len() {
             scanner.advance().unwrap();
-            assert_eq!(scanner.current_character, input.chars().skip(i).next());
+            let &Element::WithinStream {
+                element: current_element,
+                bounds: _,
+            } = scanner.get_current_element()
+            else {
+                panic!();
+            };
+            assert_eq!(current_element, input.chars().skip(i).next().unwrap());
         }
+        scanner.advance().unwrap();
+        assert_eq!(scanner.get_current_element(), &Element::AfterStream);
     }
 
     #[test]
@@ -267,14 +319,20 @@ mod tests {
         let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
         for i in 0..=newlines.len() {
             scanner.advance().unwrap();
-            assert_eq!(
-                scanner.current_position,
-                Position {
-                    character: newlines.map(|x| x.len()).iter().take(i).sum(),
-                    line: 1 + i,
-                    column: 1
-                }
-            );
+            let &Element::WithinStream {
+                element: _,
+                bounds: current_bounds,
+            } = scanner.get_current_element()
+            else {
+                panic!();
+            };
+            let expected_position = Position {
+                character: newlines.map(|x| x.len()).iter().take(i).sum(),
+                line: 1 + i,
+                column: 1,
+            };
+            assert_eq!(current_bounds.start, expected_position);
+            assert_eq!(current_bounds.end, expected_position);
         }
     }
 
@@ -283,11 +341,14 @@ mod tests {
         let newlines = ["\n", "\n", "\n\r", "\n\r", "\r", "\r\n", "\x1e", "\x1e"];
         let input = newlines.join("");
         let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
-        for _ in 0..newlines.len() {
+        for _ in 0..=newlines.len() {
             scanner.advance().unwrap();
-            assert_eq!(scanner.current_character, Some('\n'));
+            assert!(matches!(scanner.get_current_element(), &Element::WithinStream {
+                element: '\n',
+                bounds: _,
+            }));
         }
         scanner.advance().unwrap();
-        assert_eq!(scanner.current_character, None);
+        assert_eq!(scanner.get_current_element(), &Element::AfterStream);
     }
 }

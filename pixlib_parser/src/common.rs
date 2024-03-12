@@ -39,10 +39,11 @@ pub struct Bounds {
     pub end: Position,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Element<T> {
-    BeforeStart,
+    BeforeStream,
     WithinStream { element: T, bounds: Bounds },
-    AfterEnd,
+    AfterStream,
 }
 
 pub trait PositionalIterator {
@@ -53,8 +54,5 @@ pub trait PositionalIterator {
     fn advance(&mut self) -> std::io::Result<Element<Self::Item>>;
 
     /// Returns an immutable reference to the current element.
-    fn get_current_element(&self) -> Element<&Self::Item>;
-
-    /// Returns [`Bounds`] describing the position of the current element in the underlying [`char`] stream.
-    fn get_current_bounds(&self) -> Bounds;
+    fn get_current_element(&self) -> &Element<Self::Item>;
 }
