@@ -343,10 +343,13 @@ mod tests {
         let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
         for _ in 0..=newlines.len() {
             scanner.advance().unwrap();
-            assert!(matches!(scanner.get_current_element(), &Element::WithinStream {
-                element: '\n',
-                bounds: _,
-            }));
+            assert!(matches!(
+                scanner.get_current_element(),
+                &Element::WithinStream {
+                    element: '\n',
+                    bounds: _,
+                }
+            ));
         }
         scanner.advance().unwrap();
         assert_eq!(scanner.get_current_element(), &Element::AfterStream);

@@ -46,6 +46,29 @@ pub enum Element<T> {
     AfterStream,
 }
 
+impl<T> Element<T> {
+    pub fn unwrap(self) -> T {
+        match self {
+            Self::WithinStream { element, bounds: _ } => element,
+            _ => panic!(),
+        }
+    }
+
+    pub fn get_element(&self) -> Option<&T> {
+        match self {
+            Self::WithinStream { element, bounds: _ } => Some(element),
+            _ => None,
+        }
+    }
+
+    pub fn get_bounds(&self) -> Option<Bounds> {
+        match self {
+            Self::WithinStream { element: _, bounds } => Some(*bounds),
+            _ => None,
+        }
+    }
+}
+
 pub trait PositionalIterator {
     /// The type of the elements being iterated over.
     type Item;
@@ -55,4 +78,18 @@ pub trait PositionalIterator {
 
     /// Returns an immutable reference to the current element.
     fn get_current_element(&self) -> &Element<Self::Item>;
+}
+
+pub trait MultiModeLexer {
+    /// The type of the tokenization modes available.
+    type Modes;
+
+    /// Puts a new tokenization mode on the top of stack, making it the current one.
+    fn push_mode(&mut self, mode: Self::Modes);
+
+    /// Pops the current mode tokenization off the stack, switching back to the previous one.
+    fn pop_mode(&mut self) -> Self::Modes;
+
+    /// Returns an immutable reference to the current tokenization mode.
+    fn get_mode(&self) -> &Self::Modes;
 }

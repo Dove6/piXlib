@@ -1,7 +1,7 @@
 ignored_program
     = [ BANG ], program;
 program
-    = IDENTIFIER
+    = RESOLVABLE
     | block;
 block
     = LEFT_BRACE, { ignored_statement }, RIGHT_BRACE;
@@ -13,11 +13,11 @@ call
     = global_call
     | name_resolution, [ method_call ];
 global_call
-    = AT, IDENTIFIER, call_head;
+    = AT, RESOLVABLE, call_head;
 name_resolution
-    = [ OP_ASTERISK ], expression;
+    = [ ASTERISK ], expression;
 method_call
-    = OP_CARET, IDENTIFIER, call_head;
+    = CARET, RESOLVABLE, call_head;
 call_head
     = LEFT_PARENTHESIS, [ argument_list ], RIGHT_PARENTHESIS;
 argument_list
@@ -25,22 +25,22 @@ argument_list
 argument
     = expression;
 expression
-    = LITERAL_OR_IDENTIFIER
+    = RESOLVABLE
     | operation
     | block;
 operation
     = LEFT_BRACKET, operand, { operator, operand }, RIGHT_BRACKET;
 operand
-    = OPERATION_LITERAL_OR_IDENTIFIER, [ operation_method_call ]
+    = OPERATION_RESOLVABLE, [ operation_method_call ]
     | operation;
 operator
-    = OP_PLUS
-    | OP_MINUS
-    | OP_ASTERISK
-    | OP_AT
-    | OP_PERCENT;
+    = PLUS
+    | MINUS
+    | ASTERISK
+    | AT
+    | PERCENT;
 operation_method_call
-    = OP_CARET, OPERATION_IDENTIFIER, operation_call_head;
+    = CARET, OPERATION_RESOLVABLE, operation_call_head;
 operation_call_head
     = LEFT_PARENTHESIS, [ operation_argument_list ], RIGHT_PARENTHESIS;
 operation_argument_list
@@ -51,76 +51,27 @@ operation_argument
 
 (* Lexemes - identifiers and literals *)
 
-LITERAL_OR_IDENTIFIER
-    = LITERAL
-    | IDENTIFIER;
-LITERAL
-    = STRING
-    | INTEGER
-    | FLOATING_POINT
-    | BOOLEAN;
-IDENTIFIER
-    = IDENTIFIER_CHAR, { IDENTIFIER_CHAR };
-OPERATION_LITERAL_OR_IDENTIFIER
-    = OPERATION_LITERAL
-    | OPERATION_IDENTIFIER;
-OPERATION_LITERAL
-    = STRING
-    | NON_NEGATIVE_INTEGER
-    | NON_NEGATIVE_FLOATING_POINT
-    | BOOLEAN;
-OPERATION_IDENTIFIER
-    = OPERATION_IDENTIFIER_CHAR, { OPERATION_IDENTIFIER_CHAR };
-
-
-ALPHANUMERIC
-    = LETTER
-    | DIGIT;
-STRING
-    = "\"", ALPHANUMERIC, { ALPHANUMERIC }, "\""
-    | ALPHANUMERIC, { ALPHANUMERIC };
-INTEGER
-    = "0"
-    | [ "-" ], NON_ZERO_DIGIT, { DIGIT };
-NON_NEGATIVE_INTEGER
-    = "0"
-    | NON_ZERO_DIGIT, { DIGIT };
-FLOATING_POINT
-    = INTEGER, ".", DIGIT, { DIGIT };
-NON_NEGATIVE_FLOATING_POINT
-    = NON_NEGATIVE_INTEGER, ".", DIGIT, { DIGIT };
-BOOLEAN
-    = KW_TRUE
-    | KW_FALSE;
-IDENTIFIER_CHAR
-    = IDENTIFIER_SYMBOL
-    | ALPHANUMERIC;
-OPERATION_IDENTIFIER_CHAR
-    = OPERATION_IDENTIFIER_SYMBOL
-    | ALPHANUMERIC;
-IDENTIFIER_SYMBOL
-    = "_"
-    | "-";
-OPERATION_IDENTIFIER_SYMBOL
-    = "_";
+RESOLVABLE
+    = ALPHANUMERIC
+    | "_"
+    | "-"
+    | ".";
+OPERATION_RESOLVABLE
+    = ALPHANUMERIC
+    | "_";
 
 
 (* Lexemes - keywords, operators and symbols *)
 
-KW_THIS           = "THIS";
-KW_TRUE           = "TRUE";
-KW_FALSE          = "FALSE";
-OP_PLUS           = "+";
-OP_MINUS          = "-";
-OP_ASTERISK       = "*";
-OP_AT             = "@";
-OP_PERCENT        = "%";
-OP_CARET          = "^";
+PLUS              = "+";
+MINUS             = "-";
+ASTERISK          = "*";
+AT                = "@";
+PERCENT           = "%";
+CARET             = "^";
 COMMA             = ",";
-HASH              = "#";
 BANG              = "!";
 SEMICOLON         = ";";
-AT                = "@";
 LEFT_PARENTHESIS  = "(";
 RIGHT_PARENTHESIS = ")";
 LEFT_BRACKET      = "[";
