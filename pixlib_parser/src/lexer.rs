@@ -5,29 +5,38 @@ pub enum CnvTokenizationModes {
     Operation,
 }
 
+pub struct TokenizationSettings {
+    max_lexeme_length: usize,
+}
+
+impl Default for TokenizationSettings {
+    fn default() -> Self {
+        Self { max_lexeme_length: i32::MAX as usize }
+    }
+}
+
 pub struct CnvLexer<I: PositionalIterator<Item = char>> {
     input: I,
-    _max_lexeme_length: usize, // TODO: pass to matchers
+    settings: TokenizationSettings,
     tokenization_mode_stack: Vec<CnvTokenizationModes>,
     pub current_element: Element<CnvToken>,
 }
 
-type Matcher<I> = fn(&mut I) -> std::io::Result<Option<Element<CnvToken>>>;
+type Matcher<I> = fn(&mut I, settings: &TokenizationSettings) -> std::io::Result<Option<Element<CnvToken>>>;
 
 impl<I: PositionalIterator<Item = char> + 'static> CnvLexer<I> {
     const GENERAL_MATCHERS: &'static [Matcher<I>] =
-        &[match_etx, match_resolvable, match_symbol, match_unknown];
+        &[match_etx, match_resolvable, match_symbol,];
     const OPERATION_MATCHERS: &'static [Matcher<I>] = &[
         match_etx,
         match_operation_resolvable,
         match_operation_symbol,
-        match_unknown,
     ];
 
-    pub fn new(input: I) -> Self {
+    pub fn new(input: I, settings: TokenizationSettings) -> Self {
         Self {
             input,
-            _max_lexeme_length: i32::MAX as usize,
+            settings,
             tokenization_mode_stack: Vec::new(),
             current_element: Element::BeforeStream,
         }
@@ -73,9 +82,7 @@ impl<I: PositionalIterator<Item = char> + 'static> PositionalIterator for CnvLex
             };
             let mut matched_element = None;
             for matcher in matchers.iter() {
-                matched_element = matcher(&mut self.input)?;
-                // println!("{:?}", self.input.get_current_element());
-                // println!("{:?}", matched_element);
+                matched_element = matcher(&mut self.input, &self.settings)?;
                 if matched_element.is_some() {
                     break;
                 }
@@ -100,27 +107,9 @@ impl<I: PositionalIterator<Item = char> + 'static> PositionalIterator for CnvLex
     }
 }
 
-fn match_unknown(
-    input: &mut impl PositionalIterator<Item = char>,
-) -> std::io::Result<Option<Element<CnvToken>>> {
-    if !matches!(
-        input.get_current_element(),
-        &Element::AfterStream | &Element::BeforeStream
-    ) {
-        Ok(None)
-    } else {
-        let Element::WithinStream { element, bounds } = input.advance()? else {
-            panic!();
-        };
-        Ok(Some(Element::WithinStream {
-            element: CnvToken::Unknown(element),
-            bounds,
-        }))
-    }
-}
-
 fn match_etx(
     input: &mut impl PositionalIterator<Item = char>,
+    _: &TokenizationSettings,
 ) -> std::io::Result<Option<Element<CnvToken>>> {
     // println!("match etx");
     if input.get_current_element() == &Element::AfterStream {
@@ -137,11 +126,10 @@ fn is_part_of_resolvable(c: &char) -> bool {
 
 fn match_resolvable(
     input: &mut impl PositionalIterator<Item = char>,
+    settings: &TokenizationSettings,
 ) -> std::io::Result<Option<Element<CnvToken>>> {
-    // println!("match resolvable");
     let mut current_element = input.get_current_element().get_element();
     if current_element.is_none() || !current_element.is_some_and(is_part_of_resolvable) {
-        // println!("current_element.is_none() || !current_element.is_some_and(is_part_of_resolvable)");
         return Ok(None);
     }
     let start_position = input.get_current_element().get_bounds().unwrap().start;
@@ -149,6 +137,9 @@ fn match_resolvable(
     let mut lexeme = String::new();
     while current_element.is_some_and(is_part_of_resolvable) {
         end_position = input.get_current_element().get_bounds().unwrap().end;
+        if lexeme.len() >= settings.max_lexeme_length {
+            return Err(std::io::Error::from(std::io::ErrorKind::Other));  // TODO: introduce own error type
+        }
         lexeme.push(input.advance()?.unwrap());
         current_element = input.get_current_element().get_element();
     }
@@ -163,8 +154,8 @@ fn match_resolvable(
 
 fn match_symbol(
     input: &mut impl PositionalIterator<Item = char>,
+    _: &TokenizationSettings,
 ) -> std::io::Result<Option<Element<CnvToken>>> {
-    // println!("match symbol");
     let token = match input.get_current_element().get_element() {
         Some('@') => CnvToken::At,
         Some('^') => CnvToken::Caret,
@@ -196,8 +187,8 @@ fn is_part_of_operation_resolvable(c: &char) -> bool {
 
 fn match_operation_resolvable(
     input: &mut impl PositionalIterator<Item = char>,
+    settings: &TokenizationSettings,
 ) -> std::io::Result<Option<Element<CnvToken>>> {
-    // println!("match operation resolvable");
     let mut current_element = input.get_current_element().get_element();
     if current_element.is_none() || !current_element.is_some_and(is_part_of_operation_resolvable) {
         return Ok(None);
@@ -207,6 +198,9 @@ fn match_operation_resolvable(
     let mut lexeme = String::new();
     while current_element.is_some_and(is_part_of_operation_resolvable) {
         end_position = input.get_current_element().get_bounds().unwrap().end;
+        if lexeme.len() >= settings.max_lexeme_length {
+            return Err(std::io::Error::from(std::io::ErrorKind::Other));  // TODO: introduce own error type
+        }
         lexeme.push(input.advance()?.unwrap());
         current_element = input.get_current_element().get_element();
     }
@@ -221,8 +215,8 @@ fn match_operation_resolvable(
 
 fn match_operation_symbol(
     input: &mut impl PositionalIterator<Item = char>,
+    _: &TokenizationSettings,
 ) -> std::io::Result<Option<Element<CnvToken>>> {
-    // println!("match operation symbol");
     let token = match input.get_current_element().get_element() {
         Some('+') => CnvToken::Plus,
         Some('-') => CnvToken::Minus,

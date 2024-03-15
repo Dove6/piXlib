@@ -79,6 +79,10 @@ RIGHT_BRACKET     = "]";
 LEFT_BRACE        = "{";
 RIGHT_BRACE       = "}";
 
+(* Key-value mode *)
+HASH              = "#";
+SLASH             = "/";
+
 
 (* Basic definitions - letters and digits *)
 
