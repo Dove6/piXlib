@@ -1,6 +1,4 @@
-use std::io::Read;
-
-use crate::common::{Bounds, Element, Position, PositionalIterator};
+use crate::common::{Position, WithPosition};
 
 lazy_static::lazy_static! {
     pub static ref CP1250_LUT: [char; 128] = [
@@ -24,41 +22,22 @@ lazy_static::lazy_static! {
         Codepage entries should consist of valid Unicode characters only.", x)));
 }
 
-pub struct CodepageDecoder<'lut, R: Read> {
+type IoReadResult = std::io::Result<u8>;
+type ScannerInput = std::io::Result<char>;
+type ScannerOutput = WithPosition<std::io::Result<char>>;
+
+pub struct CodepageDecoder<'lut, I: Iterator<Item = IoReadResult>> {
     /// A table for mapping all bytes with the most significant bit set to Unicode chars.
     decoding_lut: &'lut [char; 128],
-    reader: R,
+    input: I,
 }
 
-impl<'lut, R: Read> CodepageDecoder<'lut, R> {
-    pub fn new(decoding_lut: &'lut [char; 128], reader: R) -> Self {
+impl<'lut, I: Iterator<Item = IoReadResult>> CodepageDecoder<'lut, I> {
+    pub fn new(decoding_lut: &'lut [char; 128], input: I) -> Self {
         Self {
             decoding_lut,
-            reader,
+            input,
         }
-    }
-
-    pub fn read(&mut self, buf: &mut [char]) -> std::io::Result<usize> {
-        let mut read_byte = 0u8;
-        let read_byte = std::slice::from_mut(&mut read_byte);
-        for (i, entry) in buf.iter_mut().enumerate() {
-            let bytes_read = self.reader.read(read_byte)?;
-            if bytes_read == 0 {
-                return Ok(i);
-            }
-            *entry = self.decode_byte(read_byte[0]);
-        }
-        Ok(buf.len())
-    }
-
-    pub fn read_single(&mut self) -> std::io::Result<char> {
-        let mut read_byte = 0u8;
-        let read_byte = std::slice::from_mut(&mut read_byte);
-        let bytes_read = self.reader.read(read_byte)?;
-        if bytes_read == 0 {
-            return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
-        }
-        Ok(self.decode_byte(read_byte[0]))
     }
 
     #[inline]
@@ -71,102 +50,90 @@ impl<'lut, R: Read> CodepageDecoder<'lut, R> {
     }
 }
 
-impl<'lut, R: Read> Iterator for CodepageDecoder<'lut, R> {
-    type Item = std::io::Result<char>;
+impl<'lut, I: Iterator<Item = IoReadResult>> Iterator for CodepageDecoder<'lut, I> {
+    type Item = ScannerInput;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let read_byte = self.read_single();
-        if read_byte
-            .as_ref()
-            .is_err_and(|err| err.kind() == std::io::ErrorKind::UnexpectedEof)
-        {
-            None
-        } else {
-            Some(read_byte)
+        match self.input.next() {
+            Some(Ok(byte)) => Some(Ok(self.decode_byte(byte))),
+            Some(Err(err)) if err.kind() == std::io::ErrorKind::Interrupted => self.next(),
+            Some(Err(err)) => Some(Err(err)),
+            None => None,
         }
     }
 }
 
-pub struct CnvScanner<I: Iterator<Item = std::io::Result<char>>> {
+pub struct CnvScanner<I: Iterator<Item = ScannerInput>> {
     input: I,
     buffer: Vec<char>,
-    pub current_element: Element<char>,
     next_position: Position,
 }
 
-impl<I: Iterator<Item = std::io::Result<char>>> CnvScanner<I> {
+impl<I: Iterator<Item = ScannerInput>> CnvScanner<I> {
     const BUFFER_SIZE: usize = 2;
 
     pub fn new(input: I) -> Self {
         Self {
             input,
             buffer: Vec::with_capacity(Self::BUFFER_SIZE),
-            current_element: Element::BeforeStream,
             next_position: Position::default(),
         }
     }
 
     fn refill_buffer(&mut self) -> std::io::Result<()> {
         while self.buffer.len() < Self::BUFFER_SIZE {
-            let read_char = self.input.next();
-            if read_char.is_none() {
-                return Ok(());
-            }
-            self.buffer.push(read_char.unwrap()?);
+            match self.input.next() {
+                Some(Ok(character)) => self.buffer.push(character),
+                Some(Err(err)) if err.kind() == std::io::ErrorKind::Interrupted => continue,
+                Some(Err(err)) => return Err(err),
+                None => return Ok(()),
+            };
         }
         Ok(())
     }
 
-    fn match_newline(&mut self) -> MatchingResult {
+    fn match_newline(&mut self) -> Option<NewlineDetails> {
         match self.buffer.as_slice() {
-            ['\n', '\r', ..] => MatchingResult::Newline { length: 2 },
-            ['\n', ..] => MatchingResult::Newline { length: 1 },
-            ['\r', '\n', ..] => MatchingResult::Newline { length: 2 },
-            ['\r', ..] => MatchingResult::Newline { length: 1 },
-            ['\u{1e}', ..] => MatchingResult::Newline { length: 1 },
-            _ => MatchingResult::Nothing,
+            ['\n', '\r', ..] => Some(NewlineDetails { length: 2 }),
+            ['\n', ..] => Some(NewlineDetails { length: 1 }),
+            ['\r', '\n', ..] => Some(NewlineDetails { length: 2 }),
+            ['\r', ..] => Some(NewlineDetails { length: 1 }),
+            ['\u{1e}', ..] => Some(NewlineDetails { length: 1 }),
+            _ => None,
         }
     }
 }
 
-impl<I: Iterator<Item = std::io::Result<char>>> PositionalIterator for CnvScanner<I> {
-    type Item = char;
+impl<I: Iterator<Item = ScannerInput>> Iterator for CnvScanner<I> {
+    type Item = ScannerOutput;
 
-    fn advance(&mut self) -> std::io::Result<Element<Self::Item>> {
-        self.refill_buffer()?;
-        let new_element = if self.buffer.is_empty() {
-            Element::AfterStream
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Err(err) = self.refill_buffer() {
+            return Some(Self::Item::new(Err(err), self.next_position));
+        }
+        if self.buffer.is_empty() {
+            None
         } else {
-            let current_bounds = Bounds {
-                start: self.next_position,
-                end: self.next_position,
-            };
-            if let MatchingResult::Newline { length } = self.match_newline() {
-                self.next_position = self.next_position.with_incremented_line(length);
-                Element::WithinStream {
-                    element: '\n',
-                    bounds: current_bounds,
-                }
-            } else {
-                self.next_position = self.next_position.with_incremented_column();
-                Element::WithinStream {
-                    element: self.buffer.remove(0),
-                    bounds: current_bounds,
-                }
-            }
-        };
-        let superseded_element = std::mem::replace(&mut self.current_element, new_element);
-        Ok(superseded_element)
-    }
-
-    fn get_current_element(&self) -> &Element<Self::Item> {
-        &self.current_element
+            let start = self.next_position;
+            Some(Self::Item::new(
+                Ok(
+                    if let Some(NewlineDetails { length }) = self.match_newline() {
+                        self.next_position = self.next_position.with_incremented_line(length);
+                        self.buffer.drain(..length);
+                        '\n'
+                    } else {
+                        self.next_position = self.next_position.with_incremented_column();
+                        self.buffer.remove(0)
+                    },
+                ),
+                start,
+            ))
+        }
     }
 }
 
-enum MatchingResult {
-    Nothing,
-    Newline { length: usize },
+struct NewlineDetails {
+    pub length: usize,
 }
 
 #[cfg(test)]
@@ -176,21 +143,22 @@ mod tests {
     use proptest::prelude::*;
     use test_case::test_case;
 
-    fn make_iter_from(string: &str) -> impl Iterator<Item = std::io::Result<char>> + '_ {
+    fn iter_from(string: &str) -> impl Iterator<Item = std::io::Result<char>> + '_ {
         string.chars().map(|x| Ok(x)).into_iter()
     }
 
-    #[test]
-    fn output_should_be_empty_before_advancing_for_the_first_time() {
-        let scanner = CnvScanner::new(make_iter_from("any input"));
-        assert_eq!(scanner.get_current_element(), &Element::BeforeStream);
+    fn into_iter_from(string: String) -> impl Iterator<Item = std::io::Result<char>> {
+        string
+            .chars()
+            .map(|x| Ok(x))
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 
     #[test]
     fn empty_input_should_result_in_no_output() {
-        let mut scanner = CnvScanner::new(make_iter_from(""));
-        scanner.advance().unwrap();
-        assert_eq!(scanner.get_current_element(), &Element::AfterStream);
+        let mut scanner = CnvScanner::new(iter_from(""));
+        assert!(scanner.next().is_none());
     }
 
     #[test_case("\n\r")]
@@ -199,140 +167,112 @@ mod tests {
     #[test_case("\r")]
     #[test_case("\x1e")]
     fn newline_sequences_should_be_recognized_correctly(input: &str) {
-        let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
-        scanner.advance().unwrap();
+        let mut scanner = CnvScanner::new(iter_from(input));
         assert!(matches!(
-            scanner.get_current_element(),
-            &Element::WithinStream {
-                element: '\n',
-                bounds: _
-            }
+            scanner.next(),
+            Some(WithPosition {
+                value: Ok('\n'),
+                position: _
+            })
         ));
     }
 
-    #[test_case("\n\rA")]
-    #[test_case("\nA")]
-    #[test_case("\r\nA")]
-    #[test_case("\rA")]
-    #[test_case("\x1eA")]
+    #[test_case("\n\r")]
+    #[test_case("\n")]
+    #[test_case("\r\n")]
+    #[test_case("\r")]
+    #[test_case("\x1e")]
     fn newline_sequences_should_increment_line_position(input: &str) {
         let expected_position = Position {
-            character: input.len() - 1,
+            character: input.len(),
             line: 2,
             column: 1,
         };
-        let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
-        scanner.advance().unwrap();
-        scanner.advance().unwrap();
-        let &Element::WithinStream {
-            element: _,
-            bounds: current_bounds,
-        } = scanner.get_current_element()
-        else {
+        let mut scanner = CnvScanner::new(into_iter_from(input.to_owned() + "ANY TEXT"));
+        scanner.next();
+        if let Some(WithPosition { value: _, position }) = scanner.next() {
+            assert_eq!(position, expected_position);
+        } else {
             panic!();
-        };
-        assert_eq!(current_bounds.start, expected_position);
-        assert_eq!(current_bounds.end, expected_position);
+        }
     }
 
     proptest! {
         #[test]
         fn non_newline_characters_should_pass_through(alphanumeric in "[a-zA-Z0-9]") {
-            let character = alphanumeric.chars().next().unwrap();
-            let mut scanner = CnvScanner::new(std::iter::once(Ok(character)));
-            scanner.advance().unwrap();
-            let &Element::WithinStream {
-                element: current_element,
-                bounds: _,
-            } = scanner.get_current_element()
-            else {
+            let expected_character = alphanumeric.chars().next().unwrap();
+            let mut scanner = CnvScanner::new(iter_from(&alphanumeric));
+            if let Some(WithPosition { value: Ok(character), position: _ }) = scanner.next() {
+                assert_eq!(character, expected_character);
+            } else {
                 panic!();
-            };
-            assert_eq!(current_element, character);
+            }
         }
 
         #[test]
         fn non_newline_characters_should_increment_position_properly(alphanumeric in "[a-zA-Z0-9]") {
-            let character = alphanumeric.chars().next().unwrap();
             let expected_position = Position { character: 1, line: 1, column: 2 };
-            let mut scanner = CnvScanner::new(std::iter::once(Ok(character)));
-            scanner.advance().unwrap();
-            scanner.advance().unwrap();
-            let &Element::WithinStream {
-                element: _,
-                bounds: current_bounds,
-            } = scanner.get_current_element()
-            else {
+            let mut scanner = CnvScanner::new(into_iter_from(alphanumeric + "ANY TEXT"));
+            scanner.next();
+            if let Some(WithPosition { value: _, position }) = scanner.next() {
+                assert_eq!(position, expected_position);
+            } else {
                 panic!();
-            };
-            assert_eq!(current_bounds.start, expected_position);
-            assert_eq!(current_bounds.end, expected_position);
+            }
         }
     }
 
     #[test]
     fn sequence_of_non_newline_characters_should_increment_position_properly() {
         let input = "abcd1234";
-        let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
-        for i in 0..=input.len() {
-            scanner.advance().unwrap();
-            let &Element::WithinStream {
-                element: _,
-                bounds: current_bounds,
-            } = scanner.get_current_element()
-            else {
-                panic!();
-            };
+        let mut scanner = CnvScanner::new(iter_from(input));
+        for i in 0..input.len() {
             let expected_position = Position {
                 character: i,
                 line: 1,
                 column: 1 + i,
             };
-            assert_eq!(current_bounds.start, expected_position);
-            assert_eq!(current_bounds.end, expected_position);
+            if let Some(WithPosition { value: _, position }) = scanner.next() {
+                assert_eq!(position, expected_position);
+            } else {
+                panic!();
+            }
         }
     }
 
     #[test]
     fn sequence_of_non_newline_characters_should_be_passed_through_properly() {
         let input = "abcd1234";
-        let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
+        let mut scanner = CnvScanner::new(iter_from(input));
         for i in 0..input.len() {
-            scanner.advance().unwrap();
-            let &Element::WithinStream {
-                element: current_element,
-                bounds: _,
-            } = scanner.get_current_element()
-            else {
+            if let Some(WithPosition {
+                value: Ok(character),
+                position: _,
+            }) = scanner.next()
+            {
+                assert_eq!(character, input.chars().skip(i).next().unwrap());
+            } else {
                 panic!();
-            };
-            assert_eq!(current_element, input.chars().skip(i).next().unwrap());
+            }
         }
-        scanner.advance().unwrap();
-        assert_eq!(scanner.get_current_element(), &Element::AfterStream);
+        assert!(scanner.next().is_none());
     }
 
     #[test]
     fn sequence_of_newline_characters_should_increment_position_properly() {
         let newlines = ["\n", "\n", "\n\r", "\n\r", "\r", "\r\n", "\x1e", "\x1e"];
-        let input = newlines.join("");
-        let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
-        for i in 0..=newlines.len() {
-            scanner.advance().unwrap();
-            let &Element::WithinStream {
-                element: _,
-                bounds: current_bounds,
-            } = scanner.get_current_element()
-            else {
-                panic!();
-            };
+        let mut scanner = CnvScanner::new(into_iter_from(newlines.join("")));
+        for i in 0..newlines.len() {
             let expected_position = Position {
                 character: newlines.map(|x| x.len()).iter().take(i).sum(),
                 line: 1 + i,
                 column: 1,
             };
-            assert_eq!(current_bounds.start, expected_position);
-            assert_eq!(current_bounds.end, expected_position);
+            if let Some(WithPosition { value: _, position }) = scanner.next() {
+                assert_eq!(position, expected_position);
+            } else {
+                panic!();
+            }
         }
     }
 
@@ -341,17 +281,51 @@ mod tests {
         let newlines = ["\n", "\n", "\n\r", "\n\r", "\r", "\r\n", "\x1e", "\x1e"];
         let input = newlines.join("");
         let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
-        for _ in 0..=newlines.len() {
-            scanner.advance().unwrap();
+        for _ in 0..newlines.len() {
             assert!(matches!(
-                scanner.get_current_element(),
-                &Element::WithinStream {
-                    element: '\n',
-                    bounds: _,
-                }
+                scanner.next(),
+                Some(WithPosition {
+                    value: Ok('\n'),
+                    position: _
+                })
             ));
         }
-        scanner.advance().unwrap();
-        assert_eq!(scanner.get_current_element(), &Element::AfterStream);
+        assert!(scanner.next().is_none());
+    }
+
+    #[test]
+    fn io_error_should_be_passed_through_properly() {
+        let expected_err_kind = std::io::ErrorKind::TimedOut;
+        let mut scanner = CnvScanner::new(std::iter::once(Err(expected_err_kind.clone().into())));
+        if let Some(WithPosition {
+            value: Err(err),
+            position: _,
+        }) = scanner.next()
+        {
+            assert_eq!(err.kind(), expected_err_kind);
+        } else {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn interrupted_error_kind_should_be_ignored() {
+        let expected_character = 'a';
+        let mut scanner = CnvScanner::new(
+            [
+                Err(std::io::ErrorKind::Interrupted.into()),
+                Ok(expected_character),
+            ]
+            .into_iter(),
+        );
+        if let Some(WithPosition {
+            value: Ok(character),
+            position: _,
+        }) = scanner.next()
+        {
+            assert_eq!(character, expected_character);
+        } else {
+            panic!();
+        }
     }
 }

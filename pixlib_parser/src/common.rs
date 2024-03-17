@@ -39,45 +39,41 @@ pub struct Bounds {
     pub end: Position,
 }
 
+impl Bounds {
+    pub fn new(start: Position, end: Position) -> Self {
+        Self { start, end }
+    }
+
+    pub fn unit(position: Position) -> Self {
+        Self {
+            start: position,
+            end: position,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Element<T> {
-    BeforeStream,
-    WithinStream { element: T, bounds: Bounds },
-    AfterStream,
+pub struct WithPosition<T> {
+    pub value: T,
+    pub position: Position,
 }
 
-impl<T> Element<T> {
-    pub fn unwrap(self) -> T {
-        match self {
-            Self::WithinStream { element, bounds: _ } => element,
-            _ => panic!(),
-        }
-    }
-
-    pub fn get_element(&self) -> Option<&T> {
-        match self {
-            Self::WithinStream { element, bounds: _ } => Some(element),
-            _ => None,
-        }
-    }
-
-    pub fn get_bounds(&self) -> Option<Bounds> {
-        match self {
-            Self::WithinStream { element: _, bounds } => Some(*bounds),
-            _ => None,
-        }
+impl<T> WithPosition<T> {
+    pub fn new(value: T, position: Position) -> Self {
+        Self { value, position }
     }
 }
 
-pub trait PositionalIterator {
-    /// The type of the elements being iterated over.
-    type Item;
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Locatable<T> {
+    pub value: T,
+    pub bounds: Bounds,
+}
 
-    /// Advances the iterator and returns the current (superseded) element.
-    fn advance(&mut self) -> std::io::Result<Element<Self::Item>>;
-
-    /// Returns an immutable reference to the current element.
-    fn get_current_element(&self) -> &Element<Self::Item>;
+impl<T> Locatable<T> {
+    pub fn new(value: T, bounds: Bounds) -> Self {
+        Self { value, bounds }
+    }
 }
 
 pub trait MultiModeLexer {

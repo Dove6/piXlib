@@ -1,4 +1,28 @@
-use crate::common::{Bounds, Element, MultiModeLexer, PositionalIterator};
+use lazy_static::lazy_static;
+
+use crate::common::{Bounds, Locatable, MultiModeLexer, Position, WithPosition};
+use std::{collections::HashMap, iter::Peekable};
+
+type LexerInput = WithPosition<std::io::Result<char>>;
+type LexerOutput = Locatable<CnvToken>;
+type LexerErrorHandler = Box<dyn FnMut(LexerError)>;
+type LexemeMatcher<I> =
+    fn(&mut I, &mut Option<LexerErrorHandler>, &TokenizationSettings) -> Option<LexerOutput>;
+
+pub enum LexerError {
+    UnexpectedCharacter {
+        position: Position,
+        character: char,
+    },
+    LexemeTooLong {
+        bounds: Bounds,
+        max_allowed_len: usize,
+    },
+    IoError {
+        position: Position,
+        error: std::io::Error,
+    },
+}
 
 pub enum CnvTokenizationModes {
     General,
@@ -11,39 +35,46 @@ pub struct TokenizationSettings {
 
 impl Default for TokenizationSettings {
     fn default() -> Self {
-        Self { max_lexeme_length: i32::MAX as usize }
-    }
-}
-
-pub struct CnvLexer<I: PositionalIterator<Item = char>> {
-    input: I,
-    settings: TokenizationSettings,
-    tokenization_mode_stack: Vec<CnvTokenizationModes>,
-    pub current_element: Element<CnvToken>,
-}
-
-type Matcher<I> = fn(&mut I, settings: &TokenizationSettings) -> std::io::Result<Option<Element<CnvToken>>>;
-
-impl<I: PositionalIterator<Item = char> + 'static> CnvLexer<I> {
-    const GENERAL_MATCHERS: &'static [Matcher<I>] =
-        &[match_etx, match_resolvable, match_symbol,];
-    const OPERATION_MATCHERS: &'static [Matcher<I>] = &[
-        match_etx,
-        match_operation_resolvable,
-        match_operation_symbol,
-    ];
-
-    pub fn new(input: I, settings: TokenizationSettings) -> Self {
         Self {
-            input,
-            settings,
-            tokenization_mode_stack: Vec::new(),
-            current_element: Element::BeforeStream,
+            max_lexeme_length: i32::MAX as usize,
         }
     }
 }
 
-impl<I: PositionalIterator<Item = char>> MultiModeLexer for CnvLexer<I> {
+pub struct CnvLexer<I: Iterator<Item = LexerInput>> {
+    input: Peekable<I>,
+    encountered_fatal: bool,
+    error_handler: Option<LexerErrorHandler>,
+    settings: TokenizationSettings,
+    tokenization_mode_stack: Vec<CnvTokenizationModes>,
+}
+
+impl<I: Iterator<Item = LexerInput> + 'static> CnvLexer<I> {
+    const GENERAL_MATCHERS: &'static [LexemeMatcher<Peekable<I>>] =
+        &[match_resolvable, match_symbol];
+    const OPERATION_MATCHERS: &'static [LexemeMatcher<Peekable<I>>] =
+        &[match_operation_resolvable, match_operation_symbol];
+
+    pub fn new(input: I, settings: TokenizationSettings) -> Self {
+        Self {
+            input: input.peekable(),
+            encountered_fatal: false,
+            error_handler: None,
+            settings,
+            tokenization_mode_stack: Vec::new(),
+        }
+    }
+
+    #[inline]
+    fn get_matchers(&self) -> &'static [LexemeMatcher<Peekable<I>>] {
+        match self.get_mode() {
+            CnvTokenizationModes::General => Self::GENERAL_MATCHERS,
+            CnvTokenizationModes::Operation => Self::OPERATION_MATCHERS,
+        }
+    }
+}
+
+impl<I: Iterator<Item = LexerInput>> MultiModeLexer for CnvLexer<I> {
     type Modes = CnvTokenizationModes;
 
     fn push_mode(&mut self, mode: Self::Modes) {
@@ -66,186 +97,252 @@ impl<I: PositionalIterator<Item = char>> MultiModeLexer for CnvLexer<I> {
     }
 }
 
-impl<I: PositionalIterator<Item = char> + 'static> PositionalIterator for CnvLexer<I> {
-    type Item = CnvToken;
+impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
+    type Item = LexerOutput;
 
-    fn advance(&mut self) -> std::io::Result<crate::common::Element<Self::Item>> {
-        if self.input.get_current_element() == &Element::BeforeStream {
-            self.input.advance()?;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.encountered_fatal {
+            return None;
         }
-        let new_element = if self.input.get_current_element() == &Element::AfterStream {
-            Element::AfterStream
-        } else {
-            let matchers = match self.get_mode() {
-                CnvTokenizationModes::General => &Self::GENERAL_MATCHERS,
-                CnvTokenizationModes::Operation => &Self::OPERATION_MATCHERS,
-            };
-            let mut matched_element = None;
-            for matcher in matchers.iter() {
-                matched_element = matcher(&mut self.input, &self.settings)?;
-                if matched_element.is_some() {
-                    break;
+        match self
+            .get_matchers()
+            .iter()
+            .find_map(|matcher| matcher(&mut self.input, &mut self.error_handler, &self.settings))
+        {
+            None => self.input.next().and_then(|p| match p.value {
+                Ok(character) => {
+                    if let Some(f) = self.error_handler.as_mut() {
+                        f(LexerError::UnexpectedCharacter {
+                            position: p.position,
+                            character,
+                        })
+                    };
+                    Some(Locatable {
+                        value: CnvToken::Unexpected(character),
+                        bounds: Bounds::unit(p.position),
+                    })
                 }
-            }
-            if let Some(matched_element) = matched_element {
-                matched_element
-            } else {
-                let Element::WithinStream { element, bounds } = self.input.advance()? else {
-                    panic!();
-                };
-                Element::WithinStream {
-                    element: CnvToken::Unknown(element),
-                    bounds,
+                Err(err) => {
+                    if let Some(f) = self.error_handler.as_mut() {
+                        f(LexerError::IoError {
+                            position: p.position,
+                            error: err,
+                        })
+                    };
+                    None
                 }
-            }
-        };
-        Ok(std::mem::replace(&mut self.current_element, new_element))
-    }
-
-    fn get_current_element(&self) -> &crate::common::Element<Self::Item> {
-        &self.current_element
+            }),
+            matched_element => matched_element,
+        }
     }
 }
 
-fn match_etx(
-    input: &mut impl PositionalIterator<Item = char>,
-    _: &TokenizationSettings,
-) -> std::io::Result<Option<Element<CnvToken>>> {
-    // println!("match etx");
-    if input.get_current_element() == &Element::AfterStream {
-        input.advance()?;
-        Ok(Some(Element::AfterStream))
-    } else {
-        Ok(None)
-    }
-}
-
-fn is_part_of_resolvable(c: &char) -> bool {
-    c.is_alphanumeric() || *c == '_' || *c == '.' || *c == '-'
+fn is_part_of_resolvable(c: char) -> bool {
+    c.is_alphanumeric() || c == '_' || c == '.' || c == '-'
 }
 
 fn match_resolvable(
-    input: &mut impl PositionalIterator<Item = char>,
+    input: &mut Peekable<impl Iterator<Item = LexerInput>>,
+    error_handler: &mut Option<LexerErrorHandler>,
     settings: &TokenizationSettings,
-) -> std::io::Result<Option<Element<CnvToken>>> {
-    let mut current_element = input.get_current_element().get_element();
-    if current_element.is_none() || !current_element.is_some_and(is_part_of_resolvable) {
-        return Ok(None);
+) -> Option<LexerOutput> {
+    if !matches!(input.peek(), Some(WithPosition { value: Ok(c), .. }) if is_part_of_resolvable(*c))
+    {
+        return None;
     }
-    let start_position = input.get_current_element().get_bounds().unwrap().start;
-    let mut end_position = input.get_current_element().get_bounds().unwrap().end;
+    let start_position = input.peek().unwrap().position;
+    let mut end_position = start_position;
     let mut lexeme = String::new();
-    while current_element.is_some_and(is_part_of_resolvable) {
-        end_position = input.get_current_element().get_bounds().unwrap().end;
-        if lexeme.len() >= settings.max_lexeme_length {
-            return Err(std::io::Error::from(std::io::ErrorKind::Other));  // TODO: introduce own error type
+    while let Some(p) = input.next_if(|l| match &l.value {
+        Ok(c) => is_part_of_resolvable(*c),
+        Err(_) => true,
+    }) {
+        end_position = p.position;
+        match p.value {
+            Ok(character) => {
+                if lexeme.len() >= settings.max_lexeme_length {
+                    let mut lexeme_end = p.position;
+                    while input
+                        .next_if(|l| l.value.as_ref().is_ok_and(|c| is_part_of_resolvable(*c)))
+                        .is_some()
+                    {
+                        lexeme_end = input.next().map(|l| l.position).unwrap_or(lexeme_end);
+                    }
+                    if let Some(f) = error_handler.as_mut() {
+                        f(LexerError::LexemeTooLong {
+                            bounds: Bounds::new(start_position, lexeme_end),
+                            max_allowed_len: settings.max_lexeme_length,
+                        })
+                    };
+                    break;
+                }
+                lexeme.push(character);
+            }
+            Err(err) => {
+                if let Some(f) = error_handler.as_mut() {
+                    f(LexerError::IoError {
+                        position: p.position,
+                        error: err,
+                    })
+                };
+                // TODO: mark fatal error
+                break;
+            }
         }
-        lexeme.push(input.advance()?.unwrap());
-        current_element = input.get_current_element().get_element();
     }
-    Ok(Some(Element::WithinStream {
-        element: CnvToken::Resolvable(lexeme),
+    Some(Locatable {
+        value: CnvToken::Resolvable(lexeme),
         bounds: Bounds {
             start: start_position,
             end: end_position,
         },
-    }))
+    })
+}
+
+lazy_static! {
+    static ref SYMBOL_MAPPING: HashMap<char, CnvToken> = [
+        ('@', CnvToken::At),
+        ('^', CnvToken::Caret),
+        (',', CnvToken::Comma),
+        ('!', CnvToken::Bang),
+        (';', CnvToken::Semicolon),
+        ('(', CnvToken::LeftParenthesis),
+        (')', CnvToken::RightParenthesis),
+        ('[', CnvToken::LeftBracket),
+        (']', CnvToken::RightBracket),
+        ('{', CnvToken::LeftBrace),
+        ('}', CnvToken::RightBrace),
+    ]
+    .into_iter()
+    .collect();
 }
 
 fn match_symbol(
-    input: &mut impl PositionalIterator<Item = char>,
+    input: &mut Peekable<impl Iterator<Item = LexerInput>>,
+    _: &mut Option<LexerErrorHandler>,
     _: &TokenizationSettings,
-) -> std::io::Result<Option<Element<CnvToken>>> {
-    let token = match input.get_current_element().get_element() {
-        Some('@') => CnvToken::At,
-        Some('^') => CnvToken::Caret,
-        Some(',') => CnvToken::Comma,
-        Some('!') => CnvToken::Bang,
-        Some(';') => CnvToken::Semicolon,
-        Some('(') => CnvToken::LeftParenthesis,
-        Some(')') => CnvToken::RightParenthesis,
-        Some('[') => CnvToken::LeftBracket,
-        Some(']') => CnvToken::RightBracket,
-        Some('{') => CnvToken::LeftBrace,
-        Some('}') => CnvToken::RightBrace,
-        _ => return Ok(None),
-    };
-    let position = input.get_current_element().get_bounds().unwrap().start;
-    input.advance()?;
-    Ok(Some(Element::WithinStream {
-        element: token,
-        bounds: Bounds {
-            start: position,
-            end: position,
-        },
-    }))
+) -> Option<LexerOutput> {
+    input
+        .next_if(|p| {
+            p.value
+                .as_ref()
+                .is_ok_and(|c| SYMBOL_MAPPING.contains_key(c))
+        })
+        .map(|l| {
+            LexerOutput::new(
+                SYMBOL_MAPPING[&l.value.unwrap()].clone(),
+                Bounds::unit(l.position),
+            )
+        })
 }
 
-fn is_part_of_operation_resolvable(c: &char) -> bool {
-    c.is_alphanumeric() || *c == '_'
+fn is_part_of_operation_resolvable(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
 }
 
 fn match_operation_resolvable(
-    input: &mut impl PositionalIterator<Item = char>,
+    input: &mut Peekable<impl Iterator<Item = LexerInput>>,
+    error_handler: &mut Option<LexerErrorHandler>,
     settings: &TokenizationSettings,
-) -> std::io::Result<Option<Element<CnvToken>>> {
-    let mut current_element = input.get_current_element().get_element();
-    if current_element.is_none() || !current_element.is_some_and(is_part_of_operation_resolvable) {
-        return Ok(None);
+) -> Option<LexerOutput> {
+    if !matches!(input.peek(), Some(WithPosition { value: Ok(c), .. }) if is_part_of_operation_resolvable(*c))
+    {
+        return None;
     }
-    let start_position = input.get_current_element().get_bounds().unwrap().start;
-    let mut end_position = input.get_current_element().get_bounds().unwrap().end;
+    let start_position = input.peek().unwrap().position;
+    let mut end_position = start_position;
     let mut lexeme = String::new();
-    while current_element.is_some_and(is_part_of_operation_resolvable) {
-        end_position = input.get_current_element().get_bounds().unwrap().end;
-        if lexeme.len() >= settings.max_lexeme_length {
-            return Err(std::io::Error::from(std::io::ErrorKind::Other));  // TODO: introduce own error type
+    while let Some(p) = input.next_if(|l| match &l.value {
+        Ok(c) => is_part_of_operation_resolvable(*c),
+        Err(_) => true,
+    }) {
+        end_position = p.position;
+        match p.value {
+            Ok(character) => {
+                if lexeme.len() >= settings.max_lexeme_length {
+                    let mut lexeme_end = p.position;
+                    while input
+                        .next_if(|l| {
+                            l.value
+                                .as_ref()
+                                .is_ok_and(|c| is_part_of_operation_resolvable(*c))
+                        })
+                        .is_some()
+                    {
+                        lexeme_end = input.next().map(|l| l.position).unwrap_or(lexeme_end);
+                    }
+                    if let Some(f) = error_handler.as_mut() {
+                        f(LexerError::LexemeTooLong {
+                            bounds: Bounds::new(start_position, lexeme_end),
+                            max_allowed_len: settings.max_lexeme_length,
+                        })
+                    };
+                    break;
+                }
+                lexeme.push(character);
+            }
+            Err(err) => {
+                if let Some(f) = error_handler.as_mut() {
+                    f(LexerError::IoError {
+                        position: p.position,
+                        error: err,
+                    })
+                };
+                // TODO: mark fatal error
+                break;
+            }
         }
-        lexeme.push(input.advance()?.unwrap());
-        current_element = input.get_current_element().get_element();
     }
-    Ok(Some(Element::WithinStream {
-        element: CnvToken::Resolvable(lexeme),
+    Some(Locatable {
+        value: CnvToken::Resolvable(lexeme),
         bounds: Bounds {
             start: start_position,
             end: end_position,
         },
-    }))
+    })
+}
+
+lazy_static! {
+    static ref OPERATION_SYMBOL_MAPPING: HashMap<char, CnvToken> = [
+        ('+', CnvToken::Plus),
+        ('-', CnvToken::Minus),
+        ('*', CnvToken::Asterisk),
+        ('@', CnvToken::At),
+        ('%', CnvToken::Percent),
+        ('^', CnvToken::Caret),
+        (',', CnvToken::Comma),
+        ('(', CnvToken::LeftParenthesis),
+        (')', CnvToken::RightParenthesis),
+        ('[', CnvToken::LeftBracket),
+        (']', CnvToken::RightBracket),
+    ]
+    .into_iter()
+    .collect();
 }
 
 fn match_operation_symbol(
-    input: &mut impl PositionalIterator<Item = char>,
+    input: &mut Peekable<impl Iterator<Item = LexerInput>>,
+    _: &mut Option<LexerErrorHandler>,
     _: &TokenizationSettings,
-) -> std::io::Result<Option<Element<CnvToken>>> {
-    let token = match input.get_current_element().get_element() {
-        Some('+') => CnvToken::Plus,
-        Some('-') => CnvToken::Minus,
-        Some('*') => CnvToken::Asterisk,
-        Some('@') => CnvToken::At,
-        Some('%') => CnvToken::Percent,
-        Some('^') => CnvToken::Caret,
-        Some(',') => CnvToken::Comma,
-        Some('(') => CnvToken::LeftParenthesis,
-        Some(')') => CnvToken::RightParenthesis,
-        Some('[') => CnvToken::LeftBracket,
-        Some(']') => CnvToken::RightBracket,
-        _ => return Ok(None),
-    };
-    let position = input.get_current_element().get_bounds().unwrap().start;
-    input.advance()?;
-    Ok(Some(Element::WithinStream {
-        element: token,
-        bounds: Bounds {
-            start: position,
-            end: position,
-        },
-    }))
+) -> Option<LexerOutput> {
+    input
+        .next_if(|p| {
+            p.value
+                .as_ref()
+                .is_ok_and(|c| OPERATION_SYMBOL_MAPPING.contains_key(c))
+        })
+        .map(|l| {
+            LexerOutput::new(
+                OPERATION_SYMBOL_MAPPING[&l.value.unwrap()].clone(),
+                Bounds::unit(l.position),
+            )
+        })
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CnvToken {
-    EndOfText,
-    Unknown(char),
+    Unknown,
+    Unexpected(char),
 
     Resolvable(String),
     OperationResolvable(String),
