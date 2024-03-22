@@ -89,3 +89,28 @@ pub trait MultiModeLexer {
     /// Returns an immutable reference to the current tokenization mode.
     fn get_mode(&self) -> &Self::Modes;
 }
+
+pub struct ErrorManager<E> {
+    pub encountered_error: bool,
+    pub encountered_fatal: bool,
+    pub error_handler: Option<Box<dyn FnMut(E)>>,
+}
+
+impl<E> Default for ErrorManager<E> {
+    fn default() -> Self {
+        Self {
+            encountered_error: false,
+            encountered_fatal: false,
+            error_handler: None,
+        }
+    }
+}
+
+impl<E> ErrorManager<E> {
+    pub fn emit_error(&mut self, error: E) {
+        self.encountered_error = true;
+        if let Some(error_handler) = self.error_handler.as_mut() {
+            error_handler(error)
+        };
+    }
+}
