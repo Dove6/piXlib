@@ -6,6 +6,7 @@ type LexerOutput = Locatable<CnvToken>;
 type LexemeMatcher<I> =
     fn(&mut I, &mut ErrorManager<LexerError>, &TokenizationSettings) -> Option<LexerOutput>;
 
+#[derive(Debug)]
 pub enum LexerError {
     UnexpectedCharacter {
         position: Position,
@@ -15,17 +16,19 @@ pub enum LexerError {
         bounds: Bounds,
         max_allowed_len: usize,
     },
-    IoError {
+    /* fatal */ IoError {
         position: Position,
         error: std::io::Error,
     },
 }
 
+#[derive(Debug, Clone)]
 pub enum CnvTokenizationModes {
     General,
     Operation,
 }
 
+#[derive(Debug, Clone)]
 pub struct TokenizationSettings {
     max_lexeme_length: usize,
 }
@@ -38,6 +41,7 @@ impl Default for TokenizationSettings {
     }
 }
 
+#[derive(Debug)]
 pub struct CnvLexer<I: Iterator<Item = LexerInput>> {
     input: Peekable<I>,
     error_manager: ErrorManager<LexerError>,

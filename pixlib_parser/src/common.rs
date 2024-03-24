@@ -90,10 +90,13 @@ pub trait MultiModeLexer {
     fn get_mode(&self) -> &Self::Modes;
 }
 
+pub trait ErrorHandler<E>: FnMut(E) + std::fmt::Debug {}
+
+#[derive(Debug)]
 pub struct ErrorManager<E> {
     pub encountered_error: bool,
     pub encountered_fatal: bool,
-    pub error_handler: Option<Box<dyn FnMut(E)>>,
+    pub error_handler: Option<Box<dyn ErrorHandler<E>>>,
 }
 
 impl<E> Default for ErrorManager<E> {
