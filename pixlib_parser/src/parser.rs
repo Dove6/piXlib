@@ -1,11 +1,13 @@
 use std::iter::Peekable;
 
+use thiserror::Error;
+
 use crate::{
-    common::{ErrorManager, Locatable},
-    lexer::CnvToken,
+    common::{Issue, IssueKind, IssueManager, Token},
+    lexer::{CnvToken, LexerFatal},
 };
 
-type ParserInput = Locatable<CnvToken>;
+type ParserInput = Result<Token<CnvToken>, LexerFatal>;
 
 #[derive(Debug, Clone)]
 pub struct IgnorableProgram {
@@ -51,20 +53,33 @@ pub enum Operation {
     Remainder(Expression, Expression),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum ParserFatal {}
 
-#[derive(Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum ParserError {}
 
-#[derive(Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum ParserWarning {}
 
-#[derive(Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum ParserIssue {
+    #[error("Fatal error: {0}")]
     Fatal(ParserFatal),
+    #[error("Error: {0}")]
     Error(ParserError),
+    #[error("Warning: {0}")]
     Warning(ParserWarning),
+}
+
+impl Issue for ParserIssue {
+    fn kind(&self) -> IssueKind {
+        match *self {
+            Self::Fatal(_) => IssueKind::Fatal,
+            Self::Error(_) => IssueKind::Error,
+            Self::Warning(_) => IssueKind::Warning,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -73,7 +88,7 @@ pub struct ParsingSettings {}
 #[derive(Debug)]
 pub struct CnvParser<I: Iterator<Item = ParserInput>> {
     _input: Peekable<I>,
-    _error_manager: ErrorManager<ParserError>,
+    _issue_manager: IssueManager<ParserIssue>,
     _settings: ParsingSettings,
 }
 

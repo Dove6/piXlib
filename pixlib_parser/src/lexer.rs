@@ -1,25 +1,59 @@
-use crate::common::{Bounds, ErrorManager, Locatable, MultiModeLexer, Position, WithPosition};
+use thiserror::Error;
+
+use crate::common::{
+    Bounds, Issue, IssueKind, IssueManager, MultiModeLexer, Position, Token, WithPosition,
+};
 use std::iter::Peekable;
 
 type LexerInput = WithPosition<std::io::Result<char>>;
-type LexerOutput = Locatable<CnvToken>;
-type LexemeMatcher<I> =
-    fn(&mut I, &mut ErrorManager<LexerError>, &TokenizationSettings) -> Option<LexerOutput>;
+type LexerOutput = Result<Token<CnvToken>, LexerFatal>;
+type LexemeMatcher<I> = fn(
+    &mut Peekable<I>,
+    &mut IssueManager<LexerIssue>,
+    &TokenizationSettings,
+) -> Option<LexerOutput>;
 
-#[derive(Debug)]
-pub enum LexerError {
-    UnexpectedCharacter {
+#[derive(Error, Debug)]
+pub enum LexerFatal {
+    #[error("IO error at {position}")]
+    IoError {
         position: Position,
-        character: char,
+        source: std::io::Error,
     },
+}
+
+#[derive(Error, Debug, Clone)]
+pub enum LexerError {
+    #[error("Unexpected character '{character}' at {position}")]
+    UnexpectedCharacter { position: Position, character: char },
+    #[error("Lexeme length over limit ({max_allowed_len}) at {} to {}", bounds.start, bounds.end)]
     LexemeTooLong {
         bounds: Bounds,
         max_allowed_len: usize,
     },
-    /* fatal */ IoError {
-        position: Position,
-        error: std::io::Error,
-    },
+}
+
+#[derive(Error, Debug, Clone)]
+pub enum LexerWarning {}
+
+#[derive(Error, Debug)]
+pub enum LexerIssue {
+    #[error("Fatal error: {0}")]
+    Fatal(LexerFatal),
+    #[error("Error: {0}")]
+    Error(LexerError),
+    #[error("Warning: {0}")]
+    Warning(LexerWarning),
+}
+
+impl Issue for LexerIssue {
+    fn kind(&self) -> IssueKind {
+        match *self {
+            Self::Fatal(_) => IssueKind::Fatal,
+            Self::Error(_) => IssueKind::Error,
+            Self::Warning(_) => IssueKind::Warning,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -44,17 +78,17 @@ impl Default for TokenizationSettings {
 #[derive(Debug)]
 pub struct CnvLexer<I: Iterator<Item = LexerInput>> {
     input: Peekable<I>,
-    error_manager: ErrorManager<LexerError>,
+    issue_manager: IssueManager<LexerIssue>,
     settings: TokenizationSettings,
     tokenization_mode_stack: Vec<CnvTokenizationModes>,
 }
 
 impl<I: Iterator<Item = LexerInput> + 'static> CnvLexer<I> {
-    const GENERAL_MATCHERS: &'static [LexemeMatcher<Peekable<I>>] = &[
+    const GENERAL_MATCHERS: &'static [LexemeMatcher<I>] = &[
         matchers::general_mode::match_resolvable,
         matchers::general_mode::match_symbol,
     ];
-    const OPERATION_MATCHERS: &'static [LexemeMatcher<Peekable<I>>] = &[
+    const OPERATION_MATCHERS: &'static [LexemeMatcher<I>] = &[
         matchers::operation_mode::match_resolvable,
         matchers::operation_mode::match_symbol,
     ];
@@ -62,14 +96,14 @@ impl<I: Iterator<Item = LexerInput> + 'static> CnvLexer<I> {
     pub fn new(input: I, settings: TokenizationSettings) -> Self {
         Self {
             input: input.peekable(),
-            error_manager: ErrorManager::default(),
+            issue_manager: IssueManager::default(),
             settings,
             tokenization_mode_stack: Vec::new(),
         }
     }
 
     #[inline]
-    fn get_matchers(&self) -> &'static [LexemeMatcher<Peekable<I>>] {
+    fn get_matchers(&self) -> &'static [LexemeMatcher<I>] {
         match self.get_mode() {
             CnvTokenizationModes::General => Self::GENERAL_MATCHERS,
             CnvTokenizationModes::Operation => Self::OPERATION_MATCHERS,
@@ -84,11 +118,12 @@ impl<I: Iterator<Item = LexerInput>> MultiModeLexer for CnvLexer<I> {
         self.tokenization_mode_stack.push(mode);
     }
 
-    fn pop_mode(&mut self) -> Self::Modes {
+    fn pop_mode(&mut self) -> Result<Self::Modes, &'static str> {
         if self.tokenization_mode_stack.is_empty() {
-            panic!("Cannot pop elements off an empty stack!");
+            Err("Cannot pop elements off an empty stack!")
+        } else {
+            Ok(self.tokenization_mode_stack.pop().unwrap())
         }
-        self.tokenization_mode_stack.pop().unwrap()
     }
 
     fn get_mode(&self) -> &Self::Modes {
@@ -104,33 +139,40 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
     type Item = LexerOutput;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.error_manager.encountered_fatal {
+        self.issue_manager.clear_had_errors();
+        self.input.peek()?;
+        if self.issue_manager.had_fatal() {
             return None;
         }
         match self
             .get_matchers()
             .iter()
-            .find_map(|matcher| matcher(&mut self.input, &mut self.error_manager, &self.settings))
+            .find_map(|matcher| matcher(&mut self.input, &mut self.issue_manager, &self.settings))
         {
-            None => self.input.next().and_then(|p| match p.value {
+            None => self.input.next().map(|p| match p.value {
                 Ok(character) => {
-                    self.error_manager
-                        .emit_error(LexerError::UnexpectedCharacter {
+                    self.issue_manager.emit_issue(LexerIssue::Error(
+                        LexerError::UnexpectedCharacter {
                             position: p.position,
                             character,
-                        });
-                    Some(Locatable {
+                        },
+                    ));
+                    Ok(Token {
                         value: CnvToken::Unexpected(character),
                         bounds: Bounds::unit(p.position),
+                        had_errors: self.issue_manager.had_errors(),
                     })
                 }
                 Err(err) => {
-                    self.error_manager.emit_error(LexerError::IoError {
+                    self.issue_manager
+                        .emit_issue(LexerIssue::Fatal(LexerFatal::IoError {
+                            position: p.position,
+                            source: std::io::Error::from(err.kind()),
+                        }));
+                    Err(LexerFatal::IoError {
                         position: p.position,
-                        error: err,
-                    });
-                    self.error_manager.encountered_fatal = true;
-                    None
+                        source: err,
+                    })
                 }
             }),
             matched_element => matched_element,
@@ -143,19 +185,19 @@ pub mod matchers {
         use std::iter::Peekable;
 
         use crate::lexer::{
-            CnvToken, ErrorManager, LexerError, LexerInput, LexerOutput, TokenizationSettings,
+            CnvToken, IssueManager, LexerInput, LexerIssue, LexerOutput, TokenizationSettings,
         };
 
         use super::configurable::*;
 
         pub fn match_resolvable(
             input: &mut Peekable<impl Iterator<Item = LexerInput>>,
-            error_manager: &mut ErrorManager<LexerError>,
+            issue_manager: &mut IssueManager<LexerIssue>,
             settings: &TokenizationSettings,
         ) -> Option<LexerOutput> {
             match_resolvable_configurable(
                 input,
-                error_manager,
+                issue_manager,
                 settings,
                 &ResolvableMatcherConfig {
                     initial_predicate: is_part_of_resolvable,
@@ -167,12 +209,12 @@ pub mod matchers {
 
         pub fn match_symbol(
             input: &mut Peekable<impl Iterator<Item = LexerInput>>,
-            error_manager: &mut ErrorManager<LexerError>,
+            issue_manager: &mut IssueManager<LexerIssue>,
             settings: &TokenizationSettings,
         ) -> Option<LexerOutput> {
             match_symbol_configurable(
                 input,
-                error_manager,
+                issue_manager,
                 settings,
                 &SymbolMatcherConfig {
                     symbol_mapper: try_map_symbol,
@@ -206,19 +248,19 @@ pub mod matchers {
         use std::iter::Peekable;
 
         use crate::lexer::{
-            CnvToken, ErrorManager, LexerError, LexerInput, LexerOutput, TokenizationSettings,
+            CnvToken, IssueManager, LexerInput, LexerIssue, LexerOutput, TokenizationSettings,
         };
 
         use super::configurable::*;
 
         pub fn match_resolvable(
             input: &mut Peekable<impl Iterator<Item = LexerInput>>,
-            error_manager: &mut ErrorManager<LexerError>,
+            issue_manager: &mut IssueManager<LexerIssue>,
             settings: &TokenizationSettings,
         ) -> Option<LexerOutput> {
             match_resolvable_configurable(
                 input,
-                error_manager,
+                issue_manager,
                 settings,
                 &ResolvableMatcherConfig {
                     initial_predicate: is_part_of_resolvable,
@@ -230,12 +272,12 @@ pub mod matchers {
 
         pub fn match_symbol(
             input: &mut Peekable<impl Iterator<Item = LexerInput>>,
-            error_manager: &mut ErrorManager<LexerError>,
+            issue_manager: &mut IssueManager<LexerIssue>,
             settings: &TokenizationSettings,
         ) -> Option<LexerOutput> {
             match_symbol_configurable(
                 input,
-                error_manager,
+                issue_manager,
                 settings,
                 &SymbolMatcherConfig {
                     symbol_mapper: try_map_symbol,
@@ -269,9 +311,10 @@ pub mod matchers {
         use std::iter::Peekable;
 
         use crate::{
-            common::{Bounds, Locatable, WithPosition},
+            common::{Bounds, Token, WithPosition},
             lexer::{
-                CnvToken, ErrorManager, LexerError, LexerInput, LexerOutput, TokenizationSettings,
+                CnvToken, IssueManager, LexerError, LexerFatal, LexerInput, LexerIssue,
+                LexerOutput, TokenizationSettings,
             },
         };
 
@@ -283,7 +326,7 @@ pub mod matchers {
 
         pub fn match_resolvable_configurable(
             input: &mut Peekable<impl Iterator<Item = LexerInput>>,
-            error_manager: &mut ErrorManager<LexerError>,
+            issue_manager: &mut IssueManager<LexerIssue>,
             settings: &TokenizationSettings,
             matcher_config: &ResolvableMatcherConfig,
         ) -> Option<LexerOutput> {
@@ -314,31 +357,37 @@ pub mod matchers {
                             {
                                 lexeme_end = input.next().map(|l| l.position).unwrap_or(lexeme_end);
                             }
-                            error_manager.emit_error(LexerError::LexemeTooLong {
-                                bounds: Bounds::new(start_position, lexeme_end),
-                                max_allowed_len: settings.max_lexeme_length,
-                            });
+                            issue_manager.emit_issue(LexerIssue::Error(
+                                LexerError::LexemeTooLong {
+                                    bounds: Bounds::new(start_position, lexeme_end),
+                                    max_allowed_len: settings.max_lexeme_length,
+                                },
+                            ));
                             break;
                         }
                         lexeme.push(character);
                     }
                     Err(err) => {
-                        error_manager.emit_error(LexerError::IoError {
+                        issue_manager.emit_issue(LexerIssue::Fatal(LexerFatal::IoError {
                             position: p.position,
-                            error: err,
-                        });
-                        error_manager.encountered_fatal = true;
-                        break;
+                            source: std::io::Error::from(err.kind()),
+                        }));
+
+                        return Some(Err(LexerFatal::IoError {
+                            position: p.position,
+                            source: err,
+                        }));
                     }
                 }
             }
-            Some(Locatable {
+            Some(Ok(Token {
                 value: CnvToken::Resolvable(lexeme),
                 bounds: Bounds {
                     start: start_position,
                     end: end_position,
                 },
-            })
+                had_errors: issue_manager.had_errors(),
+            }))
         }
 
         pub struct SymbolMatcherConfig {
@@ -347,7 +396,7 @@ pub mod matchers {
 
         pub fn match_symbol_configurable(
             input: &mut Peekable<impl Iterator<Item = LexerInput>>,
-            _: &mut ErrorManager<LexerError>,
+            issue_manager: &mut IssueManager<LexerIssue>,
             _: &TokenizationSettings,
             matcher_config: &SymbolMatcherConfig,
         ) -> Option<LexerOutput> {
@@ -356,13 +405,14 @@ pub mod matchers {
             };
             if let Some(token) = (matcher_config.symbol_mapper)(*c) {
                 let position = input.next().unwrap().position;
-                Some(Locatable {
+                Some(Ok(Token {
                     value: token,
                     bounds: Bounds {
                         start: position,
                         end: position,
                     },
-                })
+                    had_errors: issue_manager.had_errors(),
+                }))
             } else {
                 None
             }

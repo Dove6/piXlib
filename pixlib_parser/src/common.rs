@@ -1,8 +1,20 @@
+use std::{error::Error, fmt::Display};
+
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub struct Position {
     pub character: usize,
     pub line: usize,
     pub column: usize,
+}
+
+impl Display for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} (line {}, col {})",
+            self.character, self.line, self.column
+        )
+    }
 }
 
 impl Default for Position {
@@ -64,18 +76,6 @@ impl<T> WithPosition<T> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Locatable<T> {
-    pub value: T,
-    pub bounds: Bounds,
-}
-
-impl<T> Locatable<T> {
-    pub fn new(value: T, bounds: Bounds) -> Self {
-        Self { value, bounds }
-    }
-}
-
 pub trait MultiModeLexer {
     /// The type of the tokenization modes available.
     type Modes;
@@ -84,7 +84,7 @@ pub trait MultiModeLexer {
     fn push_mode(&mut self, mode: Self::Modes);
 
     /// Pops the current mode tokenization off the stack, switching back to the previous one.
-    fn pop_mode(&mut self) -> Self::Modes;
+    fn pop_mode(&mut self) -> Result<Self::Modes, &'static str>;
 
     /// Returns an immutable reference to the current tokenization mode.
     fn get_mode(&self) -> &Self::Modes;
@@ -93,27 +93,70 @@ pub trait MultiModeLexer {
 pub trait ErrorHandler<E>: FnMut(E) + std::fmt::Debug {}
 
 #[derive(Debug)]
-pub struct ErrorManager<E> {
-    pub encountered_error: bool,
-    pub encountered_fatal: bool,
-    pub error_handler: Option<Box<dyn ErrorHandler<E>>>,
+pub struct Token<T> {
+    pub value: T,
+    pub bounds: Bounds,
+    pub had_errors: bool,
 }
 
-impl<E> Default for ErrorManager<E> {
+pub trait Issue: Error {
+    fn kind(&self) -> IssueKind;
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Copy)]
+pub enum IssueKind {
+    Fatal,
+    Error,
+    Warning,
+}
+
+pub trait IssueHandler<I: Issue>: std::fmt::Debug {
+    fn handle(&mut self, issue: I);
+}
+
+#[derive(Debug)]
+pub struct IssueManager<I: Issue> {
+    had_errors: bool,
+    had_fatal: bool,
+    handler: Option<Box<dyn IssueHandler<I>>>,
+}
+
+impl<I: Issue> Default for IssueManager<I> {
     fn default() -> Self {
         Self {
-            encountered_error: false,
-            encountered_fatal: false,
-            error_handler: None,
+            had_errors: false,
+            had_fatal: false,
+            handler: None,
         }
     }
 }
 
-impl<E> ErrorManager<E> {
-    pub fn emit_error(&mut self, error: E) {
-        self.encountered_error = true;
-        if let Some(error_handler) = self.error_handler.as_mut() {
-            error_handler(error)
+impl<I: Issue> IssueManager<I> {
+    pub fn had_errors(&self) -> bool {
+        self.had_errors
+    }
+
+    pub fn clear_had_errors(&mut self) {
+        self.had_errors = false;
+    }
+
+    pub fn had_fatal(&self) -> bool {
+        self.had_fatal
+    }
+
+    pub fn set_handler(&mut self, handler: Box<dyn IssueHandler<I>>) {
+        self.handler = Some(handler);
+    }
+
+    pub fn emit_issue(&mut self, issue: I) {
+        if matches!(issue.kind(), IssueKind::Fatal | IssueKind::Error) {
+            self.had_errors = true;
+        }
+        if issue.kind() == IssueKind::Fatal {
+            self.had_fatal = true;
+        }
+        if let Some(handler) = self.handler.as_mut() {
+            handler.handle(issue)
         };
     }
 }
