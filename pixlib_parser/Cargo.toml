@@ -8,6 +8,10 @@ edition = "2021"
 [dependencies]
 lazy_static = "1.4"
 thiserror = "1.0"
+lalrpop-util = "0.20"
+
+[build-dependencies]
+lalrpop = { version = "0.20", default-features = false }
 
 [dev-dependencies]
 proptest = "1.4"
