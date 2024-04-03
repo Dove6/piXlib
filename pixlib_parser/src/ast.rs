@@ -1,13 +1,6 @@
-use std::iter::Peekable;
-
 use thiserror::Error;
 
-use crate::{
-    common::{Issue, IssueKind, IssueManager, Token},
-    lexer::{CnvToken, LexerFatal},
-};
-
-type ParserInput = Result<Token<CnvToken>, LexerFatal>;
+use crate::{common::{Issue, IssueKind, Position}, lexer::LexerFatal};
 
 #[derive(Debug, Clone)]
 pub struct IgnorableProgram {
@@ -53,16 +46,24 @@ pub enum Operation {
     Remainder(Expression, Expression),
 }
 
-#[derive(Error, Debug, Clone)]
-pub enum ParserFatal {}
+#[derive(Error, Debug)]
+pub enum ParserFatal {
+    #[error("Lexer error")]
+    LexerError {
+        #[from] source: LexerFatal,
+    }
+}
 
 #[derive(Error, Debug, Clone)]
-pub enum ParserError {}
+pub enum ParserError {
+    #[error("Expected argument at {0}")]
+    ExpectedArgument(Position),
+}
 
 #[derive(Error, Debug, Clone)]
 pub enum ParserWarning {}
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug)]
 pub enum ParserIssue {
     #[error("Fatal error: {0}")]
     Fatal(ParserFatal),
@@ -82,18 +83,23 @@ impl Issue for ParserIssue {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ParsingSettings {}
-
-#[derive(Debug)]
-pub struct CnvParser<I: Iterator<Item = ParserInput>> {
-    _input: Peekable<I>,
-    _issue_manager: IssueManager<ParserIssue>,
-    _settings: ParsingSettings,
-}
-
-impl<I: Iterator<Item = ParserInput> + 'static> CnvParser<I> {
-    pub fn parse(&mut self) -> Result<Option<IgnorableProgram>, ParserFatal> {
-        Ok(None)
+impl From<ParserFatal> for ParserIssue {
+    fn from(value: ParserFatal) -> Self {
+        Self::Fatal(value)
     }
 }
+
+impl From<ParserError> for ParserIssue {
+    fn from(value: ParserError) -> Self {
+        Self::Error(value)
+    }
+}
+
+impl From<ParserWarning> for ParserIssue {
+    fn from(value: ParserWarning) -> Self {
+        Self::Warning(value)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ParsingSettings {}

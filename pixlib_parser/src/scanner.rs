@@ -1,4 +1,4 @@
-use crate::common::{Position, WithPosition};
+use crate::common::{Position, Spanned};
 
 lazy_static::lazy_static! {
     pub static ref CP1250_LUT: [char; 128] = [
@@ -24,7 +24,7 @@ lazy_static::lazy_static! {
 
 type IoReadResult = std::io::Result<u8>;
 type ScannerInput = std::io::Result<char>;
-type ScannerOutput = WithPosition<std::io::Result<char>>;
+type ScannerOutput = Spanned<char, Position, std::io::Error>;
 
 pub struct CodepageDecoder<'lut, I: Iterator<Item = IoReadResult>> {
     /// A table for mapping all bytes with the most significant bit set to Unicode chars.
@@ -109,25 +109,21 @@ impl<I: Iterator<Item = ScannerInput>> Iterator for CnvScanner<I> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Err(err) = self.refill_buffer() {
-            return Some(Self::Item::new(Err(err), self.next_position));
+            return Some(Err(err));
         }
         if self.buffer.is_empty() {
             None
         } else {
             let start = self.next_position;
-            Some(Self::Item::new(
-                Ok(
-                    if let Some(NewlineDetails { length }) = self.match_newline() {
-                        self.next_position = self.next_position.with_incremented_line(length);
-                        self.buffer.drain(..length);
-                        '\n'
-                    } else {
-                        self.next_position = self.next_position.with_incremented_column();
-                        self.buffer.remove(0)
-                    },
-                ),
-                start,
-            ))
+            let character = if let Some(NewlineDetails { length }) = self.match_newline() {
+                self.next_position = self.next_position.with_incremented_line(length);
+                self.buffer.drain(..length);
+                '\n'
+            } else {
+                self.next_position = self.next_position.with_incremented_column();
+                self.buffer.remove(0)
+            };
+            Some(Ok((start, character, self.next_position)))
         }
     }
 }
@@ -168,13 +164,8 @@ mod tests {
     #[test_case("\x1e")]
     fn newline_sequences_should_be_recognized_correctly(input: &str) {
         let mut scanner = CnvScanner::new(iter_from(input));
-        assert!(matches!(
-            scanner.next(),
-            Some(WithPosition {
-                value: Ok('\n'),
-                position: _
-            })
-        ));
+        assert_eq!(scanner.next().unwrap().unwrap().1, '\n');
+        assert!(scanner.next().is_none());
     }
 
     #[test_case("\n\r")]
@@ -188,13 +179,8 @@ mod tests {
             line: 2,
             column: 1,
         };
-        let mut scanner = CnvScanner::new(into_iter_from(input.to_owned() + "ANY TEXT"));
-        scanner.next();
-        if let Some(WithPosition { value: _, position }) = scanner.next() {
-            assert_eq!(position, expected_position);
-        } else {
-            panic!();
-        }
+        let mut scanner = CnvScanner::new(iter_from(input));
+        assert_eq!(scanner.next().unwrap().unwrap().2, expected_position);
     }
 
     proptest! {
@@ -202,41 +188,15 @@ mod tests {
         fn non_newline_characters_should_pass_through(alphanumeric in "[a-zA-Z0-9]") {
             let expected_character = alphanumeric.chars().next().unwrap();
             let mut scanner = CnvScanner::new(iter_from(&alphanumeric));
-            if let Some(WithPosition { value: Ok(character), position: _ }) = scanner.next() {
-                assert_eq!(character, expected_character);
-            } else {
-                panic!();
-            }
+            assert_eq!(scanner.next().unwrap().unwrap().1, expected_character);
+            assert!(scanner.next().is_none());
         }
 
         #[test]
         fn non_newline_characters_should_increment_position_properly(alphanumeric in "[a-zA-Z0-9]") {
             let expected_position = Position { character: 1, line: 1, column: 2 };
-            let mut scanner = CnvScanner::new(into_iter_from(alphanumeric + "ANY TEXT"));
-            scanner.next();
-            if let Some(WithPosition { value: _, position }) = scanner.next() {
-                assert_eq!(position, expected_position);
-            } else {
-                panic!();
-            }
-        }
-    }
-
-    #[test]
-    fn sequence_of_non_newline_characters_should_increment_position_properly() {
-        let input = "abcd1234";
-        let mut scanner = CnvScanner::new(iter_from(input));
-        for i in 0..input.len() {
-            let expected_position = Position {
-                character: i,
-                line: 1,
-                column: 1 + i,
-            };
-            if let Some(WithPosition { value: _, position }) = scanner.next() {
-                assert_eq!(position, expected_position);
-            } else {
-                panic!();
-            }
+            let mut scanner = CnvScanner::new(iter_from(&alphanumeric));
+            assert_eq!(scanner.next().unwrap().unwrap().2, expected_position);
         }
     }
 
@@ -245,34 +205,25 @@ mod tests {
         let input = "abcd1234";
         let mut scanner = CnvScanner::new(iter_from(input));
         for i in 0..input.len() {
-            if let Some(WithPosition {
-                value: Ok(character),
-                position: _,
-            }) = scanner.next()
-            {
-                assert_eq!(character, input.chars().skip(i).next().unwrap());
-            } else {
-                panic!();
-            }
+            assert_eq!(
+                scanner.next().unwrap().unwrap().1,
+                input.chars().skip(i).next().unwrap()
+            );
         }
         assert!(scanner.next().is_none());
     }
 
     #[test]
-    fn sequence_of_newline_characters_should_increment_position_properly() {
-        let newlines = ["\n", "\n", "\n\r", "\n\r", "\r", "\r\n", "\x1e", "\x1e"];
-        let mut scanner = CnvScanner::new(into_iter_from(newlines.join("")));
-        for i in 0..newlines.len() {
-            let expected_position = Position {
-                character: newlines.map(|x| x.len()).iter().take(i).sum(),
-                line: 1 + i,
-                column: 1,
+    fn sequence_of_non_newline_characters_should_increment_position_properly() {
+        let input = "abcd1234";
+        let mut scanner = CnvScanner::new(iter_from(input));
+        for i in 0..input.len() {
+            let expected_next_position = Position {
+                character: i + 1,
+                line: 1,
+                column: 2 + i,
             };
-            if let Some(WithPosition { value: _, position }) = scanner.next() {
-                assert_eq!(position, expected_position);
-            } else {
-                panic!();
-            }
+            assert_eq!(scanner.next().unwrap().unwrap().2, expected_next_position);
         }
     }
 
@@ -282,30 +233,33 @@ mod tests {
         let input = newlines.join("");
         let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
         for _ in 0..newlines.len() {
-            assert!(matches!(
-                scanner.next(),
-                Some(WithPosition {
-                    value: Ok('\n'),
-                    position: _
-                })
-            ));
+            assert_eq!(scanner.next().unwrap().unwrap().1, '\n');
         }
         assert!(scanner.next().is_none());
+    }
+
+    #[test]
+    fn sequence_of_newline_characters_should_increment_position_properly() {
+        let newlines = ["\n", "\n", "\n\r", "\n\r", "\r", "\r\n", "\x1e", "\x1e"];
+        let mut scanner = CnvScanner::new(into_iter_from(newlines.join("")));
+        for i in 0..newlines.len() {
+            let expected_next_position = Position {
+                character: newlines.map(|x| x.len()).iter().take(i + 1).sum(),
+                line: 2 + i,
+                column: 1,
+            };
+            assert_eq!(scanner.next().unwrap().unwrap().2, expected_next_position);
+        }
     }
 
     #[test]
     fn io_error_should_be_passed_through_properly() {
         let expected_err_kind = std::io::ErrorKind::TimedOut;
         let mut scanner = CnvScanner::new(std::iter::once(Err(expected_err_kind.clone().into())));
-        if let Some(WithPosition {
-            value: Err(err),
-            position: _,
-        }) = scanner.next()
-        {
-            assert_eq!(err.kind(), expected_err_kind);
-        } else {
-            panic!();
-        }
+        assert_eq!(
+            scanner.next().unwrap().unwrap_err().kind(),
+            expected_err_kind
+        );
     }
 
     #[test]
@@ -318,14 +272,6 @@ mod tests {
             ]
             .into_iter(),
         );
-        if let Some(WithPosition {
-            value: Ok(character),
-            position: _,
-        }) = scanner.next()
-        {
-            assert_eq!(character, expected_character);
-        } else {
-            panic!();
-        }
+        assert_eq!(scanner.next().unwrap().unwrap().1, expected_character);
     }
 }

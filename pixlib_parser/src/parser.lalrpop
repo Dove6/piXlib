@@ -1,0 +1,77 @@
+use crate::ast;
+use crate::common::{Position, IssueManager};
+use crate::lexer::CnvToken;
+
+grammar(settings: &ast::ParsingSettings, issue_manager: &mut IssueManager<ast::ParserIssue>);
+
+pub Code: ast::IgnorableProgram = {
+    <i:"!"?> <p:Program> => ast::IgnorableProgram { ignored: matches!(i, Some(_)), value: p },
+};
+
+Program: ast::Program = {
+    "resolvable" => ast::Program::Resolvable(<>),
+    "{" ";"? <(<IgnorableStatement> ";"+)*> "}" => ast::Program::Block(<>),
+}
+
+IgnorableStatement: ast::IgnorableStatement = {
+    <i:"!"?> <s:Statement> => ast::IgnorableStatement { ignored: matches!(i, Some(_)), value: s },
+}
+
+Statement: ast::Statement = {
+    "@" <m:"resolvable"> "(" <a:Arguments> ")" => ast::Statement::Invocation { parent: None, name: m, arguments: a },
+    <p:"resolvable"> "^" <m:"resolvable"> "(" <a:Arguments> ")" => ast::Statement::Invocation { parent: Some(p), name: m, arguments: a },
+}
+
+Arguments: Vec<ast::Expression> = {
+    <mut v:(<Expression> ",")*> <pos:@L> <e:Expression?> =>? match e {
+        None => {
+            if !v.is_empty() {
+                issue_manager.emit_issue(ast::ParserError::ExpectedArgument(pos).into());
+            }
+            Ok(v)
+        },
+        Some(e) => {
+            v.push(e);
+            Ok(v)
+        },
+    }
+}
+
+Expression: ast::Expression = {
+    "resolvable" => ast::Expression::Resolvable(<>),
+    "{" ";"? <(<IgnorableStatement> ";"+)*> "}" => ast::Expression::Block(<>),
+    "[" <Operation> "]"
+}
+
+Operation: ast::Expression = {
+    <l:Expression> "+" <r:Expression> => ast::Expression::Operation(Box::new(ast::Operation::Addition(l, r))),
+    <l:Expression> "-" <r:Expression> => ast::Expression::Operation(Box::new(ast::Operation::Subtraction(l, r))),
+    <l:Expression> "*" <r:Expression> => ast::Expression::Operation(Box::new(ast::Operation::Multiplication(l, r))),
+    <l:Expression> "@" <r:Expression> => ast::Expression::Operation(Box::new(ast::Operation::IntegerDivision(l, r))),
+    <l:Expression> "%" <r:Expression> => ast::Expression::Operation(Box::new(ast::Operation::Remainder(l, r))),
+    "resolvable" => ast::Expression::Resolvable(<>),
+}
+
+extern {
+    type Location = Position;
+    type Error = ast::ParserFatal;
+    
+    enum CnvToken {
+        "resolvable" => CnvToken::Resolvable(<String>),
+        "+" => CnvToken::Plus,
+        "-" => CnvToken::Minus,
+        "*" => CnvToken::Asterisk,
+        "@" => CnvToken::At,
+        "%" => CnvToken::Percent,
+        "^" => CnvToken::Caret,
+        "," => CnvToken::Comma,
+        "!" => CnvToken::Bang,
+        ";" => CnvToken::Semicolon,
+        "(" => CnvToken::LeftParenthesis,
+        ")" => CnvToken::RightParenthesis,
+        "[" => CnvToken::LeftBracket,
+        "]" => CnvToken::RightBracket,
+        "{" => CnvToken::LeftBrace,
+        "}" => CnvToken::RightBrace,
+    }
+}

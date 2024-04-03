@@ -1,17 +1,10 @@
 use thiserror::Error;
 
-use crate::common::{
-    Bounds, Issue, IssueKind, IssueManager, MultiModeLexer, Position, Token, WithPosition,
-};
+use crate::{common::{Bounds, Issue, IssueKind, IssueManager, Position, Spanned}, ast::ParserFatal};
 use std::iter::Peekable;
 
-type LexerInput = WithPosition<std::io::Result<char>>;
-type LexerOutput = Result<Token<CnvToken>, LexerFatal>;
-type LexemeMatcher<I> = fn(
-    &mut Peekable<I>,
-    &mut IssueManager<LexerIssue>,
-    &TokenizationSettings,
-) -> Option<LexerOutput>;
+type LexerInput = Spanned<char, Position, std::io::Error>;
+type LexerOutput = Spanned<CnvToken, Position, ParserFatal>;
 
 #[derive(Error, Debug)]
 pub enum LexerFatal {
@@ -57,12 +50,6 @@ impl Issue for LexerIssue {
 }
 
 #[derive(Debug, Clone)]
-pub enum CnvTokenizationModes {
-    General,
-    Operation,
-}
-
-#[derive(Debug, Clone)]
 pub struct TokenizationSettings {
     max_lexeme_length: usize,
 }
@@ -75,62 +62,31 @@ impl Default for TokenizationSettings {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct LexerState {
+    pub brace_level: usize,
+    pub bracket_level: usize,
+    pub parenthesis_level: usize,
+    pub expecting_arguments: bool,
+}
+
 #[derive(Debug)]
 pub struct CnvLexer<I: Iterator<Item = LexerInput>> {
     input: Peekable<I>,
     issue_manager: IssueManager<LexerIssue>,
     settings: TokenizationSettings,
-    tokenization_mode_stack: Vec<CnvTokenizationModes>,
+    state: LexerState,
+    next_position: Position,
 }
 
 impl<I: Iterator<Item = LexerInput> + 'static> CnvLexer<I> {
-    const GENERAL_MATCHERS: &'static [LexemeMatcher<I>] = &[
-        matchers::general_mode::match_resolvable,
-        matchers::general_mode::match_symbol,
-    ];
-    const OPERATION_MATCHERS: &'static [LexemeMatcher<I>] = &[
-        matchers::operation_mode::match_resolvable,
-        matchers::operation_mode::match_symbol,
-    ];
-
-    pub fn new(input: I, settings: TokenizationSettings) -> Self {
+    pub fn new(input: I, settings: TokenizationSettings, issue_manager: IssueManager<LexerIssue>) -> Self {
         Self {
             input: input.peekable(),
-            issue_manager: IssueManager::default(),
+            issue_manager,
             settings,
-            tokenization_mode_stack: Vec::new(),
-        }
-    }
-
-    #[inline]
-    fn get_matchers(&self) -> &'static [LexemeMatcher<I>] {
-        match self.get_mode() {
-            CnvTokenizationModes::General => Self::GENERAL_MATCHERS,
-            CnvTokenizationModes::Operation => Self::OPERATION_MATCHERS,
-        }
-    }
-}
-
-impl<I: Iterator<Item = LexerInput>> MultiModeLexer for CnvLexer<I> {
-    type Modes = CnvTokenizationModes;
-
-    fn push_mode(&mut self, mode: Self::Modes) {
-        self.tokenization_mode_stack.push(mode);
-    }
-
-    fn pop_mode(&mut self) -> Result<Self::Modes, &'static str> {
-        if self.tokenization_mode_stack.is_empty() {
-            Err("Cannot pop elements off an empty stack!")
-        } else {
-            Ok(self.tokenization_mode_stack.pop().unwrap())
-        }
-    }
-
-    fn get_mode(&self) -> &Self::Modes {
-        if self.tokenization_mode_stack.is_empty() {
-            &Self::Modes::General
-        } else {
-            self.tokenization_mode_stack.last().unwrap()
+            state: LexerState::default(),
+            next_position: Position::default(),
         }
     }
 }
@@ -144,278 +100,187 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
         if self.issue_manager.had_fatal() {
             return None;
         }
-        match self
-            .get_matchers()
-            .iter()
-            .find_map(|matcher| matcher(&mut self.input, &mut self.issue_manager, &self.settings))
-        {
-            None => self.input.next().map(|p| match p.value {
-                Ok(character) => {
-                    self.issue_manager.emit_issue(LexerIssue::Error(
-                        LexerError::UnexpectedCharacter {
-                            position: p.position,
-                            character,
-                        },
-                    ));
-                    Ok(Token {
-                        value: CnvToken::Unexpected(character),
-                        bounds: Bounds::unit(p.position),
-                        had_errors: self.issue_manager.had_errors(),
-                    })
-                }
-                Err(err) => {
-                    self.issue_manager
-                        .emit_issue(LexerIssue::Fatal(LexerFatal::IoError {
-                            position: p.position,
-                            source: std::io::Error::from(err.kind()),
-                        }));
-                    Err(LexerFatal::IoError {
-                        position: p.position,
-                        source: err,
-                    })
-                }
-            }),
-            matched_element => matched_element,
-        }
-    }
-}
-
-pub mod matchers {
-    pub mod general_mode {
-        use std::iter::Peekable;
-
-        use crate::lexer::{
-            CnvToken, IssueManager, LexerInput, LexerIssue, LexerOutput, TokenizationSettings,
-        };
-
-        use super::configurable::*;
-
-        pub fn match_resolvable(
-            input: &mut Peekable<impl Iterator<Item = LexerInput>>,
-            issue_manager: &mut IssueManager<LexerIssue>,
-            settings: &TokenizationSettings,
-        ) -> Option<LexerOutput> {
-            match_resolvable_configurable(
-                input,
-                issue_manager,
-                settings,
-                &ResolvableMatcherConfig {
-                    initial_predicate: is_part_of_resolvable,
-                    loop_predicate: |_, c| is_part_of_resolvable(c),
-                    error_loop_predicate: is_part_of_resolvable,
-                },
-            )
-        }
-
-        pub fn match_symbol(
-            input: &mut Peekable<impl Iterator<Item = LexerInput>>,
-            issue_manager: &mut IssueManager<LexerIssue>,
-            settings: &TokenizationSettings,
-        ) -> Option<LexerOutput> {
-            match_symbol_configurable(
-                input,
-                issue_manager,
-                settings,
-                &SymbolMatcherConfig {
-                    symbol_mapper: try_map_symbol,
-                },
-            )
-        }
-
-        fn is_part_of_resolvable(c: char) -> bool {
-            c.is_alphanumeric() || c == '_' || c == '.' || c == '-'
-        }
-
-        fn try_map_symbol(c: char) -> Option<CnvToken> {
-            match c {
-                '@' => Some(CnvToken::At),
-                '^' => Some(CnvToken::Caret),
-                ',' => Some(CnvToken::Comma),
-                '!' => Some(CnvToken::Bang),
-                ';' => Some(CnvToken::Semicolon),
-                '(' => Some(CnvToken::LeftParenthesis),
-                ')' => Some(CnvToken::RightParenthesis),
-                '[' => Some(CnvToken::LeftBracket),
-                ']' => Some(CnvToken::RightBracket),
-                '{' => Some(CnvToken::LeftBrace),
-                '}' => Some(CnvToken::RightBrace),
-                _ => None,
+        while let Some(_) = self
+            .input
+            .next_if(|result| result.as_ref().is_ok_and(|(_, c, _)| c.is_whitespace()))
+        {}
+        match self.input.next() {
+            Some(Ok((pos, '@', next_pos))) => {
+                self.state.expecting_arguments = true;
+                Some(Ok((pos, CnvToken::At, self.next_position.assign(next_pos))))
             }
-        }
-    }
-
-    pub mod operation_mode {
-        use std::iter::Peekable;
-
-        use crate::lexer::{
-            CnvToken, IssueManager, LexerInput, LexerIssue, LexerOutput, TokenizationSettings,
-        };
-
-        use super::configurable::*;
-
-        pub fn match_resolvable(
-            input: &mut Peekable<impl Iterator<Item = LexerInput>>,
-            issue_manager: &mut IssueManager<LexerIssue>,
-            settings: &TokenizationSettings,
-        ) -> Option<LexerOutput> {
-            match_resolvable_configurable(
-                input,
-                issue_manager,
-                settings,
-                &ResolvableMatcherConfig {
-                    initial_predicate: is_part_of_resolvable,
-                    loop_predicate: |_, c| is_part_of_resolvable(c),
-                    error_loop_predicate: is_part_of_resolvable,
-                },
-            )
-        }
-
-        pub fn match_symbol(
-            input: &mut Peekable<impl Iterator<Item = LexerInput>>,
-            issue_manager: &mut IssueManager<LexerIssue>,
-            settings: &TokenizationSettings,
-        ) -> Option<LexerOutput> {
-            match_symbol_configurable(
-                input,
-                issue_manager,
-                settings,
-                &SymbolMatcherConfig {
-                    symbol_mapper: try_map_symbol,
-                },
-            )
-        }
-
-        fn is_part_of_resolvable(c: char) -> bool {
-            c.is_alphanumeric() || c == '_' || c == '.'
-        }
-
-        fn try_map_symbol(c: char) -> Option<CnvToken> {
-            match c {
-                '+' => Some(CnvToken::Plus),
-                '-' => Some(CnvToken::Minus),
-                '*' => Some(CnvToken::Asterisk),
-                '@' => Some(CnvToken::At),
-                '%' => Some(CnvToken::Percent),
-                '^' => Some(CnvToken::Caret),
-                ',' => Some(CnvToken::Comma),
-                '(' => Some(CnvToken::LeftParenthesis),
-                ')' => Some(CnvToken::RightParenthesis),
-                '[' => Some(CnvToken::LeftBracket),
-                ']' => Some(CnvToken::RightBracket),
-                _ => None,
+            Some(Ok((pos, '^', next_pos))) => {
+                self.state.expecting_arguments = true;
+                Some(Ok((
+                pos,
+                CnvToken::Caret,
+                self.next_position.assign(next_pos),
+            )))
+        },
+            Some(Ok((pos, ',', next_pos))) => Some(Ok((
+                pos,
+                CnvToken::Comma,
+                self.next_position.assign(next_pos),
+            ))),
+            Some(Ok((pos, '!', next_pos))) => Some(Ok((
+                pos,
+                CnvToken::Bang,
+                self.next_position.assign(next_pos),
+            ))),
+            Some(Ok((pos, ';', next_pos))) => {
+                self.state.expecting_arguments = false;
+                Some(Ok((
+                pos,
+                CnvToken::Semicolon,
+                self.next_position.assign(next_pos),
+            )))
+        },
+            Some(Ok((pos, '(', next_pos))) => {
+                self.state.expecting_arguments = false;
+                self.state.parenthesis_level += 1; // TODO: check limits
+                Some(Ok((
+                    pos,
+                    CnvToken::LeftParenthesis,
+                    self.next_position.assign(next_pos),
+                )))
             }
-        }
-    }
-
-    mod configurable {
-        use std::iter::Peekable;
-
-        use crate::{
-            common::{Bounds, Token, WithPosition},
-            lexer::{
-                CnvToken, IssueManager, LexerError, LexerFatal, LexerInput, LexerIssue,
-                LexerOutput, TokenizationSettings,
-            },
-        };
-
-        pub struct ResolvableMatcherConfig {
-            pub initial_predicate: fn(char) -> bool,
-            pub loop_predicate: fn(&str, char) -> bool,
-            pub error_loop_predicate: fn(char) -> bool,
-        }
-
-        pub fn match_resolvable_configurable(
-            input: &mut Peekable<impl Iterator<Item = LexerInput>>,
-            issue_manager: &mut IssueManager<LexerIssue>,
-            settings: &TokenizationSettings,
-            matcher_config: &ResolvableMatcherConfig,
-        ) -> Option<LexerOutput> {
-            if !matches!(input.peek(), Some(WithPosition { value: Ok(c), .. }) if (matcher_config.initial_predicate)(*c))
-            {
-                return None;
+            Some(Ok((pos, ')', next_pos))) => {
+                self.state.parenthesis_level = self.state.parenthesis_level.saturating_sub(1);
+                Some(Ok((
+                    pos,
+                    CnvToken::RightParenthesis,
+                    self.next_position.assign(next_pos),
+                )))
             }
-            let start_position = input.peek().unwrap().position;
-            let mut end_position = start_position;
-            let mut lexeme = String::new();
-            lexeme.push(input.next().unwrap().value.unwrap());
-            while let Some(p) = input.next_if(|l| match &l.value {
-                Ok(c) => (matcher_config.loop_predicate)(lexeme.as_ref(), *c),
-                Err(_) => true,
-            }) {
-                end_position = p.position;
-                match p.value {
-                    Ok(character) => {
-                        if lexeme.len() >= settings.max_lexeme_length {
-                            let mut lexeme_end = p.position;
-                            while input
-                                .next_if(|l| {
-                                    l.value
-                                        .as_ref()
-                                        .is_ok_and(|c| (matcher_config.error_loop_predicate)(*c))
-                                })
-                                .is_some()
-                            {
-                                lexeme_end = input.next().map(|l| l.position).unwrap_or(lexeme_end);
-                            }
-                            issue_manager.emit_issue(LexerIssue::Error(
-                                LexerError::LexemeTooLong {
-                                    bounds: Bounds::new(start_position, lexeme_end),
-                                    max_allowed_len: settings.max_lexeme_length,
-                                },
-                            ));
-                            break;
+            Some(Ok((pos, '[', next_pos))) => {
+                self.state.bracket_level += 1;
+                Some(Ok((
+                    pos,
+                    CnvToken::LeftBracket,
+                    self.next_position.assign(next_pos),
+                )))
+            }
+            Some(Ok((pos, ']', next_pos))) => {
+                self.state.bracket_level = self.state.bracket_level.saturating_sub(1);
+                Some(Ok((
+                    pos,
+                    CnvToken::RightBracket,
+                    self.next_position.assign(next_pos),
+                )))
+            }
+            Some(Ok((pos, '{', next_pos))) => {
+                self.state.brace_level += 1;
+                Some(Ok((
+                    pos,
+                    CnvToken::LeftBrace,
+                    self.next_position.assign(next_pos),
+                )))
+            }
+            Some(Ok((pos, '}', next_pos))) => {
+                self.state.brace_level = self.state.brace_level.saturating_sub(1);
+                Some(Ok((
+                    pos,
+                    CnvToken::RightBrace,
+                    self.next_position.assign(next_pos),
+                )))
+            }
+            Some(Ok((pos, '+', next_pos))) => Some(Ok((
+                pos,
+                CnvToken::Plus,
+                self.next_position.assign(next_pos),
+            ))),
+            Some(Ok((pos, '-', next_pos))) => Some(Ok((
+                pos,
+                CnvToken::Minus,
+                self.next_position.assign(next_pos),
+            ))),
+            Some(Ok((pos, '*', next_pos))) => Some(Ok((
+                pos,
+                CnvToken::Asterisk,
+                self.next_position.assign(next_pos),
+            ))),
+            Some(Ok((pos, '%', next_pos))) => Some(Ok((
+                pos,
+                CnvToken::Percent,
+                self.next_position.assign(next_pos),
+            ))),
+            Some(Ok((pos, character, next_pos))) => {
+                self.next_position = next_pos;
+                let mut lexeme = String::new();
+                let mut relative_parenthesis_level: usize = 0;
+                let mut relative_bracket_level: usize = 0;
+                let mut relative_brace_level: usize = 0;
+                lexeme.push(character);
+                let mut length_exceeded = false;
+                while let Some(triple) = self.input.next_if(|result| {
+                    result.as_ref().is_ok_and(|(_, c, _)| match c {
+                        '^' => relative_brace_level > 0,
+                        '+' | '-' | '*' | '@' | '%' => self.state.bracket_level == 0,
+                        ',' => relative_parenthesis_level > 0,
+                        ';' => relative_brace_level > 0,
+                        '(' => {
+                            relative_parenthesis_level += 1;
+                            !self.state.expecting_arguments
                         }
-                        lexeme.push(character);
+                        ')' => {
+                            if relative_parenthesis_level == 0 {
+                                false
+                            } else {
+                                relative_parenthesis_level -= 1;
+                                true
+                            }
+                        }
+                        '[' => {
+                            relative_bracket_level += 1;
+                            true
+                        }
+                        ']' => {
+                            if relative_bracket_level == 0 {
+                                false
+                            } else {
+                                relative_bracket_level -= 1;
+                                true
+                            }
+                        }
+                        '{' => {
+                            relative_brace_level += 1;
+                            true
+                        }
+                        '}' => {
+                            if relative_brace_level == 0 {
+                                false
+                            } else {
+                                relative_brace_level -= 1;
+                                true
+                            }
+                        }
+                        _ => true,
+                    })
+                }) {
+                    if lexeme.len() >= self.settings.max_lexeme_length {
+                        length_exceeded = true;
                     }
-                    Err(err) => {
-                        issue_manager.emit_issue(LexerIssue::Fatal(LexerFatal::IoError {
-                            position: p.position,
-                            source: std::io::Error::from(err.kind()),
-                        }));
-
-                        return Some(Err(LexerFatal::IoError {
-                            position: p.position,
-                            source: err,
-                        }));
+                    let triple = triple.unwrap();
+                    let c = triple.1;
+                    self.next_position = triple.2;
+                    if !length_exceeded {
+                        lexeme.push(c);
                     }
                 }
+                if length_exceeded {
+                    self.issue_manager
+                        .emit_issue(LexerIssue::Error(LexerError::LexemeTooLong {
+                            bounds: Bounds::new(pos, next_pos),
+                            max_allowed_len: self.settings.max_lexeme_length,
+                        }));
+                }
+                Some(Ok((pos, CnvToken::Resolvable(lexeme), self.next_position)))
             }
-            Some(Ok(Token {
-                value: CnvToken::Resolvable(lexeme),
-                bounds: Bounds {
-                    start: start_position,
-                    end: end_position,
-                },
-                had_errors: issue_manager.had_errors(),
-            }))
-        }
-
-        pub struct SymbolMatcherConfig {
-            pub symbol_mapper: fn(char) -> Option<CnvToken>,
-        }
-
-        pub fn match_symbol_configurable(
-            input: &mut Peekable<impl Iterator<Item = LexerInput>>,
-            issue_manager: &mut IssueManager<LexerIssue>,
-            _: &TokenizationSettings,
-            matcher_config: &SymbolMatcherConfig,
-        ) -> Option<LexerOutput> {
-            let Some(WithPosition { value: Ok(c), .. }) = input.peek() else {
-                return None;
-            };
-            if let Some(token) = (matcher_config.symbol_mapper)(*c) {
-                let position = input.next().unwrap().position;
-                Some(Ok(Token {
-                    value: token,
-                    bounds: Bounds {
-                        start: position,
-                        end: position,
-                    },
-                    had_errors: issue_manager.had_errors(),
-                }))
-            } else {
-                None
-            }
+            Some(Err(err)) => Some(Err(LexerFatal::IoError {
+                position: self.next_position,
+                source: err,
+            }.into())),
+            _ => None,
         }
     }
 }

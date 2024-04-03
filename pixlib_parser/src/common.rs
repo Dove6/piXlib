@@ -43,6 +43,13 @@ impl Position {
             column: self.column + 1,
         }
     }
+
+    pub fn assign(&mut self, other: Self) -> Self {
+        self.character = other.character;
+        self.line = other.line;
+        self.column = other.column;
+        other
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
@@ -160,3 +167,5 @@ impl<I: Issue> IssueManager<I> {
         };
     }
 }
+
+pub type Spanned<Tok, Loc, Error> = Result<(Loc, Tok, Loc), Error>;
