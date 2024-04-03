@@ -33,17 +33,17 @@ pub enum Statement {
 #[derive(Debug, Clone)]
 pub enum Expression {
     Resolvable(String),
-    Operation(Box<Operation>),
+    Operation(Box<Expression>, Vec<(Operation, Expression)>),
     Block(Vec<IgnorableStatement>),
 }
 
 #[derive(Debug, Clone)]
 pub enum Operation {
-    Addition(Expression, Expression),
-    Multiplication(Expression, Expression),
-    Subtraction(Expression, Expression),
-    IntegerDivision(Expression, Expression),
-    Remainder(Expression, Expression),
+    Addition,
+    Multiplication,
+    Subtraction,
+    IntegerDivision,
+    Remainder,
 }
 
 #[derive(Error, Debug)]

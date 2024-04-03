@@ -40,16 +40,15 @@ Arguments: Vec<ast::Expression> = {
 Expression: ast::Expression = {
     "resolvable" => ast::Expression::Resolvable(<>),
     "{" ";"? <(<IgnorableStatement> ";"+)*> "}" => ast::Expression::Block(<>),
-    "[" <Operation> "]"
+    "[" <l:Expression> <v:OpExp*> "]" => ast::Expression::Operation(Box::new(l), v)
 }
 
-Operation: ast::Expression = {
-    <l:Expression> "+" <r:Expression> => ast::Expression::Operation(Box::new(ast::Operation::Addition(l, r))),
-    <l:Expression> "-" <r:Expression> => ast::Expression::Operation(Box::new(ast::Operation::Subtraction(l, r))),
-    <l:Expression> "*" <r:Expression> => ast::Expression::Operation(Box::new(ast::Operation::Multiplication(l, r))),
-    <l:Expression> "@" <r:Expression> => ast::Expression::Operation(Box::new(ast::Operation::IntegerDivision(l, r))),
-    <l:Expression> "%" <r:Expression> => ast::Expression::Operation(Box::new(ast::Operation::Remainder(l, r))),
-    "resolvable" => ast::Expression::Resolvable(<>),
+OpExp: (ast::Operation, ast::Expression) = {
+    "+" <r:Expression> => (ast::Operation::Addition, r),
+    "-" <r:Expression> => (ast::Operation::Subtraction, r),
+    "*" <r:Expression> => (ast::Operation::Multiplication, r),
+    "@" <r:Expression> => (ast::Operation::IntegerDivision, r),
+    "%" <r:Expression> => (ast::Operation::Remainder, r),
 }
 
 extern {
