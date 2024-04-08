@@ -5,21 +5,21 @@ use crate::lexer::CnvToken;
 grammar(settings: &ast::ParsingSettings, issue_manager: &mut IssueManager<ast::ParserIssue>);
 
 pub Code: ast::IgnorableProgram = {
-    <i:"!"?> <p:Program> => ast::IgnorableProgram { ignored: matches!(i, Some(_)), value: p },
+    <i:"!"?> <p:Program> => ast::IgnorableProgram { ignored: i.is_some(), value: p },
 };
 
 Program: ast::Program = {
-    "resolvable" => ast::Program::Resolvable(<>),
+    "identifier" => ast::Program::Identifier(<>),
     "{" ";"? <(<IgnorableStatement> ";"+)*> "}" => ast::Program::Block(<>),
 }
 
 IgnorableStatement: ast::IgnorableStatement = {
-    <i:"!"?> <s:Statement> => ast::IgnorableStatement { ignored: matches!(i, Some(_)), value: s },
+    <i:"!"?> <s:Statement> => ast::IgnorableStatement { ignored: i.is_some(), value: s },
 }
 
 Statement: ast::Statement = {
-    "@" <m:"resolvable"> "(" <a:Arguments> ")" => ast::Statement::Invocation { parent: None, name: m, arguments: a },
-    <p:"resolvable"> "^" <m:"resolvable"> "(" <a:Arguments> ")" => ast::Statement::Invocation { parent: Some(p), name: m, arguments: a },
+    "@" <m:"identifier"> "(" <a:Arguments> ")" => ast::Statement::Invocation { parent: None, name: m, arguments: a },
+    <p:"identifier"> "^" <m:"identifier"> "(" <a:Arguments> ")" => ast::Statement::Invocation { parent: Some(p), name: m, arguments: a },
 }
 
 Arguments: Vec<ast::Expression> = {
@@ -38,7 +38,7 @@ Arguments: Vec<ast::Expression> = {
 }
 
 Expression: ast::Expression = {
-    "resolvable" => ast::Expression::Resolvable(<>),
+    "identifier" => ast::Expression::Identifier(<>),
     "{" ";"? <(<IgnorableStatement> ";"+)*> "}" => ast::Expression::Block(<>),
     "[" <l:Expression> <v:OpExp*> "]" => ast::Expression::Operation(Box::new(l), v)
 }
@@ -56,7 +56,7 @@ extern {
     type Error = ast::ParserFatal;
     
     enum CnvToken {
-        "resolvable" => CnvToken::Resolvable(<String>),
+        "identifier" => CnvToken::Identifier(<String>),
         "+" => CnvToken::Plus,
         "-" => CnvToken::Minus,
         "*" => CnvToken::Asterisk,

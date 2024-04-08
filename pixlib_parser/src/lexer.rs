@@ -1,6 +1,9 @@
 use thiserror::Error;
 
-use crate::{common::{Bounds, Issue, IssueKind, IssueManager, Position, Spanned}, ast::ParserFatal};
+use crate::{
+    ast::ParserFatal,
+    common::{Bounds, Issue, IssueKind, IssueManager, Position, Spanned},
+};
 use std::iter::Peekable;
 
 type LexerInput = Spanned<char, Position, std::io::Error>;
@@ -80,7 +83,11 @@ pub struct CnvLexer<I: Iterator<Item = LexerInput>> {
 }
 
 impl<I: Iterator<Item = LexerInput> + 'static> CnvLexer<I> {
-    pub fn new(input: I, settings: TokenizationSettings, issue_manager: IssueManager<LexerIssue>) -> Self {
+    pub fn new(
+        input: I,
+        settings: TokenizationSettings,
+        issue_manager: IssueManager<LexerIssue>,
+    ) -> Self {
         Self {
             input: input.peekable(),
             issue_manager,
@@ -100,9 +107,10 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
         if self.issue_manager.had_fatal() {
             return None;
         }
-        while let Some(_) = self
+        while self
             .input
             .next_if(|result| result.as_ref().is_ok_and(|(_, c, _)| c.is_whitespace()))
+            .is_some()
         {}
         match self.input.next() {
             Some(Ok((pos, '@', next_pos))) => {
@@ -112,11 +120,11 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
             Some(Ok((pos, '^', next_pos))) => {
                 self.state.expecting_arguments = true;
                 Some(Ok((
-                pos,
-                CnvToken::Caret,
-                self.next_position.assign(next_pos),
-            )))
-        },
+                    pos,
+                    CnvToken::Caret,
+                    self.next_position.assign(next_pos),
+                )))
+            }
             Some(Ok((pos, ',', next_pos))) => Some(Ok((
                 pos,
                 CnvToken::Comma,
@@ -130,11 +138,11 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
             Some(Ok((pos, ';', next_pos))) => {
                 self.state.expecting_arguments = false;
                 Some(Ok((
-                pos,
-                CnvToken::Semicolon,
-                self.next_position.assign(next_pos),
-            )))
-        },
+                    pos,
+                    CnvToken::Semicolon,
+                    self.next_position.assign(next_pos),
+                )))
+            }
             Some(Ok((pos, '(', next_pos))) => {
                 self.state.expecting_arguments = false;
                 self.state.parenthesis_level += 1; // TODO: check limits
@@ -274,12 +282,13 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
                             max_allowed_len: self.settings.max_lexeme_length,
                         }));
                 }
-                Some(Ok((pos, CnvToken::Resolvable(lexeme), self.next_position)))
+                Some(Ok((pos, CnvToken::Identifier(lexeme), self.next_position)))
             }
             Some(Err(err)) => Some(Err(LexerFatal::IoError {
                 position: self.next_position,
                 source: err,
-            }.into())),
+            }
+            .into())),
             _ => None,
         }
     }
@@ -289,8 +298,9 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
 pub enum CnvToken {
     Unexpected(char),
 
-    Resolvable(String),
-
+    Identifier(String),
+    KeywordTrue,
+    KeywordThis,
     Plus,
     Minus,
     Asterisk,

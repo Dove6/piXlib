@@ -1,9 +1,11 @@
 use std::io::Read;
 
 use pixlib_parser::{
+    ast::ParserIssue,
+    common::{Issue, IssueHandler, IssueManager},
     lexer::{CnvLexer, LexerIssue},
     parser::CodeParser,
-    scanner::{CnvScanner, CodepageDecoder, CP1250_LUT}, common::{IssueManager, Issue, IssueHandler}, ast::ParserIssue,
+    scanner::{CnvScanner, CodepageDecoder, CP1250_LUT},
 };
 
 #[derive(Debug)]
@@ -37,6 +39,9 @@ fn main() -> std::io::Result<()> {
     let lexer = CnvLexer::new(scanner, Default::default(), Default::default());
     let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
     parser_issue_manager.set_handler(Box::new(IssuePrinter));
-    println!("{:#?}", CodeParser::new().parse(&Default::default(), &mut parser_issue_manager, lexer));
+    println!(
+        "{:#?}",
+        CodeParser::new().parse(&Default::default(), &mut parser_issue_manager, lexer)
+    );
     Ok(())
 }

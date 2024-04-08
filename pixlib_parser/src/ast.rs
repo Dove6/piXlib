@@ -1,6 +1,9 @@
 use thiserror::Error;
 
-use crate::{common::{Issue, IssueKind, Position}, lexer::LexerFatal};
+use crate::{
+    common::{Issue, IssueKind, Position},
+    lexer::LexerFatal,
+};
 
 #[derive(Debug, Clone)]
 pub struct IgnorableProgram {
@@ -10,7 +13,7 @@ pub struct IgnorableProgram {
 
 #[derive(Debug, Clone)]
 pub enum Program {
-    Resolvable(String),
+    Identifier(String),
     Block(Vec<IgnorableStatement>),
 }
 
@@ -32,7 +35,7 @@ pub enum Statement {
 
 #[derive(Debug, Clone)]
 pub enum Expression {
-    Resolvable(String),
+    Identifier(String),
     Operation(Box<Expression>, Vec<(Operation, Expression)>),
     Block(Vec<IgnorableStatement>),
 }
@@ -50,8 +53,9 @@ pub enum Operation {
 pub enum ParserFatal {
     #[error("Lexer error")]
     LexerError {
-        #[from] source: LexerFatal,
-    }
+        #[from]
+        source: LexerFatal,
+    },
 }
 
 #[derive(Error, Debug, Clone)]
