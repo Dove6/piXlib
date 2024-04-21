@@ -1,10 +1,23 @@
-use std::{error::Error, fmt::Display};
+use std::{error::Error, fmt::Display, ops::Add};
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub struct Position {
     pub character: usize,
     pub line: usize,
     pub column: usize,
+}
+
+// TODO: this is plainly invalid
+impl Add<usize> for &Position {
+    type Output = Position;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Position {
+            character: self.character + rhs,
+            column: self.column + rhs,
+            line: self.line,
+        }
+    }
 }
 
 impl Display for Position {

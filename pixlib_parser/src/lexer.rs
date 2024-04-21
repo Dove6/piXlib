@@ -125,9 +125,21 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
                     self.next_position.assign(next_pos),
                 )))
             }
+            Some(Ok((pos, '|', next_pos))) => {
+                Some(Ok((
+                    pos,
+                    CnvToken::Pipe,
+                    self.next_position.assign(next_pos),
+                )))
+            }
             Some(Ok((pos, ',', next_pos))) => Some(Ok((
                 pos,
                 CnvToken::Comma,
+                self.next_position.assign(next_pos),
+            ))),
+            Some(Ok((pos, '$', next_pos))) => Some(Ok((
+                pos,
+                CnvToken::Dollar,
                 self.next_position.assign(next_pos),
             ))),
             Some(Ok((pos, '!', next_pos))) => Some(Ok((
@@ -222,10 +234,10 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
                 let mut length_exceeded = false;
                 while let Some(triple) = self.input.next_if(|result| {
                     result.as_ref().is_ok_and(|(_, c, _)| match c {
-                        '^' => relative_brace_level > 0,
+                        '|' | '$' => false,
+                        '^' | ';' => relative_brace_level > 0,
                         '+' | '-' | '*' | '@' | '%' => self.state.bracket_level == 0,
                         ',' => relative_parenthesis_level > 0,
-                        ';' => relative_brace_level > 0,
                         '(' => {
                             relative_parenthesis_level += 1;
                             !self.state.expecting_arguments
@@ -281,6 +293,15 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
                             bounds: Bounds::new(pos, next_pos),
                             max_allowed_len: self.settings.max_lexeme_length,
                         }));
+                } else if lexeme.eq_ignore_ascii_case("TRUE") {
+                    // TODO: check if case should be ignored
+                    return Some(Ok((pos, CnvToken::KeywordTrue, self.next_position)));
+                } else if lexeme.eq_ignore_ascii_case("FALSE") {
+                    // TODO: check if case should be ignored
+                    return Some(Ok((pos, CnvToken::KeywordFalse, self.next_position)));
+                } else if lexeme.eq_ignore_ascii_case("THIS") {
+                    // TODO: check if case should be ignored
+                    return Some(Ok((pos, CnvToken::KeywordThis, self.next_position)));
                 }
                 Some(Ok((pos, CnvToken::Identifier(lexeme), self.next_position)))
             }
@@ -300,6 +321,7 @@ pub enum CnvToken {
 
     Identifier(String),
     KeywordTrue,
+    KeywordFalse,
     KeywordThis,
     Plus,
     Minus,
@@ -307,7 +329,9 @@ pub enum CnvToken {
     At,
     Percent,
     Caret,
+    Pipe,
     Comma,
+    Dollar,
     Bang,
     Semicolon,
     LeftParenthesis,

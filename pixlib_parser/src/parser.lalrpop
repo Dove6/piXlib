@@ -18,8 +18,8 @@ IgnorableStatement: ast::IgnorableStatement = {
 }
 
 Statement: ast::Statement = {
-    "@" <m:"identifier"> "(" <a:Arguments> ")" => ast::Statement::Invocation { parent: None, name: m, arguments: a },
-    <p:"identifier"> "^" <m:"identifier"> "(" <a:Arguments> ")" => ast::Statement::Invocation { parent: Some(p), name: m, arguments: a },
+    "@" <m:"identifier"> "(" <a:Arguments> ")" => ast::Statement::Invocation(ast::Invocation { parent: None, name: m, arguments: a }),
+    <p:Expression> "^" <m:"identifier"> "(" <a:Arguments> ")" => ast::Statement::Invocation(ast::Invocation { parent: Some(p), name: m, arguments: a }),
 }
 
 Arguments: Vec<ast::Expression> = {
@@ -38,16 +38,25 @@ Arguments: Vec<ast::Expression> = {
 }
 
 Expression: ast::Expression = {
-    "identifier" => ast::Expression::Identifier(<>),
+    <Resolvable>,
+    "*" <Resolvable> => ast::Expression::NameResolution(Box::new(<>)),
+    "$" <"identifier"> => ast::Expression::Parameter(<>),
+    <p:Expression> "|" <f:"identifier"> => ast::Expression::FieldAccess(Box::new(p), f),
     "{" ";"? <(<IgnorableStatement> ";"+)*> "}" => ast::Expression::Block(<>),
-    "[" <l:Expression> <v:OpExp*> "]" => ast::Expression::Operation(Box::new(l), v)
+    "true" => ast::Expression::LiteralBool(true),
+    "false" => ast::Expression::LiteralBool(false),
+}
+
+Resolvable: ast::Expression = {
+    "identifier" => ast::Expression::Identifier(<>),
+    "[" <l:Expression> <v:OpExp*> "]" => ast::Expression::Operation(Box::new(l), v),
 }
 
 OpExp: (ast::Operation, ast::Expression) = {
     "+" <r:Expression> => (ast::Operation::Addition, r),
     "-" <r:Expression> => (ast::Operation::Subtraction, r),
     "*" <r:Expression> => (ast::Operation::Multiplication, r),
-    "@" <r:Expression> => (ast::Operation::IntegerDivision, r),
+    "@" <r:Expression> => (ast::Operation::Division, r),
     "%" <r:Expression> => (ast::Operation::Remainder, r),
 }
 
@@ -57,13 +66,18 @@ extern {
     
     enum CnvToken {
         "identifier" => CnvToken::Identifier(<String>),
+        "true" => CnvToken::KeywordTrue,
+        "false" => CnvToken::KeywordFalse,
+        "this" => CnvToken::KeywordThis,
         "+" => CnvToken::Plus,
         "-" => CnvToken::Minus,
         "*" => CnvToken::Asterisk,
         "@" => CnvToken::At,
         "%" => CnvToken::Percent,
         "^" => CnvToken::Caret,
+        "|" => CnvToken::Pipe,
         "," => CnvToken::Comma,
+        "$" => CnvToken::Dollar,
         "!" => CnvToken::Bang,
         ";" => CnvToken::Semicolon,
         "(" => CnvToken::LeftParenthesis,

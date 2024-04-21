@@ -25,17 +25,24 @@ pub struct IgnorableStatement {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Invocation {
-        parent: Option<String>,
-        name: String,
-        arguments: Vec<Expression>,
-    },
+    Invocation(Invocation),
     ExpressionStatement(Expression),
 }
 
 #[derive(Debug, Clone)]
+pub struct Invocation {
+    pub parent: Option<Expression>,
+    pub name: String,
+    pub arguments: Vec<Expression>,
+}
+
+#[derive(Debug, Clone)]
 pub enum Expression {
+    LiteralBool(bool),
     Identifier(String),
+    Parameter(String), // TODO: Parameter(usize)
+    NameResolution(Box<Expression>),
+    FieldAccess(Box<Expression>, String),
     Operation(Box<Expression>, Vec<(Operation, Expression)>),
     Block(Vec<IgnorableStatement>),
 }
@@ -45,7 +52,7 @@ pub enum Operation {
     Addition,
     Multiplication,
     Subtraction,
-    IntegerDivision,
+    Division,
     Remainder,
 }
 
