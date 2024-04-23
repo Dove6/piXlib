@@ -417,6 +417,7 @@ dependencies = [
  "lalrpop-util",
  "lazy_static",
  "proptest",
+ "regex",
  "test-case",
  "thiserror",
 ]

@@ -10,6 +10,7 @@ lazy_static = "1.4"
 thiserror = "1.0"
 lalrpop-util = { version = "0.20", features = ["lexer", "unicode"] }
 chrono = "0.4"
+regex = "1.10"
 
 [build-dependencies]
 lalrpop = "0.20"
