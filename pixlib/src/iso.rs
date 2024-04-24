@@ -11,9 +11,13 @@ use pixlib_formats::file_formats::{
     ann::{parse_ann, AnnFile},
     arr::{parse_arr, ArrFile},
     img::{parse_img, ImgFile},
-    DecodedStr,
 };
-use regex::Regex;
+use pixlib_parser::{
+    classes::{CnvObject, CnvObjectBuilder},
+    common::{Issue, IssueHandler, IssueManager},
+    declarative_parser::{CnvDeclaration, DeclarativeParser, ParserIssue},
+    scanner::{CnvDecoder, CnvHeader, CnvScanner, CodepageDecoder, CP1250_LUT},
+};
 
 use crate::resources::GamePaths;
 
@@ -109,101 +113,93 @@ pub fn parse_file<'a>(contents: &'a [u8], filename: &str) -> AmFile<'a> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CnvType {
-    Image,
-    Animation,
-    Scene,
-    Other(String),
+#[derive(Debug)]
+struct IssuePrinter;
+
+impl<I: Issue> IssueHandler<I> for IssuePrinter {
+    fn handle(&mut self, issue: I) {
+        eprintln!("{:?}", issue);
+    }
 }
 
-impl CnvType {
-    fn new(name: &str) -> Self {
-        let name = name.to_uppercase();
-        match name.as_ref() {
-            "IMAGE" => Self::Image,
-            "ANIMO" => Self::Animation,
-            "SCENE" => Self::Scene,
-            _ => Self::Other(name),
+trait SomePanicable {
+    fn and_panic(&self);
+}
+
+impl<T> SomePanicable for Option<T> {
+    fn and_panic(&self) {
+        if self.is_some() {
+            panic!();
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct CnvObject {
-    pub name: String,
-    pub r#type: Option<CnvType>,
-    pub index: Option<usize>,
-    pub properties: HashMap<String, String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct CnvFile(pub HashMap<String, CnvObject>);
 
-fn parse_cnv(data: &[u8]) -> CnvFile {
-    let object_definition_regex = Regex::new(r"(?i)^object\s*=\s*(.*)$").unwrap();
-    let property_definition_regex =
-        Regex::new(r"(?i)^([^:\s]*)\s*:\s*([^=\s]*)\s*=\s*(.*)$").unwrap();
-
-    let mut objects = HashMap::new();
-    let mut object_counter: usize = 0;
-    for line in DecodedStr::from_bytes(&decode_cnv(data)).unwrap().0.lines() {
-        let line = line.trim();
-        // println!("Line: {line}");
-        if line.starts_with('#') || line.is_empty() {
-            continue;
-        }
-        if let Some(object_captures) = object_definition_regex.captures(line) {
-            let object_name = object_captures.get(1).unwrap().as_str().to_uppercase();
-            if objects.contains_key(&object_name) {
-                panic!("Object {} re-declared!", &object_name);
+fn parse_cnv(input: &[u8]) -> CnvFile {
+    let mut input = input.iter().map(|b| Ok(*b)).peekable();
+    let mut first_line = Vec::<u8>::new();
+    while let Some(res) = input.next_if(|res| res.as_ref().is_ok_and(|c| !matches!(c, b'\r' | b'\n'))) {
+        first_line.push(res.unwrap())
+    }
+    while let Some(res) =
+        input.next_if(|res| res.as_ref().is_ok_and(|c| matches!(c, b'\r' | b'\n')))
+    {
+        first_line.push(res.unwrap())
+    }
+    let input: Box<dyn Iterator<Item = std::io::Result<u8>>> = match CnvHeader::try_new(&first_line)
+    {
+        Ok(Some(CnvHeader {
+            cipher_class: _,
+            step_count,
+        })) => Box::new(CnvDecoder::new(input.collect::<Vec<_>>().into_iter(), step_count)),
+        Ok(None) => Box::new(first_line.into_iter().map(Ok).chain(input.collect::<Vec<_>>())),
+        Err(err) => panic!("{}", err),
+    };
+    let decoder = CodepageDecoder::new(&CP1250_LUT, input);
+    let scanner = CnvScanner::new(decoder);
+    let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
+    parser_issue_manager.set_handler(Box::new(IssuePrinter));
+    let mut dec_parser =
+        DeclarativeParser::new(scanner, Default::default(), parser_issue_manager).peekable();
+    let mut objects: HashMap<String, CnvObjectBuilder> = HashMap::new();
+    println!("Starting parsing...");
+    let mut counter: usize = 0;
+    while let Some(Ok((_pos, dec, _))) = dec_parser.next_if(|result| result.is_ok()) {
+        match dec {
+            CnvDeclaration::ObjectInitialization(name) => {
+                objects
+                    .insert(name.clone(), CnvObjectBuilder::new(name, counter))
+                    .and_panic();
+                counter += 1;
             }
-            objects.insert(
-                object_name.clone(),
-                CnvObject {
-                    name: object_name,
-                    index: Some(object_counter),
-                    ..CnvObject::default()
-                },
-            );
-            object_counter += 1;
-        } else if let Some(property_captures) = property_definition_regex.captures(line) {
-            let object_name = property_captures.get(1).unwrap().as_str().to_uppercase();
-            let property_name = property_captures.get(2).unwrap().as_str().to_uppercase();
-            let property_value = property_captures.get(3).unwrap().as_str().to_owned();
-            if !objects.contains_key(&object_name) {
-                continue; // TODO: don't ignore errors
+            CnvDeclaration::PropertyAssignment {
+                parent,
+                property,
+                property_key: _property_key,
+                value,
+            } => {
+                let Some(obj) = objects.get_mut(&parent) else {
+                    panic!(
+                        "Expected {} element to be in dict, the element list is: {:?}",
+                        &parent, &objects
+                    );
+                };
+                obj.add_property(property, value);
             }
-            let cnv_object = objects.get_mut(&object_name).unwrap_or_else(|| {
-                panic!(
-                    "Trying to set property {} of undeclared object {}!",
-                    property_name, object_name
-                )
-            });
-            match property_name.as_ref() {
-                "TYPE" => {
-                    if cnv_object.r#type.is_some() {
-                        // panic!()
-                    }
-                    cnv_object.r#type = Some(CnvType::new(&property_value));
-                }
-                _ => {
-                    if cnv_object.properties.contains_key(&property_name) {
-                        continue; // TODO: don't ignore errors
-
-                        // panic!(
-                        //     "Property {} re-declared for object {}!",
-                        //     &property_name, &object_name
-                        // );
-                    }
-                    cnv_object.properties.insert(property_name, property_value);
-                }
-            }
-        } else {
-            panic!("Unexpected line: {}", line);
         }
     }
-    CnvFile(objects)
+    if let Some(Err(err)) = dec_parser.next_if(|result| result.is_err()) {
+        println!("{:?}", err);
+    }
+    println!("Parsing ended. Building objects.");
+    CnvFile(
+        objects
+            .into_iter()
+            .map(|(name, builder)| (name, builder.build().unwrap()))
+            .collect(),
+    )
 }
 
 pub fn read_game_definition(iso_file_path: &Path, game_paths: &GamePaths) -> CnvFile {

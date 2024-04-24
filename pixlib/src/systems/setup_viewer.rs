@@ -1,6 +1,6 @@
 use crate::animation::ann_file_to_animation_bundle;
 use crate::image::img_file_to_sprite_bundle;
-use crate::iso::{parse_file, read_file_from_iso, read_iso, AmFile, CnvType};
+use crate::iso::{parse_file, read_file_from_iso, read_iso, AmFile};
 use crate::resources::{ChosenScene, GamePaths, RootEntityToDespawn};
 use bevy::hierarchy::BuildChildren;
 use bevy::prelude::SpatialBundle;
@@ -9,9 +9,10 @@ use bevy::{
     prelude::{Assets, Commands, Image, ResMut},
     sprite::TextureAtlasLayout,
 };
+use pixlib_parser::classes::{self, CnvType};
 
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 struct OrderedGraphics {
@@ -43,8 +44,10 @@ pub fn setup_viewer(
     let iso_file = File::open(iso_file_path).unwrap();
     let mut iso = read_iso(&iso_file);
 
-    let file_path_inside_iso =
-        get_path_to_scene_file(&scene_path, &(scene_definition.name.clone() + ".CNV"));
+    let file_path_inside_iso = get_path_to_scene_file(
+        &scene_path,
+        &PathBuf::from(scene_definition.name.clone() + ".CNV"),
+    );
     let buffer = read_file_from_iso(&mut iso, &file_path_inside_iso, None);
 
     let root_entity = commands
@@ -53,7 +56,10 @@ pub fn setup_viewer(
             let mut initial_images = vec![];
             if let Some(background_filename) = scene_definition.background.as_ref() {
                 initial_images.push(OrderedGraphics {
-                    file_path: get_path_to_scene_file(&scene_path, background_filename),
+                    file_path: get_path_to_scene_file(
+                        &scene_path,
+                        &PathBuf::from(background_filename),
+                    ),
                     script_index: 0,
                     object_index: 0,
                     priority: 0,
@@ -73,22 +79,29 @@ pub fn setup_viewer(
                     .iter()
                     .filter(|(_, cnv_object)| {
                         matches!(
-                            cnv_object.r#type,
-                            Some(CnvType::Image) | Some(CnvType::Animation)
-                        ) && cnv_object.properties.contains_key("FILENAME")
+                            cnv_object.content,
+                            CnvType::Image(_) | CnvType::Animation(_)
+                        )
                     })
-                    .map(|(_, cnv_object)| OrderedGraphics {
-                        file_path: get_path_to_scene_file(
-                            &scene_path,
-                            cnv_object.properties.get("FILENAME").as_ref().unwrap(),
-                        ),
-                        script_index: 1,
-                        object_index: cnv_object.index.unwrap_or(0),
-                        priority: cnv_object
-                            .properties
-                            .get("PRIORITY")
-                            .and_then(|priority| Some(priority.parse::<i32>().unwrap_or(0)))
-                            .unwrap_or(0),
+                    .map(|(_, cnv_object)| {
+                        let (filename, priority) = match &cnv_object.content {
+                            CnvType::Animation(classes::Animation {
+                                filename, priority, ..
+                            }) => (filename, *priority),
+                            CnvType::Image(classes::Image {
+                                filename, priority, ..
+                            }) => (filename, *priority),
+                            _ => panic!(),
+                        };
+                        OrderedGraphics {
+                            file_path: get_path_to_scene_file(
+                                &scene_path,
+                                &PathBuf::from(filename),
+                            ),
+                            script_index: 1,
+                            object_index: cnv_object.index,
+                            priority,
+                        }
                     }),
             ) {
                 let buffer = read_file_from_iso(&mut iso, &file_path, None);
@@ -125,6 +138,6 @@ pub fn setup_viewer(
     commands.insert_resource(RootEntityToDespawn(Some(root_entity)));
 }
 
-fn get_path_to_scene_file(scene_path: &Path, filename: &str) -> String {
+fn get_path_to_scene_file(scene_path: &Path, filename: &Path) -> String {
     scene_path.join(filename).to_str().unwrap().to_owned()
 }

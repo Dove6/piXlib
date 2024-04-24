@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use bevy::{
     ecs::{
         component::Component,
@@ -12,9 +14,10 @@ use bevy::{
         AlignItems, BorderColor, JustifyContent, Style, UiRect, Val,
     },
 };
+use pixlib_parser::classes::CnvType;
 
 use crate::{
-    iso::{read_game_definition, CnvType},
+    iso::read_game_definition,
     resources::{ChosenScene, GamePaths, ProgramArguments, RootEntityToDespawn, SceneDefinition},
 };
 
@@ -44,17 +47,20 @@ pub fn setup_chooser(
     if let Some(iso_file_path) = &chosen_scene.iso_file_path {
         let game_definition = read_game_definition(iso_file_path, &game_paths);
         println!("game_definition: {:?}", game_definition);
-        for (object_name, cnv_object) in game_definition.0.iter() {
-            if !matches!(cnv_object.r#type, Some(CnvType::Scene))
-                || !cnv_object.properties.contains_key("PATH")
-            {
-                continue;
-            }
+        for (object_name, cnv_object) in
+            game_definition
+                .0
+                .iter()
+                .filter_map(|(k, v)| match &v.content {
+                    CnvType::Scene(scene) => Some((k, scene)),
+                    _ => None,
+                })
+        {
             scenes.push(SceneDefinition {
                 name: object_name.clone(),
-                path: cnv_object.properties["PATH"].replace('\\', "/").into(),
-                background: if cnv_object.properties.contains_key("BACKGROUND") {
-                    Some(cnv_object.properties["BACKGROUND"].clone())
+                path: PathBuf::from(&cnv_object.path),
+                background: if !cnv_object.background.is_empty() {
+                    Some(cnv_object.background.clone())
                 } else {
                     None
                 },
