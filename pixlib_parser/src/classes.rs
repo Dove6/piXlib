@@ -16,6 +16,7 @@ pub type VariableName = String;
 pub type TypeName = String;
 pub type FontName = String;
 
+#[derive(Debug, Clone)]
 pub struct CnvObjectBuilder {
     name: String,
     properties: HashMap<String, String>,
@@ -45,11 +46,13 @@ impl CnvObjectBuilder {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct CnvObject {
     name: String,
     content: CnvType,
 }
 
+#[derive(Debug, Clone)]
 pub enum CnvType {
     Animation(Animation),
     Application(Application),
@@ -147,6 +150,7 @@ fn parse_rect(s: String) -> (i32, i32, i32, i32) {
         .unwrap()
 }
 
+#[derive(Debug, Clone)]
 pub struct Animation {
     // ANIMO
     as_button: bool,               // ASBUTTON
@@ -218,6 +222,7 @@ impl Animation {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Application {
     // APPLICATION
     author: String,                  // AUTHOR
@@ -274,6 +279,7 @@ impl Application {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Array {
     // ARRAY
     send_on_change: bool, // SENDONCHANGE
@@ -290,6 +296,7 @@ impl Array {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Behavior {
     // BEHAVIOUR
     code: IgnorableProgram,   // CODE
@@ -310,6 +317,7 @@ impl Behavior {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Bool {
     // BOOL
     default: bool,   // DEFAULT
@@ -339,6 +347,7 @@ impl Bool {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Button {
     // BUTTON
     accent: bool,               // ACCENT
@@ -392,6 +401,7 @@ impl Button {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Condition {
     // CONDITION
     operand1: VariableName,      // OPERAND1
@@ -415,6 +425,7 @@ impl Condition {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ComplexCondition {
     // COMPLEXCONDITION
     operand1: ConditionName,     // OPERAND1
@@ -438,7 +449,7 @@ impl ComplexCondition {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub enum ConditionOperator {
     #[default]
     Equal,
@@ -463,6 +474,7 @@ impl ConditionOperator {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Dbl {
     // DOUBLE
     default: f64,    // DEFAULT
@@ -489,6 +501,7 @@ impl Dbl {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Episode {
     // EPISODE
     author: String,                  // AUTHOR
@@ -536,6 +549,7 @@ impl Episode {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Expression {
     // EXPRESSION
     operand1: VariableName,       // OPERAND1
@@ -559,7 +573,7 @@ impl Expression {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub enum ExpressionOperator {
     #[default]
     Add,
@@ -589,6 +603,7 @@ pub struct FontDef {
     size: usize,
 }
 
+#[derive(Debug, Clone)]
 pub struct Font {
     // FONT
     defs: HashMap<FontDef, PathBuf>,
@@ -619,6 +634,7 @@ impl Font {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Group {
     // GROUP
 }
@@ -629,6 +645,7 @@ impl Group {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Image {
     // IMAGE
     as_button: bool,               // ASBUTTON
@@ -697,6 +714,7 @@ impl Image {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Int {
     // INTEGER
     default: i32,    // DEFAULT
@@ -723,6 +741,7 @@ impl Int {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Keyboard {
     // KEYBOARD
     keyboard: String, // KEYBOARD
@@ -735,6 +754,7 @@ impl Keyboard {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Mouse {
     // MOUSE
     mouse: String, // MOUSE
@@ -749,6 +769,7 @@ impl Mouse {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Random {
     // RAND
 }
@@ -759,6 +780,7 @@ impl Random {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Scene {
     // SCENE
     author: String,                  // AUTHOR
@@ -821,6 +843,7 @@ impl Scene {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Sequence {
     // SEQUENCE
     filename: PathBuf, // FILENAME
@@ -836,6 +859,7 @@ impl Sequence {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Sound {
     // SOUND
     filename: PathBuf,        // FILENAME
@@ -865,6 +889,7 @@ impl Sound {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Str {
     // STRING
     default: String, // DEFAULT
@@ -895,6 +920,7 @@ lazy_static! {
     static ref STRUCT_FIELDS_REGEX: Regex = Regex::new(r"^(\w+)<(\w+)>$").unwrap();
 }
 
+#[derive(Debug, Clone)]
 pub struct Struct {
     // STRUCT
     fields: Vec<(String, TypeName)>,
@@ -917,6 +943,7 @@ impl Struct {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct System {
     // SYSTEM
     system: String, // SYSTEM
@@ -929,6 +956,7 @@ impl System {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Text {
     // TEXT
     font: FontName,                // FONT
@@ -997,6 +1025,7 @@ impl Text {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Timer {
     // TIMER
     elapse: i32,   // ELAPSE

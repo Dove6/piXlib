@@ -1,10 +1,11 @@
 use lazy_static::lazy_static;
 use regex::bytes::Regex;
-use std::{io::Read, path::PathBuf};
+use std::{collections::HashMap, io::Read, path::PathBuf};
 
 use pixlib_parser::{
+    classes::{CnvObject, CnvObjectBuilder},
     common::{Issue, IssueHandler, IssueManager},
-    declarative_parser::{DeclarativeParser, ParserIssue},
+    declarative_parser::{CnvDeclaration, DeclarativeParser, ParserIssue},
     scanner::{CnvDecoder, CnvScanner, CodepageDecoder, CP1250_LUT},
 };
 
@@ -14,6 +15,18 @@ struct IssuePrinter;
 impl<I: Issue> IssueHandler<I> for IssuePrinter {
     fn handle(&mut self, issue: I) {
         eprintln!("{:?}", issue);
+    }
+}
+
+trait SomePanicable {
+    fn and_panic(&self);
+}
+
+impl<T> SomePanicable for Option<T> {
+    fn and_panic(&self) {
+        if self.is_some() {
+            panic!();
+        }
     }
 }
 
@@ -52,15 +65,42 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
     let scanner = CnvScanner::new(decoder);
     let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
     parser_issue_manager.set_handler(Box::new(IssuePrinter));
-    let mut dec_parser = DeclarativeParser::new(scanner, Default::default(), parser_issue_manager);
-    println!("[STX]");
-    while let Some(Ok((pos, dec, _))) = dec_parser.next() {
-        println!("[{:?}] {:?}", pos, dec);
+    let mut dec_parser =
+        DeclarativeParser::new(scanner, Default::default(), parser_issue_manager).peekable();
+    let mut objects: HashMap<String, CnvObjectBuilder> = HashMap::new();
+    println!("Starting parsing...");
+    while let Some(Ok((_pos, dec, _))) = dec_parser.next_if(|result| result.is_ok()) {
+        match dec {
+            CnvDeclaration::ObjectInitialization(name) => {
+                objects
+                    .insert(name.clone(), CnvObjectBuilder::new(name))
+                    .and_panic();
+            }
+            CnvDeclaration::PropertyAssignment {
+                parent,
+                property,
+                property_key: _property_key,
+                value,
+            } => {
+                let Some(obj) = objects.get_mut(&parent) else {
+                    panic!("Expected {} element to be in dict, the element list is: {:?}", &parent, &objects);
+                };
+                obj.add_property(property, value);
+            },
+        }
     }
-    if let Some(Err(err)) = dec_parser.next() {
+    if let Some(Err(err)) = dec_parser.next_if(|result| result.is_err()) {
         println!("{:?}", err);
     }
-    println!("[ETX]");
+    println!("Parsing ended. Building objects.");
+    let objects: HashMap<String, CnvObject> = objects
+        .into_iter()
+        .map(|(name, builder)| (name, builder.build().unwrap()))
+        .collect();
+    println!("Built objects:");
+    for obj in objects {
+        println!("{:?}", obj);
+    }
     Ok(())
 }
 
