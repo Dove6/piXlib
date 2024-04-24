@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
@@ -19,13 +19,15 @@ pub type FontName = String;
 #[derive(Debug, Clone)]
 pub struct CnvObjectBuilder {
     name: String,
+    index: usize,
     properties: HashMap<String, String>,
 }
 
 impl CnvObjectBuilder {
-    pub fn new(name: String) -> Self {
+    pub fn new(name: String, index: usize) -> Self {
         Self {
             name,
+            index,
             properties: HashMap::new(),
         }
     }
@@ -41,6 +43,7 @@ impl CnvObjectBuilder {
         };
         Ok(CnvObject {
             name: self.name,
+            index: self.index,
             content: CnvType::new(type_name, properties),
         })
     }
@@ -48,8 +51,9 @@ impl CnvObjectBuilder {
 
 #[derive(Debug, Clone)]
 pub struct CnvObject {
-    name: String,
-    content: CnvType,
+    pub name: String,
+    pub index: usize,
+    pub content: CnvType,
 }
 
 #[derive(Debug, Clone)]
@@ -155,17 +159,17 @@ fn parse_rect(s: String) -> (i32, i32, i32, i32) {
 #[derive(Debug, Clone)]
 pub struct Animation {
     // ANIMO
-    as_button: bool,               // ASBUTTON
-    filename: PathBuf,             // FILENAME
-    flush_after_played: bool,      // FLUSHAFTERPLAYED
-    fps: i32,                      // FPS
-    monitor_collision: bool,       // MONITORCOLLISION
-    monitor_collision_alpha: bool, // MONITORCOLLISIONALPHA
-    preload: bool,                 // PRELOAD
-    priority: i32,                 // PRIORITY
-    release: bool,                 // RELEASE
-    to_canvas: bool,               // TOCANVAS
-    visible: bool,                 // VISIBLE
+    pub as_button: bool,               // ASBUTTON
+    pub filename: String,              // FILENAME
+    pub flush_after_played: bool,      // FLUSHAFTERPLAYED
+    pub fps: i32,                      // FPS
+    pub monitor_collision: bool,       // MONITORCOLLISION
+    pub monitor_collision_alpha: bool, // MONITORCOLLISIONALPHA
+    pub preload: bool,                 // PRELOAD
+    pub priority: i32,                 // PRIORITY
+    pub release: bool,                 // RELEASE
+    pub to_canvas: bool,               // TOCANVAS
+    pub visible: bool,                 // VISIBLE
 }
 
 impl Animation {
@@ -174,10 +178,7 @@ impl Animation {
             .remove("ASBUTTON")
             .map(parse_bool)
             .unwrap_or(false);
-        let filename = properties
-            .remove("FILENAME")
-            .map(PathBuf::from)
-            .unwrap_or_default();
+        let filename = properties.remove("FILENAME").unwrap_or_default();
         let flush_after_played = properties
             .remove("FLUSHAFTERPLAYED")
             .map(parse_bool)
@@ -233,7 +234,7 @@ pub struct Application {
     description: String,             // DESCRIPTION
     episodes: Vec<EpisodeName>,      // EPISODES
     last_modify_time: DateTime<Utc>, // LASTMODIFYTIME
-    path: PathBuf,                   // PATH
+    path: String,                    // PATH
     scenes: Vec<SceneName>,          // SCENES
     start_with: EpisodeName,         // STARTWITH
     version: String,                 // VERSION
@@ -256,10 +257,7 @@ impl Application {
             .remove("LASTMODIFYTIME")
             .map(parse_datetime)
             .unwrap_or_default();
-        let path = properties
-            .remove("PATH")
-            .map(PathBuf::from)
-            .unwrap_or_default();
+        let path = properties.remove("PATH").unwrap_or_default();
         let scenes = properties
             .remove("SCENES")
             .map(parse_comma_separated)
@@ -521,7 +519,7 @@ pub struct Episode {
     creation_time: DateTime<Utc>,    // CREATIONTIME
     description: String,             // DESCRIPTION
     last_modify_time: DateTime<Utc>, // LASTMODIFYTIME
-    path: PathBuf,                   // PATH
+    path: String,                    // PATH
     scenes: Vec<SceneName>,          // SCENES
     start_with: SceneName,           // STARTWITH
     version: String,                 // VERSION
@@ -539,10 +537,7 @@ impl Episode {
             .remove("LASTMODIFYTIME")
             .map(parse_datetime)
             .unwrap_or_default();
-        let path = properties
-            .remove("PATH")
-            .map(PathBuf::from)
-            .unwrap_or_default();
+        let path = properties.remove("PATH").unwrap_or_default();
         let scenes = properties
             .remove("SCENES")
             .map(parse_comma_separated)
@@ -619,7 +614,7 @@ pub struct FontDef {
 #[derive(Debug, Clone)]
 pub struct Font {
     // FONT
-    defs: HashMap<FontDef, PathBuf>,
+    defs: HashMap<FontDef, String>,
 }
 
 lazy_static! {
@@ -628,7 +623,7 @@ lazy_static! {
 
 impl Font {
     pub fn new(properties: HashMap<String, String>) -> Self {
-        let defs: HashMap<FontDef, PathBuf> = properties
+        let defs: HashMap<FontDef, String> = properties
             .into_iter()
             .filter_map(|(k, v)| {
                 FONT_DEF_REGEX.captures(k.as_ref()).map(|m| {
@@ -638,7 +633,7 @@ impl Font {
                             style: m[2].to_owned(),
                             size: m[3].parse().unwrap(),
                         },
-                        PathBuf::from(v),
+                        String::from(v),
                     )
                 })
             })
@@ -661,16 +656,16 @@ impl Group {
 #[derive(Debug, Clone)]
 pub struct Image {
     // IMAGE
-    as_button: bool,               // ASBUTTON
-    filename: PathBuf,             // FILENAME
-    flush_after_played: bool,      // FLUSHAFTERPLAYED
-    monitor_collision: bool,       // MONITORCOLLISION
-    monitor_collision_alpha: bool, // MONITORCOLLISIONALPHA
-    preload: bool,                 // PRELOAD
-    priority: i32,                 // PRIORITY
-    release: bool,                 // RELEASE
-    to_canvas: bool,               // TOCANVAS
-    visible: bool,                 // VISIBLE
+    pub as_button: bool,               // ASBUTTON
+    pub filename: String,              // FILENAME
+    pub flush_after_played: bool,      // FLUSHAFTERPLAYED
+    pub monitor_collision: bool,       // MONITORCOLLISION
+    pub monitor_collision_alpha: bool, // MONITORCOLLISIONALPHA
+    pub preload: bool,                 // PRELOAD
+    pub priority: i32,                 // PRIORITY
+    pub release: bool,                 // RELEASE
+    pub to_canvas: bool,               // TOCANVAS
+    pub visible: bool,                 // VISIBLE
 }
 
 impl Image {
@@ -679,10 +674,7 @@ impl Image {
             .remove("ASBUTTON")
             .map(parse_bool)
             .unwrap_or(false);
-        let filename = properties
-            .remove("FILENAME")
-            .map(PathBuf::from)
-            .unwrap_or_default();
+        let filename = properties.remove("FILENAME").unwrap_or_default();
         let flush_after_played = properties
             .remove("FLUSHAFTERPLAYED")
             .map(parse_bool)
@@ -796,26 +788,23 @@ impl Random {
 #[derive(Debug, Clone)]
 pub struct Scene {
     // SCENE
-    author: String,                  // AUTHOR
-    background: PathBuf,             // BACKGROUND
-    coauthors: String,               // COAUTHORS
-    creation_time: DateTime<Utc>,    // CREATIONTIME
-    deamon: bool,                    // DEAMON
-    description: String,             // DESCRIPTION
-    dlls: Vec<String>,               // DLLS
-    last_modify_time: DateTime<Utc>, // LASTMODIFYTIME
-    music: PathBuf,                  // MUSIC
-    path: PathBuf,                   // PATH
-    version: String,                 // VERSION
+    pub author: String,                  // AUTHOR
+    pub background: String,              // BACKGROUND
+    pub coauthors: String,               // COAUTHORS
+    pub creation_time: DateTime<Utc>,    // CREATIONTIME
+    pub deamon: bool,                    // DEAMON
+    pub description: String,             // DESCRIPTION
+    pub dlls: Vec<String>,               // DLLS
+    pub last_modify_time: DateTime<Utc>, // LASTMODIFYTIME
+    pub music: String,                   // MUSIC
+    pub path: String,                    // PATH
+    pub version: String,                 // VERSION
 }
 
 impl Scene {
     pub fn new(mut properties: HashMap<String, String>) -> Self {
         let author = properties.remove("AUTHOR").unwrap_or_default();
-        let background = properties
-            .remove("BACKGROUND")
-            .map(PathBuf::from)
-            .unwrap_or_default();
+        let background = properties.remove("BACKGROUND").unwrap_or_default();
         let coauthors = properties.remove("COAUTHORS").unwrap_or_default();
         let creation_time = properties
             .remove("CREATIONTIME")
@@ -831,14 +820,8 @@ impl Scene {
             .remove("LASTMODIFYTIME")
             .map(parse_datetime)
             .unwrap_or_default();
-        let music = properties
-            .remove("MUSIC")
-            .map(PathBuf::from)
-            .unwrap_or_default();
-        let path = properties
-            .remove("PATH")
-            .map(PathBuf::from)
-            .unwrap_or_default();
+        let music = properties.remove("MUSIC").unwrap_or_default();
+        let path = properties.remove("PATH").unwrap_or_default();
         let version = properties.remove("VERSION").unwrap_or_default();
         Self {
             author,
@@ -859,15 +842,12 @@ impl Scene {
 #[derive(Debug, Clone)]
 pub struct Sequence {
     // SEQUENCE
-    filename: PathBuf, // FILENAME
+    filename: String, // FILENAME
 }
 
 impl Sequence {
     pub fn new(mut properties: HashMap<String, String>) -> Self {
-        let filename = properties
-            .remove("FILENAME")
-            .map(PathBuf::from)
-            .unwrap_or_default();
+        let filename = properties.remove("FILENAME").unwrap_or_default();
         Self { filename }
     }
 }
@@ -875,17 +855,14 @@ impl Sequence {
 #[derive(Debug, Clone)]
 pub struct Sound {
     // SOUND
-    filename: PathBuf,        // FILENAME
+    filename: String,         // FILENAME
     flush_after_played: bool, // FLUSHAFTERPLAYED
     preload: bool,            // PRELOAD
 }
 
 impl Sound {
     pub fn new(mut properties: HashMap<String, String>) -> Self {
-        let filename = properties
-            .remove("FILENAME")
-            .map(PathBuf::from)
-            .unwrap_or_default();
+        let filename = properties.remove("FILENAME").unwrap_or_default();
         let flush_after_played = properties
             .remove("FLUSHAFTERPLAYED")
             .map(parse_bool)

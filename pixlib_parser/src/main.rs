@@ -60,12 +60,14 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
         DeclarativeParser::new(scanner, Default::default(), parser_issue_manager).peekable();
     let mut objects: HashMap<String, CnvObjectBuilder> = HashMap::new();
     println!("Starting parsing...");
+    let mut counter: usize = 0;
     while let Some(Ok((_pos, dec, _))) = dec_parser.next_if(|result| result.is_ok()) {
         match dec {
             CnvDeclaration::ObjectInitialization(name) => {
                 objects
-                    .insert(name.clone(), CnvObjectBuilder::new(name))
+                    .insert(name.clone(), CnvObjectBuilder::new(name, counter))
                     .and_panic();
+                counter += 1;
             }
             CnvDeclaration::PropertyAssignment {
                 parent,
