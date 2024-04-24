@@ -207,7 +207,7 @@ impl LineToSplit {
             }
         } else if let Some(eq_index) = self.eq_index {
             // println!("##### \"{}\", \"{}\"", self.content[..eq_index].to_uppercase(), &self.content[6..eq_index]);
-            if !(self.content[..eq_index]
+            let offset = if !(self.content[..eq_index]
                 .to_uppercase()
                 .starts_with("OBJECT")
                 && self.content[6..eq_index].chars().all(|c| c.is_whitespace()))
@@ -219,12 +219,15 @@ impl LineToSplit {
                     }
                     .into(),
                 );
-            }
+                0
+            } else {
+                "OBJECT".len()
+            } + 1;
             let mut name = self.content;
             let first_non_whitespace = &name[(eq_index + 1)..]
                 .find(|c: char| !c.is_whitespace())
                 .unwrap_or(eq_index);
-            name.drain(..(first_non_whitespace + 1));
+            name.drain(..(first_non_whitespace + offset));
             CnvDeclaration::ObjectInitialization(name)
         } else {
             issue_manager.emit_issue(

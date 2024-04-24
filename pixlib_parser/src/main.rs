@@ -83,10 +83,13 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
                 value,
             } => {
                 let Some(obj) = objects.get_mut(&parent) else {
-                    panic!("Expected {} element to be in dict, the element list is: {:?}", &parent, &objects);
+                    panic!(
+                        "Expected {} element to be in dict, the element list is: {:?}",
+                        &parent, &objects
+                    );
                 };
                 obj.add_property(property, value);
-            },
+            }
         }
     }
     if let Some(Err(err)) = dec_parser.next_if(|result| result.is_err()) {
@@ -99,7 +102,7 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
         .collect();
     println!("Built objects:");
     for obj in objects {
-        println!("{:?}", obj);
+        println!("{:#?}", obj);
     }
     Ok(())
 }

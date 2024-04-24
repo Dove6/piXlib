@@ -128,8 +128,8 @@ fn parse_f64(s: String) -> f64 {
     s.parse().unwrap()
 }
 
-fn parse_datetime(s: String) -> DateTime<Utc> {
-    s.parse().unwrap()
+fn parse_datetime(_s: String) -> DateTime<Utc> {
+    DateTime::default() // TODO: parse date
 }
 
 fn parse_comma_separated(s: String) -> Vec<String> {
@@ -140,7 +140,7 @@ fn parse_program(_s: String) -> IgnorableProgram {
     IgnorableProgram {
         ignored: false,
         value: crate::ast::Program::Block(Vec::new()),
-    }
+    } // TODO: parse program
 }
 
 fn parse_rect(s: String) -> (i32, i32, i32, i32) {
