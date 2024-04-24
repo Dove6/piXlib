@@ -1,9 +1,6 @@
 use lazy_static::lazy_static;
 use regex::bytes::Regex;
-use std::{
-    io::Read,
-    path::PathBuf,
-};
+use std::{io::Read, path::PathBuf};
 
 use pixlib_parser::{
     common::{Issue, IssueHandler, IssueManager},
@@ -30,22 +27,26 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
     let input = std::fs::File::open(filename)?;
     let mut input = input.bytes().peekable();
     let mut first_line = Vec::<u8>::new();
-    while let Some(res) = input.next_if(|res| res.as_ref().is_ok_and(|c| !matches!(c, b'\r' | b'\n'))) {
+    while let Some(res) =
+        input.next_if(|res| res.as_ref().is_ok_and(|c| !matches!(c, b'\r' | b'\n')))
+    {
         first_line.push(res.unwrap())
     }
-    while let Some(res) = input.next_if(|res| res.as_ref().is_ok_and(|c| matches!(c, b'\r' | b'\n'))) {
+    while let Some(res) =
+        input.next_if(|res| res.as_ref().is_ok_and(|c| matches!(c, b'\r' | b'\n')))
+    {
         first_line.push(res.unwrap())
     }
     let input: Box<dyn Iterator<Item = std::io::Result<u8>>> =
         if let Some(m) = CNV_HEADER_REGEX.captures(&first_line) {
             let _cipher_class = m[1][0] as char;
             let step_count = m[2].iter().rev().enumerate().fold(0, |acc, (i, n)| {
-                acc + ((*n - 48) as usize) * (10 as usize).pow(i.try_into().unwrap())
+                acc + ((*n - 48) as usize) * 10_usize.pow(i.try_into().unwrap())
             });
             println!("{}, {}", _cipher_class, step_count);
             Box::new(CnvDecoder::new(input, step_count))
         } else {
-            Box::new(first_line.into_iter().map(|c| Ok(c)).chain(input))
+            Box::new(first_line.into_iter().map(Ok).chain(input))
         };
     let decoder = CodepageDecoder::new(&CP1250_LUT, input);
     let scanner = CnvScanner::new(decoder);

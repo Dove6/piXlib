@@ -11,6 +11,7 @@ thiserror = "1.0"
 lalrpop-util = { version = "0.20", features = ["lexer", "unicode"] }
 chrono = "0.4"
 regex = "1.10"
+itertools = "0.12"
 
 [build-dependencies]
 lalrpop = "0.20"

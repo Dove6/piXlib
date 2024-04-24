@@ -1,6 +1,11 @@
-use std::{collections::HashMap, ops::{Add, Mul, Sub, Div, Rem}};
+use std::{
+    collections::HashMap,
+    ops::{Add, Div, Mul, Rem, Sub},
+};
 
-use crate::ast::{IgnorableProgram, Program, IgnorableStatement, Expression, Invocation, Operation, Statement};
+use crate::ast::{
+    Expression, IgnorableProgram, IgnorableStatement, Invocation, Operation, Program, Statement,
+};
 
 #[allow(dead_code)]
 struct CnvApplication {
@@ -9,34 +14,33 @@ struct CnvApplication {
 
 #[allow(dead_code)]
 impl CnvApplication {
-//     @BOOL
-// @BREAK
-// @CONTINUE
-// @CONV
-// @CREATE
-// @DOUBLE
-// @FOR
-// @GETAPPLICATIONNAME
-// @GETCURRENTSCENE
-// @IF
-// @INT
-// @LOOP
-// @MSGBOX
-// @ONEBREAK
-// @RETURN
-// @RUNONTIMER
-// @STRING
-// @VALUE
-// @WHILE
+    //     @BOOL
+    // @BREAK
+    // @CONTINUE
+    // @CONV
+    // @CREATE
+    // @DOUBLE
+    // @FOR
+    // @GETAPPLICATIONNAME
+    // @GETCURRENTSCENE
+    // @IF
+    // @INT
+    // @LOOP
+    // @MSGBOX
+    // @ONEBREAK
+    // @RETURN
+    // @RUNONTIMER
+    // @STRING
+    // @VALUE
+    // @WHILE
 
     fn get_application_name(&self) -> &str {
         &self.application_name
     }
-
 }
 
 pub trait CnvObject {
-    fn call_method(&mut self, name: &String) -> Option<CnvValue>;
+    fn call_method(&mut self, name: &str) -> Option<CnvValue>;
     fn get_value(&self) -> Option<CnvValue>;
 }
 
@@ -52,7 +56,13 @@ impl CnvValue {
         match self {
             CnvValue::Integer(i) => *i,
             CnvValue::Double(d) => *d as i32,
-            CnvValue::Boolean(b) => if *b { 1 } else { 0 },
+            CnvValue::Boolean(b) => {
+                if *b {
+                    1
+                } else {
+                    0
+                }
+            }
             CnvValue::String(_) => 0,
         }
     }
@@ -61,25 +71,32 @@ impl CnvValue {
         match self {
             CnvValue::Integer(i) => (*i).into(),
             CnvValue::Double(d) => *d,
-            CnvValue::Boolean(b) => if *b { 1.0 } else { 0.0 },
+            CnvValue::Boolean(b) => {
+                if *b {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
             CnvValue::String(_) => 0.0,
         }
     }
 
     pub fn to_boolean(&self) -> bool {
         match self {
-            CnvValue::Integer(i) => *i != 0, // TODO: check
-            CnvValue::Double(d) => *d != 0.0,  // TODO: check
+            CnvValue::Integer(i) => *i != 0,  // TODO: check
+            CnvValue::Double(d) => *d != 0.0, // TODO: check
             CnvValue::Boolean(b) => *b,
             CnvValue::String(s) => !s.is_empty(), // TODO: check
         }
     }
-    
+
+    #[allow(clippy::inherent_to_string)]
     pub fn to_string(&self) -> String {
         match self {
             CnvValue::Integer(i) => i.to_string(),
             CnvValue::Double(d) => d.to_string(), // TODO: check
-            CnvValue::Boolean(b) => b.to_string(),  //TODO: check
+            CnvValue::Boolean(b) => b.to_string(), //TODO: check
             CnvValue::String(s) => s.clone(),
         }
     }
@@ -163,14 +180,13 @@ pub trait CnvStatement {
 impl CnvExpression for Invocation {
     fn calculate(&self, objects: &mut CnvObjects) -> Option<CnvValue> {
         if self.parent.is_none() {
-            match &self.name {
-                _ => None,
-            }
+            None // TODO: match &self.name
         } else {
             let _parent = self.parent.as_ref().unwrap().calculate(objects);
-            match objects.get_mut("") { // TODO: stringify parent
+            match objects.get_mut("") {
+                // TODO: stringify parent
                 Some(obj) => obj.call_method(&self.name),
-                None => None,  // error
+                None => None, // error
             }
         }
     }
@@ -186,12 +202,16 @@ impl CnvExpression for Expression {
                 let _name = &expression.calculate(objects);
                 let name = String::new(); // TODO: stringify
                 objects.get_mut(&name[..]).and_then(|x| x.get_value()) // error
-            },
+            }
             Expression::FieldAccess(_expression, _field) => todo!(),
             Expression::Operation(expression, operations) => {
-                let mut result = expression.calculate(objects).expect("Expected non-void argument in operation");
+                let mut result = expression
+                    .calculate(objects)
+                    .expect("Expected non-void argument in operation");
                 for (operation, argument) in operations {
-                    let argument = argument.calculate(objects).expect("Expected non-void argument in operation");
+                    let argument = argument
+                        .calculate(objects)
+                        .expect("Expected non-void argument in operation");
                     result = match operation {
                         Operation::Addition => &result + &argument,
                         Operation::Multiplication => &result * &argument,
@@ -201,7 +221,7 @@ impl CnvExpression for Expression {
                     }
                 }
                 Some(result)
-            },
+            }
             Expression::Block(_block) => todo!(), // create a temporary function
         }
     }
@@ -220,14 +240,16 @@ impl CnvStatement for Program {
     fn run(&self, objects: &mut CnvObjects) {
         match self {
             Program::Identifier(identifier) => {
-                let _obj = objects.get(identifier).unwrap_or_else(|| panic!("Expected existing object named {}", &identifier));
+                let _obj = objects
+                    .get(identifier)
+                    .unwrap_or_else(|| panic!("Expected existing object named {}", &identifier));
                 todo!(); // run object
-            },
+            }
             Program::Block(ignorable_statements) => {
                 for ignorable_statement in ignorable_statements {
                     ignorable_statement.run(objects);
                 }
-            },
+            }
         }
     }
 }
@@ -246,7 +268,7 @@ impl CnvStatement for Statement {
         match self {
             Statement::Invocation(invocation) => {
                 invocation.calculate(objects);
-            },
+            }
             Statement::ExpressionStatement(expression) => {
                 expression.calculate(objects);
             }

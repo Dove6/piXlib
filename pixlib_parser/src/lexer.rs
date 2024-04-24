@@ -125,13 +125,11 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
                     self.next_position.assign(next_pos),
                 )))
             }
-            Some(Ok((pos, '|', next_pos))) => {
-                Some(Ok((
-                    pos,
-                    CnvToken::Pipe,
-                    self.next_position.assign(next_pos),
-                )))
-            }
+            Some(Ok((pos, '|', next_pos))) => Some(Ok((
+                pos,
+                CnvToken::Pipe,
+                self.next_position.assign(next_pos),
+            ))),
             Some(Ok((pos, ',', next_pos))) => Some(Ok((
                 pos,
                 CnvToken::Comma,

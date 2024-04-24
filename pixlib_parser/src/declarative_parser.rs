@@ -59,9 +59,9 @@ pub enum ParserError {
     },
 }
 
-impl Into<ParserIssue> for ParserError {
-    fn into(self) -> ParserIssue {
-        ParserIssue::Error(self)
+impl From<ParserError> for ParserIssue {
+    fn from(value: ParserError) -> Self {
+        Self::Error(value)
     }
 }
 
@@ -205,38 +205,36 @@ impl LineToSplit {
                 property_key,
                 value,
             }
-        } else {
-            if let Some(eq_index) = self.eq_index {
-                // println!("##### \"{}\", \"{}\"", self.content[..eq_index].to_uppercase(), &self.content[6..eq_index]);
-                if !(self.content[..eq_index]
-                    .to_uppercase()
-                    .starts_with("OBJECT")
-                    && self.content[6..eq_index].chars().all(|c| c.is_whitespace()))
-                {
-                    issue_manager.emit_issue(
-                        ParserError::ExpectedKeyword {
-                            position: self.start_position,
-                            keyword: &"OBJECT",
-                        }
-                        .into(),
-                    );
-                }
-                let mut name = self.content;
-                let first_non_whitespace = &name[(eq_index + 1)..]
-                    .find(|c: char| !c.is_whitespace())
-                    .unwrap_or(eq_index);
-                name.drain(..(first_non_whitespace + 1));
-                CnvDeclaration::ObjectInitialization(name)
-            } else {
+        } else if let Some(eq_index) = self.eq_index {
+            // println!("##### \"{}\", \"{}\"", self.content[..eq_index].to_uppercase(), &self.content[6..eq_index]);
+            if !(self.content[..eq_index]
+                .to_uppercase()
+                .starts_with("OBJECT")
+                && self.content[6..eq_index].chars().all(|c| c.is_whitespace()))
+            {
                 issue_manager.emit_issue(
-                    ParserError::ExpectedCharacter {
-                        position: self.next_position,
-                        character: '=',
+                    ParserError::ExpectedKeyword {
+                        position: self.start_position,
+                        keyword: "OBJECT",
                     }
                     .into(),
                 );
-                CnvDeclaration::ObjectInitialization(self.content)
             }
+            let mut name = self.content;
+            let first_non_whitespace = &name[(eq_index + 1)..]
+                .find(|c: char| !c.is_whitespace())
+                .unwrap_or(eq_index);
+            name.drain(..(first_non_whitespace + 1));
+            CnvDeclaration::ObjectInitialization(name)
+        } else {
+            issue_manager.emit_issue(
+                ParserError::ExpectedCharacter {
+                    position: self.next_position,
+                    character: '=',
+                }
+                .into(),
+            );
+            CnvDeclaration::ObjectInitialization(self.content)
         };
         (self.start_position, declaration, self.next_position)
     }
@@ -246,9 +244,7 @@ impl<I: Iterator<Item = ParserInput> + 'static> Iterator for DeclarativeParser<I
     type Item = ParserOutput;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.input.peek().is_none() {
-            return None;
-        }
+        self.input.peek()?;
         let mut line_state = LineState::default();
         while let Some(result) = self
             .next_if_char(|c| c != '\n' || line_state.had_slash || !line_state.had_non_whitespace)

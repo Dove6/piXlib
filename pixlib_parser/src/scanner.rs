@@ -339,8 +339,8 @@ impl<I: Iterator<Item = IoReadResult>> Iterator for CnvDecoder<I> {
             Ok(false) => (),
         }
         match self.try_decode_byte_and_advance() {
-            Err(e) => return Some(Err(e)),
-            Ok(opt) => opt.map(|b| Ok(b)),
+            Err(e) => Some(Err(e)),
+            Ok(opt) => opt.map(Ok),
         }
     }
 }
