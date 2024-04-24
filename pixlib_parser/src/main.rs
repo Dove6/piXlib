@@ -1,12 +1,10 @@
-use lazy_static::lazy_static;
-use regex::bytes::Regex;
 use std::{collections::HashMap, io::Read, path::PathBuf};
 
 use pixlib_parser::{
     classes::{CnvObject, CnvObjectBuilder},
     common::{Issue, IssueHandler, IssueManager},
     declarative_parser::{CnvDeclaration, DeclarativeParser, ParserIssue},
-    scanner::{CnvDecoder, CnvScanner, CodepageDecoder, CP1250_LUT},
+    scanner::{CnvDecoder, CnvHeader, CnvScanner, CodepageDecoder, CP1250_LUT},
 };
 
 #[derive(Debug)]
@@ -30,11 +28,6 @@ impl<T> SomePanicable for Option<T> {
     }
 }
 
-lazy_static! {
-    static ref CNV_HEADER_REGEX: Regex = Regex::new(r"^\{<([CD]):(\d{1,10})>\}\s+$")
-        .expect("The regex for CNV header should be defined correctly.");
-}
-
 fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
     eprintln!("{:?}", &filename);
     let input = std::fs::File::open(filename)?;
@@ -50,17 +43,15 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
     {
         first_line.push(res.unwrap())
     }
-    let input: Box<dyn Iterator<Item = std::io::Result<u8>>> =
-        if let Some(m) = CNV_HEADER_REGEX.captures(&first_line) {
-            let _cipher_class = m[1][0] as char;
-            let step_count = m[2].iter().rev().enumerate().fold(0, |acc, (i, n)| {
-                acc + ((*n - 48) as usize) * 10_usize.pow(i.try_into().unwrap())
-            });
-            println!("{}, {}", _cipher_class, step_count);
-            Box::new(CnvDecoder::new(input, step_count))
-        } else {
-            Box::new(first_line.into_iter().map(Ok).chain(input))
-        };
+    let input: Box<dyn Iterator<Item = std::io::Result<u8>>> = match CnvHeader::try_new(&first_line)
+    {
+        Ok(Some(CnvHeader {
+            cipher_class: _,
+            step_count,
+        })) => Box::new(CnvDecoder::new(input, step_count)),
+        Ok(None) => Box::new(first_line.into_iter().map(Ok).chain(input)),
+        Err(err) => panic!("{}", err),
+    };
     let decoder = CodepageDecoder::new(&CP1250_LUT, input);
     let scanner = CnvScanner::new(decoder);
     let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();

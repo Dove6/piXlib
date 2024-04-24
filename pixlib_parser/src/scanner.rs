@@ -1,5 +1,8 @@
 use std::collections::VecDeque;
 
+use lazy_static::lazy_static;
+use regex::bytes::Regex;
+
 use crate::common::{Position, Spanned};
 
 type IoReadResult = std::io::Result<u8>;
@@ -247,6 +250,34 @@ mod buf_iter_tests {
         assert_eq!(iter_buf.len(), capacity);
         assert_eq!(iter_buf.peek(), Some(b'4'));
         assert_eq!(iter_buf, b"45".as_ref());
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CnvHeader {
+    pub cipher_class: char,
+    pub step_count: usize,
+}
+
+lazy_static! {
+    static ref CNV_HEADER_REGEX: Regex = Regex::new(r"^\{<([CD]):(\d{1,10})>\}\s+$")
+        .expect("The regex for CNV header should be defined correctly.");
+}
+
+impl CnvHeader {
+    pub fn try_new(line: &[u8]) -> Result<Option<Self>, &'static str> {
+        if let Some(m) = CNV_HEADER_REGEX.captures(&line) {
+            let cipher_class = m[1][0] as char;
+            let step_count = m[2]
+                .iter()
+                .fold(0, |acc, digit| acc * 10 + (digit - b'0') as usize);
+            Ok(Some(Self {
+                cipher_class,
+                step_count,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 }
 
