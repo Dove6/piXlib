@@ -60,6 +60,7 @@ pub enum CnvType {
     Behavior(Behavior),
     Boolean(Bool),
     Button(Button),
+    CanvasObserver(CanvasObserver),
     Condition(Condition),
     ComplexCondition(ComplexCondition),
     Double(Dbl),
@@ -91,6 +92,7 @@ impl CnvType {
             "BEHAVIOUR" => CnvType::Behavior(Behavior::new(properties)),
             "BOOL" => CnvType::Boolean(Bool::new(properties)),
             "BUTTON" => CnvType::Button(Button::new(properties)),
+            "CANVAS_OBSERVER" => CnvType::CanvasObserver(CanvasObserver::new(properties)),
             "CONDITION" => CnvType::Condition(Condition::new(properties)),
             "COMPLEXCONDITION" => CnvType::ComplexCondition(ComplexCondition::new(properties)),
             "DOUBLE" => CnvType::Double(Dbl::new(properties)),
@@ -398,6 +400,17 @@ impl Button {
             snd_on_move,
             snd_standard,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CanvasObserver {
+    // CANVAS_OBSERVER
+}
+
+impl CanvasObserver {
+    pub fn new(_properties: HashMap<String, String>) -> Self {
+        Self {}
     }
 }
 
