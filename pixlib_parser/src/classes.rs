@@ -97,6 +97,7 @@ impl CnvType {
             "BOOL" => CnvType::Boolean(Bool::new(properties)),
             "BUTTON" => CnvType::Button(Button::new(properties)),
             "CANVAS_OBSERVER" => CnvType::CanvasObserver(CanvasObserver::new(properties)),
+            "CANVASOBSERVER" => CnvType::CanvasObserver(CanvasObserver::new(properties)),
             "CONDITION" => CnvType::Condition(Condition::new(properties)),
             "COMPLEXCONDITION" => CnvType::ComplexCondition(ComplexCondition::new(properties)),
             "DOUBLE" => CnvType::Double(Dbl::new(properties)),
