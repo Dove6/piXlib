@@ -5,7 +5,7 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use crate::ast::IgnorableProgram;
+use crate::{ast::IgnorableProgram, runner::CnvValue};
 
 pub type EpisodeName = String;
 pub type SceneName = String;
@@ -54,6 +54,16 @@ pub struct CnvObject {
     pub name: String,
     pub index: usize,
     pub content: CnvType,
+}
+
+impl CnvObject {
+    pub fn call_method(&mut self, _name: &str) -> Option<CnvValue> {
+        todo!()
+    }
+
+    pub fn get_value(&self) -> Option<CnvValue> {
+        todo!()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -634,7 +644,7 @@ impl Font {
                             style: m[2].to_owned(),
                             size: m[3].parse().unwrap(),
                         },
-                        String::from(v),
+                        v,
                     )
                 })
             })

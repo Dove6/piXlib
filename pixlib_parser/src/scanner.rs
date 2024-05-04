@@ -266,7 +266,7 @@ lazy_static! {
 
 impl CnvHeader {
     pub fn try_new(line: &[u8]) -> Result<Option<Self>, &'static str> {
-        if let Some(m) = CNV_HEADER_REGEX.captures(&line) {
+        if let Some(m) = CNV_HEADER_REGEX.captures(line) {
             let cipher_class = m[1][0] as char;
             let step_count = m[2]
                 .iter()
