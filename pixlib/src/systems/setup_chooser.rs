@@ -18,7 +18,10 @@ use pixlib_parser::classes::CnvType;
 
 use crate::{
     iso::read_game_definition,
-    resources::{ChosenScene, GamePaths, ProgramArguments, RootEntityToDespawn, SceneDefinition},
+    resources::{
+        ChosenScene, GamePaths, ProgramArguments, RootEntityToDespawn, SceneDefinition,
+        ScriptRunner,
+    },
 };
 
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
@@ -39,31 +42,30 @@ pub fn setup_chooser(
     game_paths: Res<GamePaths>,
     mut commands: Commands,
     mut chosen_scene: ResMut<ChosenScene>,
+    mut script_runner: ResMut<ScriptRunner>,
 ) {
     chosen_scene.iso_file_path = Some(arguments.path_to_iso.clone());
 
     let mut scenes = Vec::new();
 
     if let Some(iso_file_path) = &chosen_scene.iso_file_path {
-        let game_definition = read_game_definition(iso_file_path, &game_paths);
+        let game_definition_path =
+            read_game_definition(iso_file_path, &game_paths, &mut script_runner);
+        let game_definition = script_runner.0.get_script(&game_definition_path).unwrap();
         println!("game_definition: {:?}", game_definition);
         for (object_name, cnv_object) in
             game_definition
-                .0
+                .objects
                 .iter()
                 .filter_map(|(k, v)| match &v.content {
-                    CnvType::Scene(scene) => Some((k, scene)),
+                    CnvType::Scene(scene) if scene.path.is_some() => Some((k, scene)),
                     _ => None,
                 })
         {
             scenes.push(SceneDefinition {
                 name: object_name.clone(),
-                path: PathBuf::from(&cnv_object.path),
-                background: if !cnv_object.background.is_empty() {
-                    Some(cnv_object.background.clone())
-                } else {
-                    None
-                },
+                path: PathBuf::from(cnv_object.path.as_ref().unwrap()),
+                background: cnv_object.background.clone(),
             });
         }
         scenes.sort();

@@ -1,6 +1,7 @@
 use std::{env::Args, path::PathBuf};
 
 use bevy::ecs::{entity::Entity, system::Resource};
+use pixlib_parser::runner::CnvRunner;
 
 #[derive(Resource, Debug, Clone, PartialEq, Eq, Copy)]
 pub struct WindowConfiguration {
@@ -56,3 +57,6 @@ impl TryFrom<Args> for ProgramArguments {
         })
     }
 }
+
+#[derive(Resource, Debug, Default, Clone)]
+pub struct ScriptRunner(pub CnvRunner);
