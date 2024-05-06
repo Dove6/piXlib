@@ -38,25 +38,21 @@ pub struct ChosenScene {
     pub scene_definition: Option<SceneDefinition>,
 }
 
-#[derive(Resource, Debug, Clone, PartialEq, Eq)]
-pub struct RootEntityToDespawn(pub Option<Entity>);
-
-#[derive(Resource, Debug, Clone, PartialEq, Eq)]
-pub struct ProgramArguments {
-    pub path_to_iso: PathBuf,
-}
-
-impl TryFrom<Args> for ProgramArguments {
+impl TryFrom<Args> for ChosenScene {
     type Error = ();
 
-    fn try_from(value: Args) -> Result<Self, Self::Error> {
-        let mut args = value.skip(1);
+    fn try_from(args: Args) -> Result<Self, Self::Error> {
+        let mut args = args.skip(1);
         let path_to_iso = args.next().ok_or(())?;
-        Ok(ProgramArguments {
-            path_to_iso: path_to_iso.into(),
+        Ok(Self {
+            iso_file_path: Some(path_to_iso.into()),
+            scene_definition: None,
         })
     }
 }
+
+#[derive(Resource, Debug, Clone, PartialEq, Eq)]
+pub struct RootEntityToDespawn(pub Option<Entity>);
 
 #[derive(Resource, Debug, Default, Clone)]
 pub struct ScriptRunner(pub CnvRunner);

@@ -19,9 +19,7 @@ use bevy::{
     winit::WinitSettings,
     DefaultPlugins,
 };
-use resources::{
-    ChosenScene, DebugSettings, GamePaths, ProgramArguments, ScriptRunner, WindowConfiguration,
-};
+use resources::{ChosenScene, DebugSettings, GamePaths, ScriptRunner, WindowConfiguration};
 use states::AppState;
 use systems::{
     animate_sprite, cleanup_root, detect_return_to_chooser, draw_cursor, handle_dropped_iso,
@@ -63,10 +61,7 @@ fn main() {
             common_directory: "./COMMON/".into(),
             classes_directory: "./COMMON/CLASSES/".into(),
         })
-        .insert_resource(
-            ProgramArguments::try_from(env::args()).expect("Usage: pixlib path_to_iso"),
-        )
-        .insert_resource(ChosenScene::default())
+        .insert_resource(ChosenScene::try_from(env::args()).expect("Usage: pixlib path_to_iso"))
         .insert_resource(ScriptRunner::default())
         .init_state::<AppState>()
         .add_systems(Startup, setup)
