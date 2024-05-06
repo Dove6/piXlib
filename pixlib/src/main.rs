@@ -44,7 +44,7 @@ fn main() {
                     }),
                     ..default()
                 })
-                .set(ImagePlugin::default_linear()),
+                .set(ImagePlugin::default_nearest()),
         )
         .insert_resource(WinitSettings::game())
         .insert_resource(WindowConfiguration {
