@@ -3,7 +3,7 @@ use thiserror::Error;
 use crate::common::{Bounds, Issue, IssueKind, IssueManager, Position, Spanned};
 use std::iter::Peekable;
 
-type ParserInput = Spanned<char, Position, std::io::Error>;
+pub type ParserInput = Spanned<char, Position, std::io::Error>;
 type ParserOutput = Spanned<CnvDeclaration, Position, ParserFatal>;
 
 #[derive(Debug)]
@@ -96,7 +96,7 @@ pub struct DeclarativeParser<I: Iterator<Item = ParserInput>> {
     next_position: Position,
 }
 
-impl<I: Iterator<Item = ParserInput> + 'static> DeclarativeParser<I> {
+impl<I: Iterator<Item = ParserInput>> DeclarativeParser<I> {
     pub fn new(
         input: I,
         settings: ParsingSettings,
@@ -243,7 +243,7 @@ impl LineToSplit {
     }
 }
 
-impl<I: Iterator<Item = ParserInput> + 'static> Iterator for DeclarativeParser<I> {
+impl<I: Iterator<Item = ParserInput>> Iterator for DeclarativeParser<I> {
     type Item = ParserOutput;
 
     fn next(&mut self) -> Option<Self::Item> {

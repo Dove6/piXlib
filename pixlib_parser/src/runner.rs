@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, VecDeque},
-    io::Read,
     ops::{Add, Div, Mul, Rem, Sub},
     path::Path,
     sync::Arc,
@@ -12,8 +11,9 @@ use crate::{
     },
     classes::{CnvObject, CnvObjectBuilder},
     common::{Issue, IssueHandler, IssueManager},
-    declarative_parser::{CnvDeclaration, DeclarativeParser, ParserIssue},
-    scanner::{CnvDecoder, CnvHeader, CnvScanner, CodepageDecoder, CP1250_LUT},
+    declarative_parser::{
+        CnvDeclaration, DeclarativeParser, ParserFatal, ParserInput, ParserIssue,
+    },
 };
 
 #[derive(Debug, Default, Clone)]
@@ -30,59 +30,33 @@ impl<I: Issue> IssueHandler<I> for IssuePrinter {
     }
 }
 
-trait SomePanicable {
-    fn and_panic(&self);
+trait SomeWarnable {
+    fn warn_if_some(&self);
 }
 
-impl<T> SomePanicable for Option<T> {
-    fn and_panic(&self) {
+impl<T> SomeWarnable for Option<T>
+where
+    T: std::fmt::Debug,
+{
+    fn warn_if_some(&self) {
         if self.is_some() {
-            panic!();
+            eprintln!("Unexpected value: {:?}", self.as_ref().unwrap());
         }
     }
 }
 
-#[allow(dead_code)]
 impl CnvRunner {
     pub fn load_script(
         &mut self,
-        path: &Path,
+        path: Arc<Path>,
+        contents: impl Iterator<Item = ParserInput>,
         parent_path: Option<Arc<Path>>,
         source_kind: ScriptSource,
-    ) -> std::io::Result<Arc<Path>> {
-        let full_path: Arc<Path> = path
-            .canonicalize()
-            .map(|p| p.into())
-            .unwrap_or(path.to_owned().into());
-
-        let input = std::fs::File::open(&full_path)?;
-        let mut input = input.bytes().peekable();
-        let mut first_line = Vec::<u8>::new();
-        while let Some(res) =
-            input.next_if(|res| res.as_ref().is_ok_and(|c| !matches!(c, b'\r' | b'\n')))
-        {
-            first_line.push(res.unwrap())
-        }
-        while let Some(res) =
-            input.next_if(|res| res.as_ref().is_ok_and(|c| matches!(c, b'\r' | b'\n')))
-        {
-            first_line.push(res.unwrap())
-        }
-        let input: Box<dyn Iterator<Item = std::io::Result<u8>>> =
-            match CnvHeader::try_new(&first_line) {
-                Ok(Some(CnvHeader {
-                    cipher_class: _,
-                    step_count,
-                })) => Box::new(CnvDecoder::new(input, step_count)),
-                Ok(None) => Box::new(first_line.into_iter().map(Ok).chain(input)),
-                Err(err) => panic!("{}", err),
-            };
-        let decoder = CodepageDecoder::new(&CP1250_LUT, input);
-        let scanner = CnvScanner::new(decoder);
+    ) -> Result<(), ParserFatal> {
         let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
         parser_issue_manager.set_handler(Box::new(IssuePrinter));
         let mut dec_parser =
-            DeclarativeParser::new(scanner, Default::default(), parser_issue_manager).peekable();
+            DeclarativeParser::new(contents, Default::default(), parser_issue_manager).peekable();
         let mut objects: HashMap<String, CnvObjectBuilder> = HashMap::new();
         let mut counter: usize = 0;
         while let Some(Ok((_pos, dec, _))) = dec_parser.next_if(|result| result.is_ok()) {
@@ -90,7 +64,7 @@ impl CnvRunner {
                 CnvDeclaration::ObjectInitialization(name) => {
                     objects
                         .insert(name.clone(), CnvObjectBuilder::new(name, counter))
-                        .and_panic();
+                        .warn_if_some();
                     counter += 1;
                 }
                 CnvDeclaration::PropertyAssignment {
@@ -110,23 +84,32 @@ impl CnvRunner {
             }
         }
         if let Some(Err(err)) = dec_parser.next_if(|result| result.is_err()) {
-            return Err(std::io::Error::other(err));
+            return Err(err);
         }
         let objects: HashMap<String, CnvObject> = objects
             .into_iter()
-            .map(|(name, builder)| (name, builder.build().unwrap()))
+            .filter_map(|(name, builder)| match builder.build() {
+                Ok(built_object) => Some((name, built_object)),
+                Err(e) => {
+                    eprintln!(
+                        "Error building CNV object {} from script {:?}: {}",
+                        &name, &path, e
+                    );
+                    None
+                }
+            })
             .collect();
 
         self.scripts.insert(
-            Arc::clone(&full_path),
+            Arc::clone(&path),
             CnvScript {
                 source_kind,
-                path: Arc::clone(&full_path),
+                path,
                 parent_path,
                 objects,
             },
-        );
-        Ok(full_path)
+        ); // TODO: err if present
+        Ok(())
     }
 
     pub fn get_script(&self, path: &Path) -> Option<&CnvScript> {
