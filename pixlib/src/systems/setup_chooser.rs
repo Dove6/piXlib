@@ -18,7 +18,7 @@ use pixlib_parser::classes::CnvType;
 
 use crate::{
     iso::read_game_definition,
-    resources::{ChosenScene, GamePaths, RootEntityToDespawn, SceneDefinition, ScriptRunner},
+    resources::{GamePaths, InsertedDisk, RootEntityToDespawn, SceneDefinition, ScriptRunner},
 };
 
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
@@ -36,13 +36,13 @@ pub enum ButtonFunctionComponent {
 
 pub fn setup_chooser(
     game_paths: Res<GamePaths>,
-    chosen_scene: Res<ChosenScene>,
+    inserted_disk: Res<InsertedDisk>,
     mut commands: Commands,
     mut script_runner: ResMut<ScriptRunner>,
 ) {
     let mut scene_list = SceneListComponent::default();
     update_scene_list(
-        &chosen_scene,
+        &inserted_disk,
         &game_paths,
         &mut script_runner,
         &mut scene_list,
@@ -149,14 +149,14 @@ pub fn setup_chooser(
 }
 
 pub fn update_scene_list(
-    chosen_scene: &ChosenScene,
+    inserted_disk: &InsertedDisk,
     game_paths: &GamePaths,
     script_runner: &mut ScriptRunner,
     scene_list: &mut SceneListComponent,
 ) {
     scene_list.scenes.clear();
-    if let Some(iso_file_path) = &chosen_scene.iso_file_path {
-        let game_definition_path = read_game_definition(iso_file_path, &game_paths, script_runner);
+    if let Some(iso) = inserted_disk.get() {
+        let game_definition_path = read_game_definition(iso, game_paths, script_runner);
         let game_definition = script_runner.0.get_script(&game_definition_path).unwrap();
         println!("game_definition: {:?}", game_definition);
         for (object_name, cnv_object) in

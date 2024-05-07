@@ -1,6 +1,7 @@
-use std::{env::Args, path::PathBuf};
+use std::{env::Args, fs::File, path::PathBuf};
 
 use bevy::ecs::{entity::Entity, system::Resource};
+use cdfs::{ISOError, ISO9660};
 use pixlib_parser::runner::CnvRunner;
 
 #[derive(Resource, Debug, Clone, PartialEq, Eq, Copy)]
@@ -34,21 +35,7 @@ pub struct SceneDefinition {
 
 #[derive(Resource, Default, Debug, Clone, PartialEq, Eq)]
 pub struct ChosenScene {
-    pub iso_file_path: Option<PathBuf>,
     pub scene_definition: Option<SceneDefinition>,
-}
-
-impl TryFrom<Args> for ChosenScene {
-    type Error = ();
-
-    fn try_from(args: Args) -> Result<Self, Self::Error> {
-        let mut args = args.skip(1);
-        let path_to_iso = args.next().ok_or(())?;
-        Ok(Self {
-            iso_file_path: Some(path_to_iso.into()),
-            scene_definition: None,
-        })
-    }
 }
 
 #[derive(Resource, Debug, Clone, PartialEq, Eq)]
@@ -56,3 +43,35 @@ pub struct RootEntityToDespawn(pub Option<Entity>);
 
 #[derive(Resource, Debug, Default, Clone)]
 pub struct ScriptRunner(pub CnvRunner);
+
+#[derive(Resource, Default)]
+pub struct InsertedDisk {
+    handle: Option<ISO9660<File>>,
+}
+
+impl InsertedDisk {
+    pub fn insert(&mut self, handle: File) -> Result<(), ISOError> {
+        self.handle = Some(ISO9660::new(handle)?);
+        Ok(())
+    }
+
+    pub fn eject(&mut self) {
+        self.handle = None;
+    }
+
+    pub fn get(&self) -> Option<&ISO9660<File>> {
+        self.handle.as_ref()
+    }
+}
+
+impl TryFrom<Args> for InsertedDisk {
+    type Error = ISOError;
+
+    fn try_from(args: Args) -> Result<Self, Self::Error> {
+        let mut args = args.skip(1);
+        let path_to_iso = args.next().ok_or(ISOError::InvalidFs("Missing argument"))?;
+        Ok(Self {
+            handle: Some(ISO9660::new(File::open(path_to_iso)?)?),
+        })
+    }
+}

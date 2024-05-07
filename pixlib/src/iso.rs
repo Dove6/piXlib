@@ -27,12 +27,8 @@ pub enum AmFile<'a> {
     None,
 }
 
-pub fn read_iso(iso_file: &File) -> ISO9660<&File> {
-    ISO9660::new(iso_file).unwrap()
-}
-
 pub fn read_file_from_iso(
-    iso: &mut ISO9660<&File>,
+    iso: &ISO9660<File>,
     filename: &Path,
     output_filename: Option<&str>,
 ) -> Vec<u8> {
@@ -166,11 +162,10 @@ fn parse_cnv(input: &[u8]) -> CnvFile {
 }
 
 pub fn read_game_definition(
-    iso_file_path: &Path,
+    iso: &ISO9660<File>,
     game_paths: &GamePaths,
     script_runner: &mut ScriptRunner,
 ) -> Arc<Path> {
-    let iso = ISO9660::new(File::open(iso_file_path).unwrap()).unwrap();
     let mut buffer = Vec::<u8>::new();
     let mut game_definition_path = game_paths
         .data_directory

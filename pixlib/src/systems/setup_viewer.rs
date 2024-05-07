@@ -1,7 +1,7 @@
 use crate::animation::ann_file_to_animation_bundle;
 use crate::image::img_file_to_sprite_bundle;
-use crate::iso::{parse_file, read_file_from_iso, read_iso, AmFile};
-use crate::resources::{ChosenScene, GamePaths, RootEntityToDespawn, ScriptRunner};
+use crate::iso::{parse_file, read_file_from_iso, AmFile};
+use crate::resources::{ChosenScene, GamePaths, InsertedDisk, RootEntityToDespawn, ScriptRunner};
 use bevy::hierarchy::BuildChildren;
 use bevy::prelude::SpatialBundle;
 use bevy::{
@@ -13,7 +13,6 @@ use pixlib_parser::classes::{self, CnvType};
 use pixlib_parser::common::Position;
 use pixlib_parser::runner::ScriptSource;
 
-use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -27,32 +26,31 @@ struct OrderedGraphics {
 
 pub fn setup_viewer(
     game_paths: Res<GamePaths>,
+    inserted_disk: Res<InsertedDisk>,
     chosen_scene: Res<ChosenScene>,
     mut commands: Commands,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     mut textures: ResMut<Assets<Image>>,
     mut script_runner: ResMut<ScriptRunner>,
 ) {
+    let Some(iso) = inserted_disk.get() else {
+        panic!("No disk inserted!");
+    };
     let ChosenScene {
-        iso_file_path: Some(iso_file_path),
         scene_definition: Some(scene_definition),
     } = chosen_scene.as_ref()
     else {
-        eprintln!("ChosenScene resource: {:?}", chosen_scene);
-        panic!("Expected fields of the ChosenScene resource to have a value");
+        panic!("No scene chosen!");
     };
     let scene_path = game_paths
         .data_directory
         .join(scene_definition.path.to_str().unwrap().replace('\\', "/"));
 
-    let iso_file = File::open(iso_file_path).unwrap();
-    let mut iso = read_iso(&iso_file);
-
     let file_path_inside_iso = get_path_to_scene_file(
         &scene_path,
         &PathBuf::from(scene_definition.name.clone() + ".CNV"),
     );
-    let buffer = read_file_from_iso(&mut iso, &file_path_inside_iso, None);
+    let buffer = read_file_from_iso(iso, &file_path_inside_iso, None);
 
     let root_entity = commands
         .spawn(SpatialBundle::default())
@@ -145,7 +143,7 @@ pub fn setup_viewer(
                         }
                     }),
             ) {
-                let buffer = read_file_from_iso(&mut iso, &PathBuf::from(&file_path), None);
+                let buffer = read_file_from_iso(iso, &PathBuf::from(&file_path), None);
                 let z_position =
                     priority as f32 + (script_index * 1000 + object_index) as f32 / 100000f32;
                 match parse_file(&buffer, &file_path) {

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-cdfs = { git = "https://git.sr.ht/~az1/iso9660-rs" }
+cdfs = { path = "../iso9660-rs/cdfs" }
 pixlib_formats = { git = "ssh://github.com/Dove6/piXlib-formats.git", rev = "a7ae7a58fcffefd39af40bc8dc9221ae4725bcbb" }
 pixlib_parser = { path = "../pixlib_parser" }
 codepage-strings = "1"

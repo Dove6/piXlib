@@ -1154,7 +1154,6 @@ dependencies = [
 [[package]]
 name = "cdfs"
 version = "0.2.4-pre"
-source = "git+https://git.sr.ht/~az1/iso9660-rs#8cc434a319832ae43d1c7685477809d75f313990"
 dependencies = [
  "bitflags 2.4.1",
  "cfg-if",

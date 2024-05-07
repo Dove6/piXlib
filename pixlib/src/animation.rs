@@ -65,6 +65,10 @@ pub fn ann_file_to_animation_bundle(
         sprite.update_anchor(get_anchor(add_tuples(offset_px, frame.offset_px), size_px));
     }
 
+    let duration = 1.0f32 / ann_file.header.frames_per_second as f32;
+    println!("Frame duration: {}", duration);
+    let timer = AnimationTimer(Timer::from_seconds(duration, TimerMode::Repeating));
+
     AnimationBundle {
         sprite_sheet: SpriteSheetBundle {
             texture,
@@ -77,10 +81,7 @@ pub fn ann_file_to_animation_bundle(
             sequence_idx: first_non_empty_sequence_idx.unwrap_or(0),
             ..default()
         },
-        timer: AnimationTimer(Timer::from_seconds(
-            1.0f32 / ann_file.header.frames_per_second as f32,
-            TimerMode::Repeating,
-        )),
+        timer,
     }
 }
 

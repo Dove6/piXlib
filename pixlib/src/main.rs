@@ -19,7 +19,9 @@ use bevy::{
     winit::WinitSettings,
     DefaultPlugins,
 };
-use resources::{ChosenScene, DebugSettings, GamePaths, ScriptRunner, WindowConfiguration};
+use resources::{
+    ChosenScene, DebugSettings, GamePaths, InsertedDisk, ScriptRunner, WindowConfiguration,
+};
 use states::AppState;
 use systems::{
     animate_sprite, cleanup_root, detect_return_to_chooser, draw_cursor, handle_dropped_iso,
@@ -61,7 +63,8 @@ fn main() {
             common_directory: "./COMMON/".into(),
             classes_directory: "./COMMON/CLASSES/".into(),
         })
-        .insert_resource(ChosenScene::try_from(env::args()).expect("Usage: pixlib path_to_iso"))
+        .insert_resource(InsertedDisk::try_from(env::args()).expect("Usage: pixlib path_to_iso"))
+        .insert_resource(ChosenScene::default())
         .insert_resource(ScriptRunner::default())
         .init_state::<AppState>()
         .add_systems(Startup, setup)
@@ -76,7 +79,11 @@ fn main() {
         .add_systems(OnEnter(AppState::SceneViewer), setup_viewer)
         .add_systems(
             Update,
-            (animate_sprite, detect_return_to_chooser).run_if(in_state(AppState::SceneViewer)),
+            animate_sprite.run_if(in_state(AppState::SceneViewer)),
+        )
+        .add_systems(
+            Update,
+            detect_return_to_chooser.run_if(in_state(AppState::SceneViewer)),
         )
         .add_systems(OnExit(AppState::SceneViewer), cleanup_root)
         .run();
