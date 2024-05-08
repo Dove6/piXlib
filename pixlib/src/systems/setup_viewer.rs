@@ -1,7 +1,9 @@
 use crate::animation::ann_file_to_animation_bundle;
 use crate::image::img_file_to_sprite_bundle;
-use crate::iso::{parse_file, read_file_from_iso, AmFile};
-use crate::resources::{ChosenScene, GamePaths, InsertedDisk, RootEntityToDespawn, ScriptRunner};
+use crate::iso::{parse_file, read_file_from_iso, read_script, AmFile};
+use crate::resources::{
+    ChosenScene, GamePaths, InsertedDisk, RootEntityToDespawn, SceneDefinition, ScriptRunner,
+};
 use bevy::hierarchy::BuildChildren;
 use bevy::prelude::SpatialBundle;
 use bevy::{
@@ -9,8 +11,7 @@ use bevy::{
     prelude::{Assets, Commands, Image, ResMut},
     sprite::TextureAtlasLayout,
 };
-use pixlib_parser::classes::{self, CnvType};
-use pixlib_parser::common::Position;
+use pixlib_parser::classes::{self, CnvObject, CnvType};
 use pixlib_parser::runner::ScriptSource;
 
 use std::path::{Path, PathBuf};
@@ -36,21 +37,39 @@ pub fn setup_viewer(
     let Some(iso) = inserted_disk.get() else {
         panic!("No disk inserted!");
     };
-    let ChosenScene {
-        scene_definition: Some(scene_definition),
-    } = chosen_scene.as_ref()
-    else {
-        panic!("No scene chosen!");
+    let ChosenScene { list, index } = chosen_scene.as_ref();
+    let Some(SceneDefinition { name, path, .. }) = list.get(*index) else {
+        println!(
+            "Could not load scene script: bad index {} for scene list {:?}",
+            index, list
+        );
+        return;
     };
-    let scene_path = game_paths
-        .data_directory
-        .join(scene_definition.path.to_str().unwrap().replace('\\', "/"));
-
-    let file_path_inside_iso = get_path_to_scene_file(
-        &scene_path,
-        &PathBuf::from(scene_definition.name.clone() + ".CNV"),
+    let scene_script_path = read_script(
+        iso,
+        &path.as_os_str().to_str().unwrap(),
+        &name,
+        &game_paths,
+        script_runner.get_root_script().map(|s| Arc::clone(&s.path)),
+        ScriptSource::Scene,
+        &mut script_runner,
     );
-    let buffer = read_file_from_iso(iso, &file_path_inside_iso, None);
+    let Some(CnvObject {
+        content: CnvType::Scene(scene_definition),
+        ..
+    }) = script_runner.get_object(&name)
+    else {
+        panic!(
+            "Could not find scene object {}: {:?}",
+            &name,
+            script_runner.get_object(&name)
+        );
+    };
+    let Some(scene_path) = scene_definition.path.as_ref() else {
+        eprintln!("Scene {} has no path", &name);
+        return;
+    };
+    let scene_script = script_runner.get_script(&scene_script_path).unwrap();
 
     let root_entity = commands
         .spawn(SpatialBundle::default())
@@ -59,8 +78,9 @@ pub fn setup_viewer(
             if let Some(background_filename) = scene_definition.background.as_ref() {
                 initial_images.push(OrderedGraphics {
                     file_path: get_path_to_scene_file(
+                        &game_paths,
                         &scene_path,
-                        &PathBuf::from(background_filename),
+                        &background_filename,
                     )
                     .to_str()
                     .unwrap()
@@ -70,43 +90,13 @@ pub fn setup_viewer(
                     priority: 0,
                 });
             }
-            let AmFile::Cnv(cnv_file) = parse_file(&buffer, file_path_inside_iso.to_str().unwrap())
-            else {
-                panic!();
-            };
-            if let Err(parsing_err) = script_runner.0.load_script(
-                Arc::clone(&file_path_inside_iso),
-                cnv_file.0.char_indices().map(|(i, c)| {
-                    Ok((
-                        Position {
-                            line: 1,
-                            column: 1 + i,
-                            character: i,
-                        },
-                        c,
-                        Position {
-                            line: 1,
-                            column: 2 + i,
-                            character: i + 1,
-                        },
-                    ))
-                }),
-                None,
-                ScriptSource::Application,
-            ) {
-                panic!(
-                    "Error loading script {:?}: {}",
-                    &file_path_inside_iso, parsing_err
-                );
-            }
-            let scene_definition = script_runner.0.get_script(&file_path_inside_iso).unwrap();
             for OrderedGraphics {
                 file_path,
                 script_index,
                 object_index,
                 priority,
             } in initial_images.into_iter().chain(
-                scene_definition
+                scene_script
                     .objects
                     .iter()
                     .filter(|(_, cnv_object)| {
@@ -130,13 +120,10 @@ pub fn setup_viewer(
                             _ => panic!(),
                         };
                         OrderedGraphics {
-                            file_path: get_path_to_scene_file(
-                                &scene_path,
-                                &PathBuf::from(filename),
-                            )
-                            .to_str()
-                            .unwrap()
-                            .to_owned(),
+                            file_path: get_path_to_scene_file(&game_paths, &scene_path, &filename)
+                                .to_str()
+                                .unwrap()
+                                .to_owned(),
                             script_index: 1,
                             object_index: cnv_object.index,
                             priority: priority.unwrap_or(0),
@@ -177,9 +164,9 @@ pub fn setup_viewer(
     commands.insert_resource(RootEntityToDespawn(Some(root_entity)));
 }
 
-fn get_path_to_scene_file(scene_path: &Path, filename: &Path) -> Arc<Path> {
-    let mut path = scene_path.join(filename);
-    println!("PATHS: {:?}, {:?}, {:?}", &scene_path, &filename, &path,);
+fn get_path_to_scene_file(game_paths: &GamePaths, scene_path: &str, filename: &str) -> Arc<Path> {
+    let mut path = game_paths.data_directory.join(scene_path).join(filename);
+    println!("PATHS: {:?}, {:?}, {:?}", &scene_path, &filename, &path);
     path.as_mut_os_string().make_ascii_uppercase();
     path.into()
 }

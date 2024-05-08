@@ -9,18 +9,28 @@ pub mod resources;
 pub mod states;
 pub mod systems;
 
-use std::env;
+use std::{env, path::PathBuf, sync::Arc};
 
 use bevy::{
-    ecs::schedule::{common_conditions::in_state, IntoSystemConfigs, OnEnter, OnExit},
+    ecs::{
+        change_detection::DetectChanges,
+        schedule::{common_conditions::in_state, IntoSystemConfigs, OnEnter, OnExit},
+        system::{Res, ResMut},
+    },
     prelude::{default, App, PluginGroup, Startup, Update},
     render::texture::ImagePlugin,
     window::{PresentMode, Window, WindowPlugin},
     winit::WinitSettings,
     DefaultPlugins,
 };
+use iso::{read_game_definition, read_script};
+use pixlib_parser::{
+    classes::{CnvObject, CnvType},
+    runner::ScriptSource,
+};
 use resources::{
-    ChosenScene, DebugSettings, GamePaths, InsertedDisk, ScriptRunner, WindowConfiguration,
+    ChosenScene, DebugSettings, GamePaths, InsertedDisk, SceneDefinition, ScriptRunner,
+    WindowConfiguration,
 };
 use states::AppState;
 use systems::{
@@ -81,6 +91,7 @@ fn main() {
             Update,
             animate_sprite.run_if(in_state(AppState::SceneViewer)),
         )
+        .add_systems(Update, reload_main_script)
         .add_systems(
             Update,
             detect_return_to_chooser.run_if(in_state(AppState::SceneViewer)),
@@ -88,3 +99,170 @@ fn main() {
         .add_systems(OnExit(AppState::SceneViewer), cleanup_root)
         .run();
 }
+
+fn reload_main_script(
+    inserted_disk: Res<InsertedDisk>,
+    game_paths: Res<GamePaths>,
+    mut script_runner: ResMut<ScriptRunner>,
+    mut chosen_scene: ResMut<ChosenScene>,
+) {
+    if !inserted_disk.is_changed() {
+        return;
+    }
+    script_runner.unload_all_scripts();
+    let Some(iso) = inserted_disk.get() else {
+        return;
+    };
+    let root_script_path = read_game_definition(iso, &game_paths, &mut script_runner);
+    let mut vec = Vec::new();
+    script_runner
+        .0
+        .find_objects(|o| matches!(o.content, CnvType::Application(_)), &mut vec);
+    if vec.len() != 1 {
+        eprintln!(
+            "Incorrect number of APPLICATION objects (should be 1): {:?}",
+            vec
+        );
+        return;
+    }
+    let Some(CnvObject {
+        name: application_name,
+        content: CnvType::Application(application),
+        ..
+    }) = script_runner.get_object(&vec[0])
+    else {
+        unreachable!();
+    };
+    let application_name = application_name.clone();
+    let application_path = application.path.clone();
+    if let Some(application_script_path) = application_path.as_ref() {
+        read_script(
+            iso,
+            application_script_path,
+            &application_name,
+            &game_paths,
+            Some(Arc::clone(&root_script_path)),
+            ScriptSource::Application,
+            &mut script_runner,
+        );
+    }
+    let Some(CnvObject {
+        content: CnvType::Application(application),
+        ..
+    }) = script_runner.get_object(&vec[0])
+    else {
+        unreachable!();
+    };
+    let Some([episode_object_name]) = &application.episodes.as_deref() else {
+        eprintln!(
+            "Unexpected number of episodes (expected 1): {:?}",
+            application.episodes
+        );
+        return;
+    };
+    let episode_object_name = episode_object_name.clone();
+    if let Some(CnvObject {
+        name: episode_name,
+        content: CnvType::Episode(episode),
+        ..
+    }) = script_runner.get_object(&episode_object_name)
+    {
+        let episode_name = episode_name.clone();
+        let episode_path = episode.path.clone();
+        if let Some(episode_script_path) = episode_path.as_ref() {
+            read_script(
+                iso,
+                episode_script_path,
+                &episode_name,
+                &game_paths,
+                Some(Arc::clone(&root_script_path)),
+                ScriptSource::Episode,
+                &mut script_runner,
+            );
+        }
+        let Some(CnvObject {
+            content: CnvType::Episode(episode),
+            ..
+        }) = script_runner.get_object(&episode_object_name)
+        else {
+            unreachable!();
+        };
+        chosen_scene.list.clear();
+        chosen_scene.index = 0;
+        for scene_name in episode
+            .scenes
+            .as_ref()
+            .map(|v| v.iter())
+            .unwrap_or(Vec::new().iter())
+        {
+            if let Some(CnvObject {
+                content: CnvType::Scene(scene),
+                ..
+            }) = script_runner.get_object(scene_name)
+            {
+                let Some(scene_script_path) = scene.path.as_ref() else {
+                    eprintln!("Scene {} has no path", scene_name);
+                    continue;
+                };
+                let scene_defintion = SceneDefinition {
+                    name: scene_name.to_string(),
+                    path: PathBuf::from(scene_script_path),
+                    background: scene.background.clone(),
+                };
+                chosen_scene.list.push(scene_defintion);
+            }
+        }
+        chosen_scene.list.sort();
+    } else {
+        eprintln!(
+            "Could not find episode object with name: {}",
+            episode_object_name
+        );
+    };
+}
+
+/*
+fn reload_scene_script(
+    chosen_scene: Res<ChosenScene>,
+    inserted_disk: Res<InsertedDisk>,
+    game_paths: Res<GamePaths>,
+    mut script_runner: ResMut<ScriptRunner>,
+) {
+    if !chosen_scene.is_changed() {
+        return;
+    }
+    let Some(iso) = &inserted_disk.get() else {
+        return;
+    };
+    let mut vec = Vec::new();
+    script_runner.find_scripts(
+        |s| matches!(s.source_kind, ScriptSource::Scene | ScriptSource::CnvLoader),
+        &mut vec,
+    );
+    for episode_script in vec.iter() {
+        script_runner.0.unload_script(episode_script);
+    }
+    let ChosenScene { list, index } = chosen_scene.as_ref();
+    let Some(SceneDefinition {
+        name,
+        path,
+        ..
+    }) = list.get(*index)
+    else {
+        println!(
+            "Could not load scene script: bad index {} for scene list {:?}",
+            index, list
+        );
+        return;
+    };
+    read_script(
+        iso,
+        &path.as_os_str().to_str().unwrap(),
+        &name,
+        &game_paths,
+        script_runner.get_root_script().map(|s| Arc::clone(&s.path)),
+        ScriptSource::Scene,
+        &mut script_runner,
+    );
+}
+*/

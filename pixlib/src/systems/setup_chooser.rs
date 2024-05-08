@@ -18,7 +18,9 @@ use pixlib_parser::classes::CnvType;
 
 use crate::{
     iso::read_game_definition,
-    resources::{GamePaths, InsertedDisk, RootEntityToDespawn, SceneDefinition, ScriptRunner},
+    resources::{
+        ChosenScene, GamePaths, InsertedDisk, RootEntityToDespawn, SceneDefinition, ScriptRunner,
+    },
 };
 
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
@@ -37,16 +39,17 @@ pub enum ButtonFunctionComponent {
 pub fn setup_chooser(
     game_paths: Res<GamePaths>,
     inserted_disk: Res<InsertedDisk>,
+    chosen_scene: Res<ChosenScene>,
     mut commands: Commands,
     mut script_runner: ResMut<ScriptRunner>,
 ) {
     let mut scene_list = SceneListComponent::default();
-    update_scene_list(
-        &inserted_disk,
-        &game_paths,
-        &mut script_runner,
-        &mut scene_list,
-    );
+    // update_scene_list(
+    //     &inserted_disk,
+    //     &game_paths,
+    //     &mut script_runner,
+    //     &mut scene_list,
+    // );
 
     let root_entity = commands
         .spawn((
@@ -107,7 +110,11 @@ pub fn setup_chooser(
                 ))
                 .with_children(|parent| {
                     parent.spawn(TextBundle::from_section(
-                        "(scene name)",
+                        chosen_scene
+                            .list
+                            .get(chosen_scene.index)
+                            .map(|s| s.name.clone())
+                            .unwrap_or("(scene name)".to_owned()),
                         TextStyle {
                             font_size: 40.0,
                             color: Color::rgb(0.9, 0.9, 0.9),

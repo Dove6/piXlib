@@ -1,4 +1,10 @@
-use std::{env::Args, fs::File, path::PathBuf};
+use std::{
+    env::Args,
+    fs::File,
+    ops::{Deref, DerefMut},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use bevy::ecs::{entity::Entity, system::Resource};
 use cdfs::{ISOError, ISO9660};
@@ -26,6 +32,9 @@ pub struct GamePaths {
     pub classes_directory: PathBuf,
 }
 
+#[derive(Resource, Default, Debug, Clone, PartialEq, Eq)]
+pub struct ChosenEpisode(pub Option<Arc<Path>>);
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SceneDefinition {
     pub name: String,
@@ -33,9 +42,10 @@ pub struct SceneDefinition {
     pub background: Option<String>,
 }
 
-#[derive(Resource, Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Resource, Default, Debug, Clone)]
 pub struct ChosenScene {
-    pub scene_definition: Option<SceneDefinition>,
+    pub list: Vec<SceneDefinition>,
+    pub index: usize,
 }
 
 #[derive(Resource, Debug, Clone, PartialEq, Eq)]
@@ -43,6 +53,20 @@ pub struct RootEntityToDespawn(pub Option<Entity>);
 
 #[derive(Resource, Debug, Default, Clone)]
 pub struct ScriptRunner(pub CnvRunner);
+
+impl Deref for ScriptRunner {
+    type Target = CnvRunner;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for ScriptRunner {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 #[derive(Resource, Default)]
 pub struct InsertedDisk {

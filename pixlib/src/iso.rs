@@ -126,7 +126,7 @@ impl<T> SomePanicable for Option<T> {
 #[derive(Debug, Clone)]
 pub struct CnvFile(pub String);
 
-fn parse_cnv(input: &[u8]) -> CnvFile {
+pub fn parse_cnv(input: &[u8]) -> CnvFile {
     let mut input = input.iter().map(|b| Ok(*b)).peekable();
     let mut first_line = Vec::<u8>::new();
     while let Some(res) =
@@ -212,7 +212,7 @@ pub fn read_game_definition(
                 ))
             }),
             None,
-            ScriptSource::Application,
+            ScriptSource::Root,
         ) {
             panic!(
                 "Error loading script {:?}: {}",
@@ -220,6 +220,72 @@ pub fn read_game_definition(
             );
         }
         game_definition_path
+    } else {
+        panic!()
+    }
+}
+
+pub fn build_data_path(
+    path: &str,
+    filename: &str,
+    game_paths: &GamePaths,
+    extension: Option<&str>,
+) -> Arc<Path> {
+    let mut script_path = game_paths
+        .data_directory
+        .join(path)
+        .join(filename.to_owned() + extension.unwrap_or(""));
+    script_path.as_mut_os_string().make_ascii_uppercase();
+    script_path.into()
+}
+
+pub fn read_script(
+    iso: &ISO9660<File>,
+    path: &str,
+    filename: &str,
+    game_paths: &GamePaths,
+    parent_path: Option<Arc<Path>>,
+    script_source: ScriptSource,
+    script_runner: &mut ScriptRunner,
+) -> Arc<Path> {
+    let mut buffer = Vec::<u8>::new();
+    let script_path = build_data_path(path, filename, game_paths, Some(".CNV"));
+    if let Ok(Some(DirectoryEntry::File(file))) =
+        iso.open(&script_path.as_os_str().to_str().unwrap().replace('\\', "/"))
+    {
+        let bytes_read = file.read().read_to_end(&mut buffer).unwrap();
+        println!("Read file {:?} ({} bytes)", script_path, bytes_read);
+    } else {
+        panic!(
+            "File not found: {}",
+            &script_path.as_os_str().to_str().unwrap()
+        );
+    }
+    let result = parse_file(&buffer, script_path.as_ref().to_str().unwrap());
+    if let AmFile::Cnv(cnv_file) = result {
+        if let Err(parsing_err) = script_runner.0.load_script(
+            Arc::clone(&script_path),
+            cnv_file.0.char_indices().map(|(i, c)| {
+                Ok((
+                    Position {
+                        line: 1,
+                        column: 1 + i,
+                        character: i,
+                    },
+                    c,
+                    Position {
+                        line: 1,
+                        column: 2 + i,
+                        character: i + 1,
+                    },
+                ))
+            }),
+            parent_path,
+            script_source,
+        ) {
+            panic!("Error loading script {:?}: {}", &script_path, parsing_err);
+        }
+        script_path
     } else {
         panic!()
     }
