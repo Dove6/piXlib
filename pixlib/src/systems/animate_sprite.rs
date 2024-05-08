@@ -28,7 +28,7 @@ pub fn animate_sprite(
         timer.tick(time.delta());
         let sequence = &animation.sequences[state.sequence_idx];
         if sequence.frames.is_empty() {
-            return;
+            continue;
         }
         match state.playing_state {
             PlaybackState::Forward if timer.just_finished() => {
@@ -53,8 +53,8 @@ pub fn animate_sprite(
                     sprite.size_px,
                 ));
             }
-            PlaybackState::Backward if timer.just_finished() => return,
-            _ => return,
+            PlaybackState::Backward if timer.just_finished() => continue,
+            _ => continue,
         }
         // times.push((std::time::Instant::now() - t_start).as_secs_f32());
     }
