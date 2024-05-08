@@ -120,7 +120,30 @@ impl CnvRunner {
         self.scripts.get_mut(path)
     }
 
-    pub fn unload_script(&mut self, path: &Path) -> Result<(), &'static str> {
+    pub fn get_root_script(&self) -> Option<&CnvScript> {
+        self.scripts
+            .values()
+            .find(|s| s.source_kind == ScriptSource::Root)
+    }
+
+    pub fn find_scripts<'a>(
+        &'a self,
+        predicate: impl Fn(&CnvScript) -> bool,
+        buffer: &mut Vec<Arc<Path>>,
+    ) {
+        buffer.clear();
+        for (path, script) in self.scripts.iter() {
+            if predicate(script) {
+                buffer.push(Arc::clone(path));
+            }
+        }
+    }
+
+    pub fn unload_all_scripts(&mut self) {
+        self.scripts.clear();
+    }
+
+    pub fn unload_script(&mut self, path: &Path) {
         let mut traversing_queue: VecDeque<&Path> = VecDeque::new();
         traversing_queue.push_back(path);
         let mut unloading_queue: Vec<Arc<Path>> = Vec::new();
@@ -139,7 +162,26 @@ impl CnvRunner {
         while let Some(current) = unloading_queue.pop() {
             self.scripts.remove(&current);
         }
-        Ok(())
+    }
+
+    pub fn get_object(&self, name: &str) -> Option<&CnvObject> {
+        for script in self.scripts.values() {
+            if script.objects.contains_key(name) {
+                return script.objects.get(name);
+            }
+        }
+        None
+    }
+
+    pub fn find_objects(&self, predicate: impl Fn(&CnvObject) -> bool, buffer: &mut Vec<String>) {
+        buffer.clear();
+        for script in self.scripts.values() {
+            for (name, object) in script.objects.iter() {
+                if predicate(object) {
+                    buffer.push(name.clone());
+                }
+            }
+        }
     }
 }
 
@@ -151,8 +193,9 @@ pub struct CnvScript {
     pub objects: HashMap<String, CnvObject>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScriptSource {
+    Root,
     Application,
     Episode,
     Scene,

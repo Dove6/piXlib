@@ -283,16 +283,15 @@ impl Animation {
 #[derive(Debug, Clone)]
 pub struct Application {
     // APPLICATION
-    author: Option<String>,                  // AUTHOR
-    bloomoo_version: Option<String>,         // BLOOMOO_VERSION
-    creation_time: Option<DateTime<Utc>>,    // CREATIONTIME
-    description: Option<String>,             // DESCRIPTION
-    episodes: Option<Vec<EpisodeName>>,      // EPISODES
-    last_modify_time: Option<DateTime<Utc>>, // LASTMODIFYTIME
-    path: Option<String>,                    // PATH
-    scenes: Option<Vec<SceneName>>,          // SCENES
-    start_with: Option<EpisodeName>,         // STARTWITH
-    version: Option<String>,                 // VERSION
+    pub author: Option<String>,                  // AUTHOR
+    pub bloomoo_version: Option<String>,         // BLOOMOO_VERSION
+    pub creation_time: Option<DateTime<Utc>>,    // CREATIONTIME
+    pub description: Option<String>,             // DESCRIPTION
+    pub episodes: Option<Vec<EpisodeName>>,      // EPISODES
+    pub last_modify_time: Option<DateTime<Utc>>, // LASTMODIFYTIME
+    pub path: Option<String>,                    // PATH
+    pub start_with: Option<EpisodeName>,         // STARTWITH
+    pub version: Option<String>,                 // VERSION
 }
 
 impl Application {
@@ -318,11 +317,6 @@ impl Application {
             .map(parse_datetime)
             .transpose()?;
         let path = properties.remove("PATH").and_then(discard_if_empty);
-        let scenes = properties
-            .remove("SCENES")
-            .and_then(discard_if_empty)
-            .map(parse_comma_separated)
-            .transpose()?;
         let start_with = properties.remove("STARTWITH").and_then(discard_if_empty);
         let version = properties.remove("VERSION").and_then(discard_if_empty);
         Ok(Self {
@@ -333,7 +327,6 @@ impl Application {
             episodes,
             last_modify_time,
             path,
-            scenes,
             start_with,
             version,
         })
@@ -658,14 +651,14 @@ impl Dbl {
 #[derive(Debug, Clone)]
 pub struct Episode {
     // EPISODE
-    author: Option<String>,                  // AUTHOR
-    creation_time: Option<DateTime<Utc>>,    // CREATIONTIME
-    description: Option<String>,             // DESCRIPTION
-    last_modify_time: Option<DateTime<Utc>>, // LASTMODIFYTIME
-    path: Option<String>,                    // PATH
-    scenes: Option<Vec<SceneName>>,          // SCENES
-    start_with: Option<SceneName>,           // STARTWITH
-    version: Option<String>,                 // VERSION
+    pub author: Option<String>,                  // AUTHOR
+    pub creation_time: Option<DateTime<Utc>>,    // CREATIONTIME
+    pub description: Option<String>,             // DESCRIPTION
+    pub last_modify_time: Option<DateTime<Utc>>, // LASTMODIFYTIME
+    pub path: Option<String>,                    // PATH
+    pub scenes: Option<Vec<SceneName>>,          // SCENES
+    pub start_with: Option<SceneName>,           // STARTWITH
+    pub version: Option<String>,                 // VERSION
 }
 
 impl Episode {
