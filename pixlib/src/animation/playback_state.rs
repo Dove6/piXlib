@@ -1,6 +1,6 @@
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Copy)]
 pub enum PlaybackState {
-    Forward,
+    #[default] Forward,
     Backward,
     ForwardPaused,
     BackwardPaused,
