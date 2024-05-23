@@ -1,0 +1,90 @@
+use crate::ast;
+use crate::common::{Position, IssueManager};
+use crate::lexer::CnvToken;
+
+grammar(settings: &ast::ParsingSettings, issue_manager: &mut IssueManager<ast::ParserIssue>);
+
+pub Code: ast::IgnorableProgram = {
+    <i:"!"?> <p:Program> => ast::IgnorableProgram { ignored: i.is_some(), value: p },
+};
+
+Program: ast::Program = {
+    "identifier" => ast::Program::Identifier(<>),
+    "{" ";"? <(<IgnorableStatement> ";"+)*> "}" => ast::Program::Block(<>),
+}
+
+IgnorableStatement: ast::IgnorableStatement = {
+    <i:"!"?> <s:Statement> => ast::IgnorableStatement { ignored: i.is_some(), value: s },
+}
+
+Statement: ast::Statement = {
+    "@" <m:"identifier"> "(" <a:Arguments> ")" => ast::Statement::Invocation(ast::Invocation { parent: None, name: m, arguments: a }),
+    <p:Expression> "^" <m:"identifier"> "(" <a:Arguments> ")" => ast::Statement::Invocation(ast::Invocation { parent: Some(p), name: m, arguments: a }),
+}
+
+Arguments: Vec<ast::Expression> = {
+    <mut v:(<Expression> ",")*> <pos:@L> <e:Expression?> =>? match e {
+        None => {
+            if !v.is_empty() {
+                issue_manager.emit_issue(ast::ParserError::ExpectedArgument(pos).into());
+            }
+            Ok(v)
+        },
+        Some(e) => {
+            v.push(e);
+            Ok(v)
+        },
+    }
+}
+
+Expression: ast::Expression = {
+    <Resolvable>,
+    "*" <Resolvable> => ast::Expression::NameResolution(Box::new(<>)),
+    "$" <"identifier"> => ast::Expression::Parameter(<>),
+    <p:Expression> "|" <f:"identifier"> => ast::Expression::FieldAccess(Box::new(p), f),
+    "{" ";"? <(<IgnorableStatement> ";"+)*> "}" => ast::Expression::Block(<>),
+    "true" => ast::Expression::LiteralBool(true),
+    "false" => ast::Expression::LiteralBool(false),
+}
+
+Resolvable: ast::Expression = {
+    "identifier" => ast::Expression::Identifier(<>),
+    "[" <l:Expression> <v:OpExp*> "]" => ast::Expression::Operation(Box::new(l), v),
+}
+
+OpExp: (ast::Operation, ast::Expression) = {
+    "+" <r:Expression> => (ast::Operation::Addition, r),
+    "-" <r:Expression> => (ast::Operation::Subtraction, r),
+    "*" <r:Expression> => (ast::Operation::Multiplication, r),
+    "@" <r:Expression> => (ast::Operation::Division, r),
+    "%" <r:Expression> => (ast::Operation::Remainder, r),
+}
+
+extern {
+    type Location = Position;
+    type Error = ast::ParserFatal;
+    
+    enum CnvToken {
+        "identifier" => CnvToken::Identifier(<String>),
+        "true" => CnvToken::KeywordTrue,
+        "false" => CnvToken::KeywordFalse,
+        "this" => CnvToken::KeywordThis,
+        "+" => CnvToken::Plus,
+        "-" => CnvToken::Minus,
+        "*" => CnvToken::Asterisk,
+        "@" => CnvToken::At,
+        "%" => CnvToken::Percent,
+        "^" => CnvToken::Caret,
+        "|" => CnvToken::Pipe,
+        "," => CnvToken::Comma,
+        "$" => CnvToken::Dollar,
+        "!" => CnvToken::Bang,
+        ";" => CnvToken::Semicolon,
+        "(" => CnvToken::LeftParenthesis,
+        ")" => CnvToken::RightParenthesis,
+        "[" => CnvToken::LeftBracket,
+        "]" => CnvToken::RightBracket,
+        "{" => CnvToken::LeftBrace,
+        "}" => CnvToken::RightBrace,
+    }
+}

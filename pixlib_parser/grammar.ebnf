@@ -1,0 +1,172 @@
+ignored_program
+    = [ BANG ], program;
+program
+    = RESOLVABLE
+    | block;
+block
+    = LEFT_BRACE, { ignored_statement }, RIGHT_BRACE;
+ignored_statement
+    = [ BANG ], statement;
+statement
+    = call, SEMICOLON, { SEMICOLON };
+call
+    = global_call
+    | name_resolution, [ method_call ];
+global_call
+    = AT, RESOLVABLE, call_head;
+name_resolution
+    = [ ASTERISK ], expression;
+method_call
+    = CARET, RESOLVABLE, call_head;
+call_head
+    = LEFT_PARENTHESIS, [ argument_list ], RIGHT_PARENTHESIS;
+argument_list
+    = argument, { COMMA, argument };
+argument
+    = expression;
+expression
+    = RESOLVABLE
+    | operation
+    | block;
+operation
+    = LEFT_BRACKET, operand, { operator, operand }, RIGHT_BRACKET;
+operand
+    = OPERATION_RESOLVABLE, [ operation_method_call ]
+    | operation;
+operator
+    = PLUS
+    | MINUS
+    | ASTERISK
+    | AT
+    | PERCENT;
+operation_method_call
+    = CARET, OPERATION_RESOLVABLE, operation_call_head;
+operation_call_head
+    = LEFT_PARENTHESIS, [ operation_argument_list ], RIGHT_PARENTHESIS;
+operation_argument_list
+    = operation_argument, { COMMA, operation_argument };
+operation_argument
+    = operand;
+
+
+(* Lexemes - identifiers and literals *)
+
+RESOLVABLE
+    = ALPHANUMERIC
+    | "_"
+    | "-"
+    | ".";
+OPERATION_RESOLVABLE
+    = ALPHANUMERIC
+    | "_";
+
+
+(* Lexemes - keywords, operators and symbols *)
+
+PLUS              = "+";
+MINUS             = "-";
+ASTERISK          = "*";
+AT                = "@";
+PERCENT           = "%";
+CARET             = "^";
+COMMA             = ",";
+BANG              = "!";
+SEMICOLON         = ";";
+LEFT_PARENTHESIS  = "(";
+RIGHT_PARENTHESIS = ")";
+LEFT_BRACKET      = "[";
+RIGHT_BRACKET     = "]";
+LEFT_BRACE        = "{";
+RIGHT_BRACE       = "}";
+
+(* Key-value mode *)
+HASH              = "#";
+SLASH             = "/";
+
+
+(* Basic definitions - letters and digits *)
+
+LETTER
+    = "A"
+    | "Ą"
+    | "B"
+    | "C"
+    | "Ć"
+    | "D"
+    | "E"
+    | "Ę"
+    | "F"
+    | "G"
+    | "H"
+    | "I"
+    | "J"
+    | "K"
+    | "L"
+    | "Ł"
+    | "M"
+    | "N"
+    | "Ń"
+    | "O"
+    | "Ó"
+    | "P"
+    | "Q"
+    | "R"
+    | "S"
+    | "Ś"
+    | "T"
+    | "U"
+    | "V"
+    | "W"
+    | "X"
+    | "Y"
+    | "Z"
+    | "Ź"
+    | "Ż"
+    | "a"
+    | "ą"
+    | "b"
+    | "c"
+    | "ć"
+    | "d"
+    | "e"
+    | "ę"
+    | "f"
+    | "g"
+    | "h"
+    | "i"
+    | "j"
+    | "k"
+    | "l"
+    | "ł"
+    | "m"
+    | "n"
+    | "ń"
+    | "o"
+    | "ó"
+    | "p"
+    | "q"
+    | "r"
+    | "s"
+    | "ś"
+    | "t"
+    | "u"
+    | "v"
+    | "w"
+    | "x"
+    | "y"
+    | "z"
+    | "ź"
+    | "ż";
+DIGIT
+    = "0"
+    | NON_ZERO_DIGIT;
+NON_ZERO_DIGIT
+    = "1"
+    | "2"
+    | "3"
+    | "4"
+    | "5"
+    | "6"
+    | "7"
+    | "8"
+    | "9";

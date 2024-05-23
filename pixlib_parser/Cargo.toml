@@ -1,0 +1,21 @@
+[package]
+name = "pixlib_parser"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+lazy_static = "1.4"
+thiserror = "1.0"
+lalrpop-util = { version = "0.20", features = ["lexer", "unicode"] }
+chrono = "0.4"
+regex = "1.10"
+itertools = "0.12"
+
+[build-dependencies]
+lalrpop = "0.20"
+
+[dev-dependencies]
+proptest = "1.4"
+test-case = "3.3"
