@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+    "pixlib",
+    "pixlib_formats",
+    "pixlib_parser",
+]
