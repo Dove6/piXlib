@@ -198,13 +198,10 @@ pub fn setup_viewer(
     );
     info!("Found initable objects: {:?}", initable_objects);
     for object in initable_objects {
-        match &object.content {
-            CnvType::Animation(animation) => {
-                if let Some(init_signal) = &animation.read().unwrap().on_init {
-                    init_signal.run(&mut script_runner);
-                }
+        if let CnvType::Animation(animation) = &object.content {
+            if let Some(init_signal) = &animation.read().unwrap().on_init {
+                init_signal.run(&mut script_runner);
             }
-            _ => {}
         }
     }
 }

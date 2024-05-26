@@ -76,7 +76,7 @@ impl CnvObjectBuilder {
 pub struct ObjectBuilderError {
     pub name: String,
     pub path: Arc<Path>,
-    pub source: ObjectBuildErrorKind,
+    pub source: Box<ObjectBuildErrorKind>,
 }
 
 impl ObjectBuilderError {
@@ -84,14 +84,14 @@ impl ObjectBuilderError {
         Self {
             name,
             path: PathBuf::from(".").into(),
-            source,
+            source: Box::new(source),
         }
     }
 }
 
 impl Issue for ObjectBuilderError {
     fn kind(&self) -> crate::common::IssueKind {
-        match self.source {
+        match *self.source {
             ObjectBuildErrorKind::ParsingError(TypeParsingError::InvalidProgram(
                 ProgramParsingError(ParseError::User { .. }),
             )) => crate::common::IssueKind::Fatal,
@@ -294,8 +294,7 @@ impl<I: Issue> IssueHandler<I> for IssuePrinter {
 }
 
 fn parse_program(s: String) -> Result<Arc<IgnorableProgram>, TypeParsingError> {
-    let scanner =
-        CnvScanner::<IntoIter<_>>::new(s.chars().map(|c| Ok(c)).collect::<Vec<_>>().into_iter());
+    let scanner = CnvScanner::<IntoIter<_>>::new(s.chars().map(Ok).collect::<Vec<_>>().into_iter());
     let lexer = CnvLexer::new(scanner, Default::default(), Default::default());
     let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
     parser_issue_manager.set_handler(Box::new(IssuePrinter));
