@@ -166,19 +166,23 @@ pub fn update_scene_list(
         let game_definition_path = read_game_definition(iso, game_paths, script_runner);
         let game_definition = script_runner.0.get_script(&game_definition_path).unwrap();
         println!("game_definition: {:?}", game_definition);
-        for (object_name, cnv_object) in
+        for (name, path, background) in
             game_definition
                 .objects
                 .iter()
-                .filter_map(|(k, v)| match &v.content {
-                    CnvType::Scene(scene) if scene.path.is_some() => Some((k, scene)),
+                .filter_map(|o| match &o.content {
+                    CnvType::Scene(scene) if scene.read().unwrap().path.is_some() => Some((
+                        o.name.clone(),
+                        scene.read().unwrap().path.clone(),
+                        scene.read().unwrap().background.clone(),
+                    )),
                     _ => None,
                 })
         {
             scene_list.scenes.push(SceneDefinition {
-                name: object_name.clone(),
-                path: PathBuf::from(cnv_object.path.as_ref().unwrap()),
-                background: cnv_object.background.clone(),
+                name,
+                path: PathBuf::from(path.unwrap()),
+                background,
             });
         }
         scene_list.scenes.sort();

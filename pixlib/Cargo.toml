@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-cdfs = { path = "../iso9660-rs/cdfs" }
-pixlib_formats = { git = "ssh://github.com/Dove6/piXlib-formats.git", rev = "a7ae7a58fcffefd39af40bc8dc9221ae4725bcbb" }
+cdfs = { git = "https://github.com/Dove6/cdfs.git", branch = "fix/threading" }
+pixlib_formats = { path = "../pixlib_formats" }
 pixlib_parser = { path = "../pixlib_parser" }
 codepage-strings = "1"
 bevy = { version = "0.13", default_features = false, features = [

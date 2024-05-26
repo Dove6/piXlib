@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::RwLock};
 
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
@@ -36,12 +36,17 @@ impl CnvObjectBuilder {
         self.properties.insert(property, value); // TODO: report duplicates
     }
 
-    pub fn build(self) -> Result<CnvObject, &'static str> {
+    pub fn build(self) -> Result<CnvObject, ObjectBuilderError> {
         let mut properties = self.properties;
         let Some(type_name) = properties.remove("TYPE").and_then(discard_if_empty) else {
-            return Err("Missing type."); // TODO: readable errors
+            return Err(ObjectBuilderError::new(
+                self.name,
+                ObjectBuildErrorKind::MissingType,
+            )); // TODO: readable errors
         };
-        let content = CnvType::new(type_name, properties).map_err(|_| "Parsing error.")?;
+        let content = CnvType::new(type_name, properties).map_err(|_| {
+            ObjectBuilderError::new(self.name.clone(), ObjectBuildErrorKind::ParsingError)
+        })?;
         Ok(CnvObject {
             name: self.name,
             index: self.index,
@@ -51,6 +56,24 @@ impl CnvObjectBuilder {
 }
 
 #[derive(Debug, Clone)]
+pub struct ObjectBuilderError {
+    pub name: String,
+    pub kind: ObjectBuildErrorKind,
+}
+
+impl ObjectBuilderError {
+    pub fn new(name: String, kind: ObjectBuildErrorKind) -> Self {
+        Self { name, kind }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum ObjectBuildErrorKind {
+    MissingType,
+    ParsingError,
+}
+
+#[derive(Debug)]
 pub struct CnvObject {
     pub name: String,
     pub index: usize,
@@ -58,7 +81,7 @@ pub struct CnvObject {
 }
 
 impl CnvObject {
-    pub fn call_method(&mut self, _name: &str) -> Option<CnvValue> {
+    pub fn call_method(&self, _name: &str) -> Option<CnvValue> {
         todo!()
     }
 
@@ -67,78 +90,86 @@ impl CnvObject {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum CnvType {
-    Animation(Animation),
-    Application(Application),
-    Array(Array),
-    Behavior(Behavior),
-    Boolean(Bool),
-    Button(Button),
-    CanvasObserver(CanvasObserver),
-    CnvLoader(CnvLoader),
-    Condition(Condition),
-    ComplexCondition(ComplexCondition),
-    Double(Dbl),
-    Episode(Episode),
-    Expression(Expression),
-    Font(Font),
-    Group(Group),
-    Image(Image),
-    Integer(Int),
-    Keyboard(Keyboard),
-    Mouse(Mouse),
-    MultiArray(MultiArray),
-    Music(Music),
-    Random(Random),
-    Scene(Scene),
-    Sequence(Sequence),
-    Sound(Sound),
-    String(Str),
-    Struct(Struct),
-    System(System),
-    Text(Text),
-    Timer(Timer),
+    Animation(RwLock<Animation>),
+    Application(RwLock<Application>),
+    Array(RwLock<Array>),
+    Behavior(RwLock<Behavior>),
+    Boolean(RwLock<Bool>),
+    Button(RwLock<Button>),
+    CanvasObserver(RwLock<CanvasObserver>),
+    CnvLoader(RwLock<CnvLoader>),
+    Condition(RwLock<Condition>),
+    ComplexCondition(RwLock<ComplexCondition>),
+    Double(RwLock<Dbl>),
+    Episode(RwLock<Episode>),
+    Expression(RwLock<Expression>),
+    Font(RwLock<Font>),
+    Group(RwLock<Group>),
+    Image(RwLock<Image>),
+    Integer(RwLock<Int>),
+    Keyboard(RwLock<Keyboard>),
+    Mouse(RwLock<Mouse>),
+    MultiArray(RwLock<MultiArray>),
+    Music(RwLock<Music>),
+    Random(RwLock<Random>),
+    Scene(RwLock<Scene>),
+    Sequence(RwLock<Sequence>),
+    Sound(RwLock<Sound>),
+    String(RwLock<Str>),
+    Struct(RwLock<Struct>),
+    System(RwLock<System>),
+    Text(RwLock<Text>),
+    Timer(RwLock<Timer>),
 }
 
 impl CnvType {
     pub fn new(type_name: String, properties: HashMap<String, String>) -> Result<Self, ()> {
         match type_name.as_ref() {
-            "ANIMO" => Animation::new(properties).map(|o| CnvType::Animation(o)),
-            "APPLICATION" => Application::new(properties).map(|o| CnvType::Application(o)),
-            "ARRAY" => Array::new(properties).map(|o| CnvType::Array(o)),
-            "BEHAVIOUR" => Behavior::new(properties).map(|o| CnvType::Behavior(o)),
-            "BOOL" => Bool::new(properties).map(|o| CnvType::Boolean(o)),
-            "BUTTON" => Button::new(properties).map(|o| CnvType::Button(o)),
+            "ANIMO" => Animation::new(properties).map(|o| CnvType::Animation(RwLock::new(o))),
+            "APPLICATION" => {
+                Application::new(properties).map(|o| CnvType::Application(RwLock::new(o)))
+            }
+            "ARRAY" => Array::new(properties).map(|o| CnvType::Array(RwLock::new(o))),
+            "BEHAVIOUR" => Behavior::new(properties).map(|o| CnvType::Behavior(RwLock::new(o))),
+            "BOOL" => Bool::new(properties).map(|o| CnvType::Boolean(RwLock::new(o))),
+            "BUTTON" => Button::new(properties).map(|o| CnvType::Button(RwLock::new(o))),
             "CANVAS_OBSERVER" => {
-                CanvasObserver::new(properties).map(|o| CnvType::CanvasObserver(o))
+                CanvasObserver::new(properties).map(|o| CnvType::CanvasObserver(RwLock::new(o)))
             }
-            "CANVASOBSERVER" => CanvasObserver::new(properties).map(|o| CnvType::CanvasObserver(o)),
-            "CNVLOADER" => CnvLoader::new(properties).map(|o| CnvType::CnvLoader(o)),
-            "CONDITION" => Condition::new(properties).map(|o| CnvType::Condition(o)),
+            "CANVASOBSERVER" => {
+                CanvasObserver::new(properties).map(|o| CnvType::CanvasObserver(RwLock::new(o)))
+            }
+            "CNVLOADER" => CnvLoader::new(properties).map(|o| CnvType::CnvLoader(RwLock::new(o))),
+            "CONDITION" => Condition::new(properties).map(|o| CnvType::Condition(RwLock::new(o))),
             "COMPLEXCONDITION" => {
-                ComplexCondition::new(properties).map(|o| CnvType::ComplexCondition(o))
+                ComplexCondition::new(properties).map(|o| CnvType::ComplexCondition(RwLock::new(o)))
             }
-            "DOUBLE" => Dbl::new(properties).map(|o| CnvType::Double(o)),
-            "EPISODE" => Episode::new(properties).map(|o| CnvType::Episode(o)),
-            "EXPRESSION" => Expression::new(properties).map(|o| CnvType::Expression(o)),
-            "FONT" => Font::new(properties).map(|o| CnvType::Font(o)),
-            "GROUP" => Group::new(properties).map(|o| CnvType::Group(o)),
-            "IMAGE" => Image::new(properties).map(|o| CnvType::Image(o)),
-            "INTEGER" => Int::new(properties).map(|o| CnvType::Integer(o)),
-            "KEYBOARD" => Keyboard::new(properties).map(|o| CnvType::Keyboard(o)),
-            "MOUSE" => Mouse::new(properties).map(|o| CnvType::Mouse(o)),
-            "MULTIARRAY" => MultiArray::new(properties).map(|o| CnvType::MultiArray(o)),
-            "MUSIC" => Music::new(properties).map(|o| CnvType::Music(o)),
-            "RANDOM" => Random::new(properties).map(|o| CnvType::Random(o)),
-            "SCENE" => Scene::new(properties).map(|o| CnvType::Scene(o)),
-            "SEQUENCE" => Sequence::new(properties).map(|o| CnvType::Sequence(o)),
-            "SOUND" => Sound::new(properties).map(|o| CnvType::Sound(o)),
-            "STRING" => Str::new(properties).map(|o| CnvType::String(o)),
-            "STRUCT" => Struct::new(properties).map(|o| CnvType::Struct(o)),
-            "SYSTEM" => System::new(properties).map(|o| CnvType::System(o)),
-            "TEXT" => Text::new(properties).map(|o| CnvType::Text(o)),
-            "TIMER" => Timer::new(properties).map(|o| CnvType::Timer(o)),
+            "DOUBLE" => Dbl::new(properties).map(|o| CnvType::Double(RwLock::new(o))),
+            "EPISODE" => Episode::new(properties).map(|o| CnvType::Episode(RwLock::new(o))),
+            "EXPRESSION" => {
+                Expression::new(properties).map(|o| CnvType::Expression(RwLock::new(o)))
+            }
+            "FONT" => Font::new(properties).map(|o| CnvType::Font(RwLock::new(o))),
+            "GROUP" => Group::new(properties).map(|o| CnvType::Group(RwLock::new(o))),
+            "IMAGE" => Image::new(properties).map(|o| CnvType::Image(RwLock::new(o))),
+            "INTEGER" => Int::new(properties).map(|o| CnvType::Integer(RwLock::new(o))),
+            "KEYBOARD" => Keyboard::new(properties).map(|o| CnvType::Keyboard(RwLock::new(o))),
+            "MOUSE" => Mouse::new(properties).map(|o| CnvType::Mouse(RwLock::new(o))),
+            "MULTIARRAY" => {
+                MultiArray::new(properties).map(|o| CnvType::MultiArray(RwLock::new(o)))
+            }
+            "MUSIC" => Music::new(properties).map(|o| CnvType::Music(RwLock::new(o))),
+            "RANDOM" => Random::new(properties).map(|o| CnvType::Random(RwLock::new(o))),
+            "SCENE" => Scene::new(properties).map(|o| CnvType::Scene(RwLock::new(o))),
+            "SEQUENCE" => Sequence::new(properties).map(|o| CnvType::Sequence(RwLock::new(o))),
+            "SOUND" => Sound::new(properties).map(|o| CnvType::Sound(RwLock::new(o))),
+            "STRING" => Str::new(properties).map(|o| CnvType::String(RwLock::new(o))),
+            "STRUCT" => Struct::new(properties).map(|o| CnvType::Struct(RwLock::new(o))),
+            "SYSTEM" => System::new(properties).map(|o| CnvType::System(RwLock::new(o))),
+            "TEXT" => Text::new(properties).map(|o| CnvType::Text(RwLock::new(o))),
+            "TIMER" => Timer::new(properties).map(|o| CnvType::Timer(RwLock::new(o))),
             _ => panic!("Unknown type: {}", &type_name),
         }
     }
@@ -354,8 +385,8 @@ impl Array {
 #[derive(Debug, Clone)]
 pub struct Behavior {
     // BEHAVIOUR
-    code: Option<IgnorableProgram>,   // CODE
-    condition: Option<ConditionName>, // CONDITION
+    pub code: Option<IgnorableProgram>,   // CODE
+    pub condition: Option<ConditionName>, // CONDITION
 }
 
 impl Behavior {

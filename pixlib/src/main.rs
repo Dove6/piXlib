@@ -3,6 +3,7 @@
 pub mod anchors;
 pub mod animation;
 pub mod arguments;
+pub mod components;
 pub mod image;
 pub mod iso;
 pub mod resources;
@@ -24,10 +25,7 @@ use bevy::{
     DefaultPlugins,
 };
 use iso::{read_game_definition, read_script};
-use pixlib_parser::{
-    classes::{CnvObject, CnvType},
-    runner::ScriptSource,
-};
+use pixlib_parser::{classes::CnvType, runner::ScriptSource};
 use resources::{
     ChosenScene, DebugSettings, GamePaths, InsertedDisk, SceneDefinition, ScriptRunner,
     WindowConfiguration,
@@ -125,16 +123,12 @@ fn reload_main_script(
         );
         return;
     }
-    let Some(CnvObject {
-        name: application_name,
-        content: CnvType::Application(application),
-        ..
-    }) = script_runner.get_object(&vec[0])
-    else {
-        unreachable!();
+    let application_name = vec[0].name.clone();
+    let CnvType::Application(application) = &vec[0].content else {
+        panic!();
     };
     let application_name = application_name.clone();
-    let application_path = application.path.clone();
+    let application_path = application.read().unwrap().path.clone();
     if let Some(application_script_path) = application_path.as_ref() {
         read_script(
             iso,
@@ -146,29 +140,39 @@ fn reload_main_script(
             &mut script_runner,
         );
     }
-    let Some(CnvObject {
-        content: CnvType::Application(application),
-        ..
-    }) = script_runner.get_object(&vec[0])
-    else {
-        unreachable!();
+    let CnvType::Application(application) = &vec[0].content else {
+        panic!();
     };
-    let Some([episode_object_name]) = &application.episodes.as_deref() else {
+    let episode_object_name = if application
+        .read()
+        .unwrap()
+        .episodes
+        .as_ref()
+        .map(|v| v.len())
+        .unwrap_or(0)
+        == 1
+    {
+        application.read().unwrap().episodes.as_ref().unwrap()[0].to_owned()
+    } else {
         eprintln!(
             "Unexpected number of episodes (expected 1): {:?}",
-            application.episodes
+            application.read().unwrap().episodes
         );
         return;
     };
+    let episode_object = script_runner.get_object(&episode_object_name);
     let episode_object_name = episode_object_name.clone();
-    if let Some(CnvObject {
-        name: episode_name,
-        content: CnvType::Episode(episode),
-        ..
-    }) = script_runner.get_object(&episode_object_name)
-    {
+    let episode_name = vec[0].name.clone();
+    let CnvType::Application(application) = &vec[0].content else {
+        panic!();
+    };
+    if let Some(episode_object) = script_runner.get_object(&episode_object_name) {
+        let episode_name = episode_object.name.clone();
+        let CnvType::Episode(episode) = &episode_object.content else {
+            panic!();
+        };
         let episode_name = episode_name.clone();
-        let episode_path = episode.path.clone();
+        let episode_path = episode.read().unwrap().path.clone();
         if let Some(episode_script_path) = episode_path.as_ref() {
             read_script(
                 iso,
@@ -180,34 +184,31 @@ fn reload_main_script(
                 &mut script_runner,
             );
         }
-        let Some(CnvObject {
-            content: CnvType::Episode(episode),
-            ..
-        }) = script_runner.get_object(&episode_object_name)
-        else {
+        let CnvType::Episode(episode) = &episode_object.content else {
             unreachable!();
         };
         chosen_scene.list.clear();
         chosen_scene.index = 0;
         for scene_name in episode
+            .read()
+            .unwrap()
             .scenes
             .as_ref()
             .map(|v| v.iter())
             .unwrap_or(Vec::new().iter())
         {
-            if let Some(CnvObject {
-                content: CnvType::Scene(scene),
-                ..
-            }) = script_runner.get_object(scene_name)
-            {
-                let Some(scene_script_path) = scene.path.as_ref() else {
+            if let Some(scene_object) = script_runner.get_object(scene_name) {
+                let CnvType::Scene(scene) = &scene_object.content else {
+                    panic!();
+                };
+                let Some(scene_script_path) = scene.read().unwrap().path.clone() else {
                     eprintln!("Scene {} has no path", scene_name);
                     continue;
                 };
                 let scene_defintion = SceneDefinition {
                     name: scene_name.to_string(),
                     path: PathBuf::from(scene_script_path),
-                    background: scene.background.clone(),
+                    background: scene.read().unwrap().background.clone(),
                 };
                 chosen_scene.list.push(scene_defintion);
             }

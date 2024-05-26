@@ -1,7 +1,4 @@
 [workspace]
-
-members = [
-    "pixlib",
-    "pixlib_formats",
-    "pixlib_parser",
-]
+members = ["pixlib", "pixlib_formats", "pixlib_parser"]
+resolver = "2"
+default-members = ["pixlib"]

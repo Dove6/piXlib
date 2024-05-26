@@ -9,17 +9,12 @@ use crate::{
     ast::{
         Expression, IgnorableProgram, IgnorableStatement, Invocation, Operation, Program, Statement,
     },
-    classes::{CnvObject, CnvObjectBuilder},
+    classes::{CnvObject, CnvObjectBuilder, CnvType, ObjectBuilderError},
     common::{Issue, IssueHandler, IssueManager},
     declarative_parser::{
         CnvDeclaration, DeclarativeParser, ParserFatal, ParserInput, ParserIssue,
     },
 };
-
-#[derive(Debug, Default, Clone)]
-pub struct CnvRunner {
-    scripts: HashMap<Arc<Path>, CnvScript>,
-}
 
 #[derive(Debug)]
 struct IssuePrinter;
@@ -45,6 +40,11 @@ where
     }
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct CnvRunner {
+    scripts: HashMap<Arc<Path>, CnvScript>,
+}
+
 impl CnvRunner {
     pub fn load_script(
         &mut self,
@@ -57,15 +57,15 @@ impl CnvRunner {
         parser_issue_manager.set_handler(Box::new(IssuePrinter));
         let mut dec_parser =
             DeclarativeParser::new(contents, Default::default(), parser_issue_manager).peekable();
-        let mut objects: HashMap<String, CnvObjectBuilder> = HashMap::new();
-        let mut counter: usize = 0;
+        let mut objects: Vec<CnvObjectBuilder> = Vec::new();
+        let mut name_to_object: HashMap<String, usize> = HashMap::new();
         while let Some(Ok((_pos, dec, _))) = dec_parser.next_if(|result| result.is_ok()) {
             match dec {
                 CnvDeclaration::ObjectInitialization(name) => {
-                    objects
-                        .insert(name.clone(), CnvObjectBuilder::new(name, counter))
+                    objects.push(CnvObjectBuilder::new(name.clone(), objects.len()));
+                    name_to_object
+                        .insert(name, objects.len() - 1)
                         .warn_if_some();
-                    counter += 1;
                 }
                 CnvDeclaration::PropertyAssignment {
                     parent,
@@ -73,7 +73,10 @@ impl CnvRunner {
                     property_key: _property_key,
                     value,
                 } => {
-                    let Some(obj) = objects.get_mut(&parent) else {
+                    let Some(obj) = name_to_object
+                        .get(&parent)
+                        .and_then(|i| objects.get_mut(*i))
+                    else {
                         panic!(
                             "Expected {} element to be in dict, the element list is: {:?}",
                             &parent, &objects
@@ -86,14 +89,14 @@ impl CnvRunner {
         if let Some(Err(err)) = dec_parser.next_if(|result| result.is_err()) {
             return Err(err);
         }
-        let objects: HashMap<String, CnvObject> = objects
+        let objects: Vec<Arc<CnvObject>> = objects
             .into_iter()
-            .filter_map(|(name, builder)| match builder.build() {
-                Ok(built_object) => Some((name, built_object)),
-                Err(e) => {
+            .filter_map(|builder| match builder.build() {
+                Ok(built_object) => Some(Arc::new(built_object)),
+                Err(ObjectBuilderError { name, kind }) => {
                     eprintln!(
-                        "Error building CNV object {} from script {:?}: {}",
-                        &name, &path, e
+                        "Error building CNV object {} from script {:?}: {:?}",
+                        &name, &path, kind
                     );
                     None
                 }
@@ -164,25 +167,57 @@ impl CnvRunner {
         }
     }
 
-    pub fn get_object(&self, name: &str) -> Option<&CnvObject> {
+    pub fn get_object(&self, name: &str) -> Option<Arc<CnvObject>> {
         for script in self.scripts.values() {
-            if script.objects.contains_key(name) {
-                return script.objects.get(name);
+            for object in script.objects.iter() {
+                if object.name == name {
+                    return Some(Arc::clone(object));
+                }
             }
         }
         None
     }
 
-    pub fn find_objects(&self, predicate: impl Fn(&CnvObject) -> bool, buffer: &mut Vec<String>) {
+    pub fn find_objects(
+        &self,
+        predicate: impl Fn(&CnvObject) -> bool,
+        buffer: &mut Vec<Arc<CnvObject>>,
+    ) {
         buffer.clear();
         for script in self.scripts.values() {
-            for (name, object) in script.objects.iter() {
-                if predicate(object) {
-                    buffer.push(name.clone());
+            for object in script.objects.iter() {
+                if predicate(&object) {
+                    buffer.push(Arc::clone(object));
                 }
             }
         }
     }
+
+    pub fn run_behavior(
+        &mut self,
+        script_name: Arc<Path>,
+        name: &str,
+    ) -> Result<Option<CnvValue>, BehaviorRunningError> {
+        let Some(script) = self.get_script_mut(&script_name) else {
+            return Err(BehaviorRunningError::ScriptNotFound);
+        };
+        let Some(init_beh_obj) = script.get_object(name) else {
+            return Err(BehaviorRunningError::ObjectNotFound);
+        };
+        let CnvType::Behavior(init_beh) = &init_beh_obj.content else {
+            return Err(BehaviorRunningError::InvalidType);
+        };
+        if let Some(code) = &init_beh.read().unwrap().code {
+            code.run(self);
+        }
+        Ok(None)
+    }
+}
+
+pub enum BehaviorRunningError {
+    ScriptNotFound,
+    ObjectNotFound,
+    InvalidType,
 }
 
 #[derive(Debug, Clone)]
@@ -190,7 +225,18 @@ pub struct CnvScript {
     pub source_kind: ScriptSource,
     pub path: Arc<Path>,
     pub parent_path: Option<Arc<Path>>,
-    pub objects: HashMap<String, CnvObject>,
+    pub objects: Vec<Arc<CnvObject>>,
+}
+
+impl CnvScript {
+    pub fn get_object(&self, name: &str) -> Option<Arc<CnvObject>> {
+        for object in self.objects.iter() {
+            if object.name == name {
+                return Some(Arc::clone(object));
+            }
+        }
+        None
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -209,7 +255,7 @@ struct CnvApplication {
 
 #[allow(dead_code)]
 impl CnvApplication {
-    //     @BOOL
+    // @BOOL
     // @BREAK
     // @CONTINUE
     // @CONV
@@ -357,23 +403,21 @@ impl Rem for &CnvValue {
     }
 }
 
-pub type CnvObjects = HashMap<String, Box<CnvObject>>;
-
 pub trait CnvExpression {
-    fn calculate(&self, objects: &mut CnvObjects) -> Option<CnvValue>;
+    fn calculate(&self, runner: &mut CnvRunner) -> Option<CnvValue>;
 }
 
 pub trait CnvStatement {
-    fn run(&self, objects: &mut CnvObjects);
+    fn run(&self, runner: &mut CnvRunner);
 }
 
 impl CnvExpression for Invocation {
-    fn calculate(&self, objects: &mut CnvObjects) -> Option<CnvValue> {
+    fn calculate(&self, runner: &mut CnvRunner) -> Option<CnvValue> {
         if self.parent.is_none() {
             None // TODO: match &self.name
         } else {
-            let _parent = self.parent.as_ref().unwrap().calculate(objects);
-            match objects.get_mut("") {
+            let _parent = self.parent.as_ref().unwrap().calculate(runner);
+            match runner.get_object("") {
                 // TODO: stringify parent
                 Some(obj) => obj.call_method(&self.name),
                 None => None, // error
@@ -383,24 +427,26 @@ impl CnvExpression for Invocation {
 }
 
 impl CnvExpression for Expression {
-    fn calculate(&self, objects: &mut CnvObjects) -> Option<CnvValue> {
+    fn calculate(&self, runner: &mut CnvRunner) -> Option<CnvValue> {
         match self {
             Expression::LiteralBool(b) => Some(CnvValue::Boolean(*b)),
-            Expression::Identifier(name) => objects.get_mut(&name[..]).and_then(|x| x.get_value()), // error
+            Expression::Identifier(name) => {
+                runner.get_object(&name[..]).and_then(|x| x.get_value())
+            } // error
             Expression::Parameter(_name) => None, // access function scope and retrieve arguments
             Expression::NameResolution(expression) => {
-                let _name = &expression.calculate(objects);
+                let _name = &expression.calculate(runner);
                 let name = String::new(); // TODO: stringify
-                objects.get_mut(&name[..]).and_then(|x| x.get_value()) // error
+                runner.get_object(&name[..]).and_then(|x| x.get_value()) // error
             }
             Expression::FieldAccess(_expression, _field) => todo!(),
             Expression::Operation(expression, operations) => {
                 let mut result = expression
-                    .calculate(objects)
+                    .calculate(runner)
                     .expect("Expected non-void argument in operation");
                 for (operation, argument) in operations {
                     let argument = argument
-                        .calculate(objects)
+                        .calculate(runner)
                         .expect("Expected non-void argument in operation");
                     result = match operation {
                         Operation::Addition => &result + &argument,
@@ -418,26 +464,26 @@ impl CnvExpression for Expression {
 }
 
 impl CnvStatement for IgnorableProgram {
-    fn run(&self, objects: &mut CnvObjects) {
+    fn run(&self, runner: &mut CnvRunner) {
         if self.ignored {
             return;
         }
-        self.value.run(objects);
+        self.value.run(runner);
     }
 }
 
 impl CnvStatement for Program {
-    fn run(&self, objects: &mut CnvObjects) {
+    fn run(&self, runner: &mut CnvRunner) {
         match self {
             Program::Identifier(identifier) => {
-                let _obj = objects
-                    .get(identifier)
+                let _obj = runner
+                    .get_object(identifier)
                     .unwrap_or_else(|| panic!("Expected existing object named {}", &identifier));
                 todo!(); // run object
             }
             Program::Block(ignorable_statements) => {
                 for ignorable_statement in ignorable_statements {
-                    ignorable_statement.run(objects);
+                    ignorable_statement.run(runner);
                 }
             }
         }
@@ -445,22 +491,22 @@ impl CnvStatement for Program {
 }
 
 impl CnvStatement for IgnorableStatement {
-    fn run(&self, objects: &mut CnvObjects) {
+    fn run(&self, runner: &mut CnvRunner) {
         if self.ignored {
             return;
         }
-        self.value.run(objects);
+        self.value.run(runner);
     }
 }
 
 impl CnvStatement for Statement {
-    fn run(&self, objects: &mut CnvObjects) {
+    fn run(&self, runner: &mut CnvRunner) {
         match self {
             Statement::Invocation(invocation) => {
-                invocation.calculate(objects);
+                invocation.calculate(runner);
             }
             Statement::ExpressionStatement(expression) => {
-                expression.calculate(objects);
+                expression.calculate(runner);
             }
         }
     }

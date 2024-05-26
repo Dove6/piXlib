@@ -1,8 +1,11 @@
 mod animation_sequence_component;
+mod animation_bundle;
 mod animation_state;
 mod animation_timer;
 mod playback_state;
 
+pub use animation_bundle::AnimationBundle;
+pub use animation_bundle::AnimationMarker;
 pub use animation_sequence_component::AnimationDefinition;
 pub use animation_state::AnimationState;
 pub use animation_timer::AnimationTimer;
@@ -10,7 +13,7 @@ pub use playback_state::PlaybackState;
 
 use bevy::{
     asset::Assets,
-    ecs::{bundle::Bundle, system::ResMut},
+    ecs::system::ResMut,
     math::{UVec2, Vec2},
     prelude::default,
     render::{render_resource::TextureFormat, texture::Image},
@@ -28,14 +31,6 @@ use crate::{
 };
 
 use self::animation_sequence_component::SpriteDefinition;
-
-#[derive(Bundle, Clone)]
-pub struct AnimationBundle {
-    pub sprite_sheet: SpriteSheetBundle,
-    pub animation: AnimationDefinition,
-    pub state: AnimationState,
-    pub timer: AnimationTimer,
-}
 
 pub fn ann_file_to_animation_bundle(
     ann_file: &AnnFile,
@@ -70,6 +65,7 @@ pub fn ann_file_to_animation_bundle(
     let timer = AnimationTimer(Timer::from_seconds(duration, TimerMode::Repeating));
 
     AnimationBundle {
+        marker: AnimationMarker,
         sprite_sheet: SpriteSheetBundle {
             texture,
             atlas: TextureAtlas { layout, index: 0 },

@@ -5,14 +5,15 @@ use crate::resources::{
     ChosenScene, GamePaths, InsertedDisk, RootEntityToDespawn, SceneDefinition, ScriptRunner,
 };
 use bevy::hierarchy::BuildChildren;
+use bevy::log::error;
 use bevy::prelude::SpatialBundle;
 use bevy::{
     ecs::system::Res,
     prelude::{Assets, Commands, Image, ResMut},
     sprite::TextureAtlasLayout,
 };
-use pixlib_parser::classes::{self, CnvObject, CnvType};
-use pixlib_parser::runner::ScriptSource;
+use pixlib_parser::classes::{CnvObject, CnvType};
+use pixlib_parser::runner::{CnvStatement, ScriptSource};
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -54,10 +55,17 @@ pub fn setup_viewer(
         ScriptSource::Scene,
         &mut script_runner,
     );
-    let Some(CnvObject {
+    let Some(scene_object) = script_runner.get_object(&name) else {
+        panic!(
+            "Could not find scene object {}: {:?}",
+            &name,
+            script_runner.get_object(&name)
+        );
+    };
+    let CnvObject {
         content: CnvType::Scene(scene_definition),
         ..
-    }) = script_runner.get_object(&name)
+    } = scene_object.as_ref()
     else {
         panic!(
             "Could not find scene object {}: {:?}",
@@ -65,7 +73,7 @@ pub fn setup_viewer(
             script_runner.get_object(&name)
         );
     };
-    let Some(scene_path) = scene_definition.path.as_ref() else {
+    let Some(scene_path) = scene_definition.read().unwrap().path.clone() else {
         eprintln!("Scene {} has no path", &name);
         return;
     };
@@ -75,7 +83,7 @@ pub fn setup_viewer(
         .spawn(SpatialBundle::default())
         .with_children(|parent| {
             let mut initial_images = vec![];
-            if let Some(background_filename) = scene_definition.background.as_ref() {
+            if let Some(background_filename) = scene_definition.read().unwrap().background.clone() {
                 initial_images.push(OrderedGraphics {
                     file_path: get_path_to_scene_file(
                         &game_paths,
@@ -99,24 +107,22 @@ pub fn setup_viewer(
                 scene_script
                     .objects
                     .iter()
-                    .filter(|(_, cnv_object)| {
+                    .filter(|cnv_object| {
                         matches!(
                             cnv_object.content,
                             CnvType::Image(_) | CnvType::Animation(_)
                         )
                     })
-                    .map(|(_, cnv_object)| {
+                    .map(|cnv_object| {
                         let (filename, priority) = match &cnv_object.content {
-                            CnvType::Animation(classes::Animation {
-                                filename: Some(filename),
-                                priority,
-                                ..
-                            }) => (filename, *priority),
-                            CnvType::Image(classes::Image {
-                                filename: Some(filename),
-                                priority,
-                                ..
-                            }) => (filename, *priority),
+                            CnvType::Animation(animation) => {
+                                let animation = animation.read().unwrap();
+                                (animation.filename.to_owned().unwrap(), animation.priority)
+                            }
+                            CnvType::Image(image) => {
+                                let image = image.read().unwrap();
+                                (image.filename.to_owned().unwrap(), image.priority)
+                            }
                             _ => panic!(),
                         };
                         OrderedGraphics {
@@ -162,6 +168,19 @@ pub fn setup_viewer(
         })
         .id();
     commands.insert_resource(RootEntityToDespawn(Some(root_entity)));
+
+    if let Some(init_beh_obj) = scene_script.get_object("__INIT__") {
+        let CnvType::Behavior(init_beh) = &init_beh_obj.content else {
+            error!(
+                "Expected __INIT__ object to be a behavior, not: {:?}",
+                &init_beh_obj.content
+            );
+            return;
+        };
+        if let Some(code) = &init_beh.read().unwrap().code {
+            code.run(&mut script_runner);
+        }
+    }
 }
 
 fn get_path_to_scene_file(game_paths: &GamePaths, scene_path: &str, filename: &str) -> Arc<Path> {
