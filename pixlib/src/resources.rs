@@ -3,7 +3,7 @@ use std::{
     fs::File,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
 
 use bevy::ecs::{entity::Entity, system::Resource};

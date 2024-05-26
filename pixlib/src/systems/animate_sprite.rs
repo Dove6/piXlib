@@ -2,7 +2,6 @@ use crate::anchors::{add_tuples, get_anchor, UpdatableAnchor};
 use crate::animation::PlaybackState;
 use crate::animation::{AnimationDefinition, AnimationState, AnimationTimer};
 use crate::resources::DebugSettings;
-use bevy::log::info;
 use bevy::{
     ecs::system::Res,
     prelude::Query,

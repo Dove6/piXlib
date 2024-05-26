@@ -160,12 +160,7 @@ fn reload_main_script(
         );
         return;
     };
-    let episode_object = script_runner.get_object(&episode_object_name);
     let episode_object_name = episode_object_name.clone();
-    let episode_name = vec[0].name.clone();
-    let CnvType::Application(application) = &vec[0].content else {
-        panic!();
-    };
     if let Some(episode_object) = script_runner.get_object(&episode_object_name) {
         let episode_name = episode_object.name.clone();
         let CnvType::Episode(episode) = &episode_object.content else {

@@ -1,4 +1,8 @@
-use std::{collections::HashMap, sync::RwLock};
+use std::{
+    collections::HashMap,
+    num::{ParseFloatError, ParseIntError},
+    sync::RwLock,
+};
 
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
@@ -125,7 +129,10 @@ pub enum CnvType {
 }
 
 impl CnvType {
-    pub fn new(type_name: String, properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(
+        type_name: String,
+        properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         match type_name.as_ref() {
             "ANIMO" => Animation::new(properties).map(|o| CnvType::Animation(RwLock::new(o))),
             "APPLICATION" => {
@@ -170,49 +177,61 @@ impl CnvType {
             "SYSTEM" => System::new(properties).map(|o| CnvType::System(RwLock::new(o))),
             "TEXT" => Text::new(properties).map(|o| CnvType::Text(RwLock::new(o))),
             "TIMER" => Timer::new(properties).map(|o| CnvType::Timer(RwLock::new(o))),
-            _ => panic!("Unknown type: {}", &type_name),
+            _ => Err(TypeParsingError::UnknownType(type_name)),
         }
     }
 }
 
-fn parse_bool(s: String) -> Result<bool, ()> {
+#[derive(Debug, Clone)]
+pub enum TypeParsingError {
+    UnknownType(String),
+    InvalidBoolLiteral(String),
+    InvalidIntegerLiteral(ParseIntError),
+    InvalidFloatingLiteral(ParseFloatError),
+    InvalidRectLiteral(String),
+    InvalidConditionOperator(String),
+    InvalidComplexConditionOperator(String),
+    InvalidExpressionOperator(String),
+}
+
+fn parse_bool(s: String) -> Result<bool, TypeParsingError> {
     match s.as_ref() {
         "TRUE" => Ok(true),
         "FALSE" => Ok(false),
-        _ => Err(()),
+        _ => Err(TypeParsingError::InvalidBoolLiteral(s)),
     }
 }
 
-fn parse_i32(s: String) -> Result<i32, ()> {
-    s.parse().map_err(|_| ())
+fn parse_i32(s: String) -> Result<i32, TypeParsingError> {
+    s.parse().map_err(TypeParsingError::InvalidIntegerLiteral)
 }
 
-fn parse_f64(s: String) -> Result<f64, ()> {
-    s.parse().map_err(|_| ())
+fn parse_f64(s: String) -> Result<f64, TypeParsingError> {
+    s.parse().map_err(TypeParsingError::InvalidFloatingLiteral)
 }
 
-fn parse_datetime(_s: String) -> Result<DateTime<Utc>, ()> {
+fn parse_datetime(_s: String) -> Result<DateTime<Utc>, TypeParsingError> {
     Ok(DateTime::default()) // TODO: parse date
 }
 
-fn parse_comma_separated(s: String) -> Result<Vec<String>, ()> {
+fn parse_comma_separated(s: String) -> Result<Vec<String>, TypeParsingError> {
     Ok(s.split(',').map(|s| s.trim().to_owned()).collect())
 }
 
-fn parse_program(_s: String) -> Result<IgnorableProgram, ()> {
+fn parse_program(_s: String) -> Result<IgnorableProgram, TypeParsingError> {
     Ok(IgnorableProgram {
         ignored: false,
         value: crate::ast::Program::Block(Vec::new()),
     }) // TODO: parse program
 }
 
-fn parse_rect(s: String) -> Result<Rect, ()> {
+fn parse_rect(s: String) -> Result<Rect, TypeParsingError> {
     if s.contains(',') {
         s.split(',')
             .map(|s| s.parse().unwrap())
             .collect_tuple()
-            .map(|r| Rect::Literal(r))
-            .ok_or(())
+            .map(Rect::Literal)
+            .ok_or(TypeParsingError::InvalidRectLiteral(s))
     } else {
         Ok(Rect::Reference(s))
     }
@@ -243,7 +262,7 @@ pub struct Animation {
 }
 
 impl Animation {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let as_button = properties
             .remove("ASBUTTON")
             .and_then(discard_if_empty)
@@ -326,7 +345,7 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);
         let bloomoo_version = properties
             .remove("BLOOMOO_VERSION")
@@ -371,7 +390,7 @@ pub struct Array {
 }
 
 impl Array {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let send_on_change = properties
             .remove("SENDONCHANGE")
             .and_then(discard_if_empty)
@@ -390,7 +409,7 @@ pub struct Behavior {
 }
 
 impl Behavior {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let code = properties
             .remove("CODE")
             .and_then(discard_if_empty)
@@ -411,7 +430,7 @@ pub struct Bool {
 }
 
 impl Bool {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let default = properties
             .remove("DEFAULT")
             .and_then(discard_if_empty)
@@ -471,7 +490,7 @@ pub struct Button {
 }
 
 impl Button {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let accent = properties
             .remove("ACCENT")
             .and_then(discard_if_empty)
@@ -531,7 +550,7 @@ pub struct CanvasObserver {
 }
 
 impl CanvasObserver {
-    pub fn new(_properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(_properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         Ok(Self {})
     }
 }
@@ -543,7 +562,7 @@ pub struct CnvLoader {
 }
 
 impl CnvLoader {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let cnv_loader = properties.remove("CNVLOADER").and_then(discard_if_empty);
         Ok(Self { cnv_loader })
     }
@@ -560,7 +579,7 @@ pub enum ConditionOperator {
 }
 
 impl ConditionOperator {
-    pub fn parse(s: String) -> Result<Self, ()> {
+    pub fn parse(s: String) -> Result<Self, TypeParsingError> {
         match s.as_ref() {
             "EQUAL" => Ok(Self::Equal),
             "NOTEQUAL" => Ok(Self::NotEqual),
@@ -568,7 +587,7 @@ impl ConditionOperator {
             "GREATER" => Ok(Self::Greater),
             "LESSEQUAL" => Ok(Self::LessEqual),
             "GREATEREQUAL" => Ok(Self::GreaterEqual),
-            _ => Err(()), // TODO: error
+            _ => Err(TypeParsingError::InvalidConditionOperator(s)), // TODO: error
         }
     }
 }
@@ -582,7 +601,7 @@ pub struct Condition {
 }
 
 impl Condition {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);
         let operand2 = properties.remove("OPERAND2").and_then(discard_if_empty);
         let operator = properties
@@ -605,11 +624,11 @@ pub enum ComplexConditionOperator {
 }
 
 impl ComplexConditionOperator {
-    pub fn parse(s: String) -> Result<Self, ()> {
+    pub fn parse(s: String) -> Result<Self, TypeParsingError> {
         match s.as_ref() {
             "AND" => Ok(Self::And),
             "OR" => Ok(Self::Or),
-            _ => Err(()), // TODO: error
+            _ => Err(TypeParsingError::InvalidComplexConditionOperator(s)), // TODO: error
         }
     }
 }
@@ -623,7 +642,7 @@ pub struct ComplexCondition {
 }
 
 impl ComplexCondition {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);
         let operand2 = properties.remove("OPERAND2").and_then(discard_if_empty);
         let operator = properties
@@ -649,7 +668,7 @@ pub struct Dbl {
 }
 
 impl Dbl {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let default = properties
             .remove("DEFAULT")
             .and_then(discard_if_empty)
@@ -693,7 +712,7 @@ pub struct Episode {
 }
 
 impl Episode {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);
         let creation_time = properties
             .remove("CREATIONTIME")
@@ -736,7 +755,7 @@ pub struct Expression {
 }
 
 impl Expression {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);
         let operand2 = properties.remove("OPERAND2").and_then(discard_if_empty);
         let operator = properties
@@ -763,14 +782,14 @@ pub enum ExpressionOperator {
 }
 
 impl ExpressionOperator {
-    pub fn parse(s: String) -> Result<Self, ()> {
+    pub fn parse(s: String) -> Result<Self, TypeParsingError> {
         match s.as_ref() {
             "ADD" => Ok(Self::Add),
             "SUB" => Ok(Self::Sub),
             "MUL" => Ok(Self::Mul),
             "DIV" => Ok(Self::Div),
             "MOD" => Ok(Self::Mod),
-            _ => Err(()), // TODO: something better
+            _ => Err(TypeParsingError::InvalidExpressionOperator(s)), // TODO: something better
         }
     }
 }
@@ -793,7 +812,7 @@ lazy_static! {
 }
 
 impl Font {
-    pub fn new(properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let defs: HashMap<FontDef, Option<String>> = properties
             .into_iter()
             .filter_map(|(k, v)| {
@@ -819,7 +838,7 @@ pub struct Group {
 }
 
 impl Group {
-    pub fn new(_properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(_properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         Ok(Self {})
     }
 }
@@ -840,7 +859,7 @@ pub struct Image {
 }
 
 impl Image {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let as_button = properties
             .remove("ASBUTTON")
             .and_then(discard_if_empty)
@@ -912,7 +931,7 @@ pub struct Int {
 }
 
 impl Int {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let default = properties
             .remove("DEFAULT")
             .and_then(discard_if_empty)
@@ -949,7 +968,7 @@ pub struct Keyboard {
 }
 
 impl Keyboard {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let keyboard = properties.remove("KEYBOARD").and_then(discard_if_empty);
         Ok(Self { keyboard })
     }
@@ -963,7 +982,7 @@ pub struct Mouse {
 }
 
 impl Mouse {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let mouse = properties.remove("MOUSE").and_then(discard_if_empty);
         let raw = properties
             .remove("RAW")
@@ -981,7 +1000,7 @@ pub struct MultiArray {
 }
 
 impl MultiArray {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let dimensions = properties
             .remove("DIMENSIONS")
             .and_then(discard_if_empty)
@@ -998,7 +1017,7 @@ pub struct Music {
 }
 
 impl Music {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let filename = properties.remove("FILENAME").and_then(discard_if_empty);
         Ok(Self { filename })
     }
@@ -1010,7 +1029,7 @@ pub struct Random {
 }
 
 impl Random {
-    pub fn new(_properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(_properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         Ok(Self {})
     }
 }
@@ -1032,7 +1051,7 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);
         let background = properties
             .remove("BACKGROUND")
@@ -1086,7 +1105,7 @@ pub struct Sequence {
 }
 
 impl Sequence {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let filename = properties.remove("FILENAME").and_then(discard_if_empty);
         Ok(Self { filename })
     }
@@ -1101,7 +1120,7 @@ pub struct Sound {
 }
 
 impl Sound {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let filename = properties.remove("FILENAME").and_then(discard_if_empty);
         let flush_after_played = properties
             .remove("FLUSHAFTERPLAYED")
@@ -1131,7 +1150,7 @@ pub struct Str {
 }
 
 impl Str {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let default = properties.remove("DEFAULT").and_then(discard_if_empty);
         let netnotify = properties
             .remove("NETNOTIFY")
@@ -1164,7 +1183,7 @@ pub struct Struct {
 }
 
 impl Struct {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let fields = properties
             .remove("FIELDS")
             .and_then(discard_if_empty)
@@ -1187,7 +1206,7 @@ pub struct System {
 }
 
 impl System {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let system = properties.remove("SYSTEM").and_then(discard_if_empty);
         Ok(Self { system })
     }
@@ -1210,7 +1229,7 @@ pub struct Text {
 }
 
 impl Text {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let font = properties.remove("FONT").and_then(discard_if_empty);
         let horizontal_justify = properties
             .remove("HJUSTIFY")
@@ -1283,7 +1302,7 @@ pub struct Timer {
 }
 
 impl Timer {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, ()> {
+    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let elapse = properties
             .remove("ELAPSE")
             .and_then(discard_if_empty)

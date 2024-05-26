@@ -1,5 +1,5 @@
-mod animation_sequence_component;
 mod animation_bundle;
+mod animation_sequence_component;
 mod animation_state;
 mod animation_timer;
 mod playback_state;

@@ -48,18 +48,18 @@ pub fn setup_viewer(
     };
     let scene_script_path = read_script(
         iso,
-        &path.as_os_str().to_str().unwrap(),
-        &name,
+        path.as_os_str().to_str().unwrap(),
+        name,
         &game_paths,
-        script_runner.get_root_script().map(|s| Arc::clone(&s.path)),
+        script_runner.get_root_script().map(|s| &s.path).cloned(),
         ScriptSource::Scene,
         &mut script_runner,
     );
-    let Some(scene_object) = script_runner.get_object(&name) else {
+    let Some(scene_object) = script_runner.get_object(name) else {
         panic!(
             "Could not find scene object {}: {:?}",
             &name,
-            script_runner.get_object(&name)
+            script_runner.get_object(name)
         );
     };
     let CnvObject {
@@ -70,7 +70,7 @@ pub fn setup_viewer(
         panic!(
             "Could not find scene object {}: {:?}",
             &name,
-            script_runner.get_object(&name)
+            script_runner.get_object(name)
         );
     };
     let Some(scene_path) = scene_definition.read().unwrap().path.clone() else {

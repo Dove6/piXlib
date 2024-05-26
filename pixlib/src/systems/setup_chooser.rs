@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use bevy::{
     ecs::{
         component::Component,
-        system::{Commands, Res, ResMut},
+        system::{Commands, Res},
     },
     hierarchy::BuildChildren,
     prelude::default,
@@ -36,14 +36,8 @@ pub enum ButtonFunctionComponent {
     Display { offset: usize },
 }
 
-pub fn setup_chooser(
-    game_paths: Res<GamePaths>,
-    inserted_disk: Res<InsertedDisk>,
-    chosen_scene: Res<ChosenScene>,
-    mut commands: Commands,
-    mut script_runner: ResMut<ScriptRunner>,
-) {
-    let mut scene_list = SceneListComponent::default();
+pub fn setup_chooser(chosen_scene: Res<ChosenScene>, mut commands: Commands) {
+    let scene_list = SceneListComponent::default();
     // update_scene_list(
     //     &inserted_disk,
     //     &game_paths,

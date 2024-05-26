@@ -129,8 +129,8 @@ impl CnvRunner {
             .find(|s| s.source_kind == ScriptSource::Root)
     }
 
-    pub fn find_scripts<'a>(
-        &'a self,
+    pub fn find_scripts(
+        &self,
         predicate: impl Fn(&CnvScript) -> bool,
         buffer: &mut Vec<Arc<Path>>,
     ) {
@@ -186,7 +186,7 @@ impl CnvRunner {
         buffer.clear();
         for script in self.scripts.values() {
             for object in script.objects.iter() {
-                if predicate(&object) {
+                if predicate(object) {
                     buffer.push(Arc::clone(object));
                 }
             }
