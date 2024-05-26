@@ -52,6 +52,7 @@ impl CnvRunner {
         contents: impl Iterator<Item = ParserInput>,
         parent_path: Option<Arc<Path>>,
         source_kind: ScriptSource,
+        issue_manager: &mut IssueManager<ObjectBuilderError>,
     ) -> Result<(), ParserFatal> {
         let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
         parser_issue_manager.set_handler(Box::new(IssuePrinter));
@@ -93,11 +94,8 @@ impl CnvRunner {
             .into_iter()
             .filter_map(|builder| match builder.build() {
                 Ok(built_object) => Some(Arc::new(built_object)),
-                Err(ObjectBuilderError { name, kind }) => {
-                    eprintln!(
-                        "Error building CNV object {} from script {:?}: {:?}",
-                        &name, &path, kind
-                    );
+                Err(e) => {
+                    issue_manager.emit_issue(e);
                     None
                 }
             })
@@ -236,6 +234,19 @@ impl CnvScript {
             }
         }
         None
+    }
+
+    pub fn find_objects(
+        &self,
+        predicate: impl Fn(&CnvObject) -> bool,
+        buffer: &mut Vec<Arc<CnvObject>>,
+    ) {
+        buffer.clear();
+        for object in self.objects.iter() {
+            if predicate(object) {
+                buffer.push(Arc::clone(object));
+            }
+        }
     }
 }
 

@@ -18,6 +18,7 @@ use bevy::{
         schedule::{common_conditions::in_state, IntoSystemConfigs, OnEnter, OnExit},
         system::{Res, ResMut},
     },
+    log::{error, warn},
     prelude::{default, App, PluginGroup, Startup, Update},
     render::texture::ImagePlugin,
     window::{PresentMode, Window, WindowPlugin},
@@ -25,10 +26,14 @@ use bevy::{
     DefaultPlugins,
 };
 use iso::{read_game_definition, read_script};
-use pixlib_parser::{classes::CnvType, runner::ScriptSource};
+use pixlib_parser::{
+    classes::{CnvType, ObjectBuilderError},
+    common::{Issue, IssueHandler, IssueKind, IssueManager},
+    runner::ScriptSource,
+};
 use resources::{
-    ChosenScene, DebugSettings, GamePaths, InsertedDisk, SceneDefinition, ScriptRunner,
-    WindowConfiguration,
+    ChosenScene, DebugSettings, GamePaths, InsertedDisk, ObjectBuilderIssueManager,
+    SceneDefinition, ScriptRunner, WindowConfiguration,
 };
 use states::AppState;
 use systems::{
@@ -40,6 +45,8 @@ const WINDOW_SIZE: (usize, usize) = (800, 600);
 const WINDOW_TITLE: &str = "piXlib";
 
 fn main() {
+    let mut issue_manager: IssueManager<ObjectBuilderError> = Default::default();
+    issue_manager.set_handler(Box::new(IssuePrinter));
     App::new()
         .add_plugins(
             DefaultPlugins
@@ -74,6 +81,7 @@ fn main() {
         .insert_resource(InsertedDisk::try_from(env::args()).expect("Usage: pixlib path_to_iso"))
         .insert_resource(ChosenScene::default())
         .insert_resource(ScriptRunner::default())
+        .insert_resource(ObjectBuilderIssueManager(issue_manager))
         .init_state::<AppState>()
         .add_systems(Startup, setup)
         .add_systems(Update, draw_cursor)
@@ -98,11 +106,24 @@ fn main() {
         .run();
 }
 
+#[derive(Debug)]
+struct IssuePrinter;
+
+impl<I: Issue> IssueHandler<I> for IssuePrinter {
+    fn handle(&mut self, issue: I) {
+        match issue.kind() {
+            IssueKind::Warning => warn!("{:?}", issue),
+            _ => error!("{:?}", issue),
+        }
+    }
+}
+
 fn reload_main_script(
     inserted_disk: Res<InsertedDisk>,
     game_paths: Res<GamePaths>,
     mut script_runner: ResMut<ScriptRunner>,
     mut chosen_scene: ResMut<ChosenScene>,
+    mut issue_manager: ResMut<ObjectBuilderIssueManager>,
 ) {
     if !inserted_disk.is_changed() {
         return;
@@ -111,13 +132,14 @@ fn reload_main_script(
     let Some(iso) = inserted_disk.get() else {
         return;
     };
-    let root_script_path = read_game_definition(iso, &game_paths, &mut script_runner);
+    let root_script_path =
+        read_game_definition(iso, &game_paths, &mut script_runner, &mut issue_manager);
     let mut vec = Vec::new();
     script_runner
         .0
         .find_objects(|o| matches!(o.content, CnvType::Application(_)), &mut vec);
     if vec.len() != 1 {
-        eprintln!(
+        error!(
             "Incorrect number of APPLICATION objects (should be 1): {:?}",
             vec
         );
@@ -138,6 +160,7 @@ fn reload_main_script(
             Some(Arc::clone(&root_script_path)),
             ScriptSource::Application,
             &mut script_runner,
+            &mut issue_manager,
         );
     }
     let CnvType::Application(application) = &vec[0].content else {
@@ -154,7 +177,7 @@ fn reload_main_script(
     {
         application.read().unwrap().episodes.as_ref().unwrap()[0].to_owned()
     } else {
-        eprintln!(
+        error!(
             "Unexpected number of episodes (expected 1): {:?}",
             application.read().unwrap().episodes
         );
@@ -177,6 +200,7 @@ fn reload_main_script(
                 Some(Arc::clone(&root_script_path)),
                 ScriptSource::Episode,
                 &mut script_runner,
+                &mut issue_manager,
             );
         }
         let CnvType::Episode(episode) = &episode_object.content else {
@@ -197,7 +221,7 @@ fn reload_main_script(
                     panic!();
                 };
                 let Some(scene_script_path) = scene.read().unwrap().path.clone() else {
-                    eprintln!("Scene {} has no path", scene_name);
+                    error!("Scene {} has no path", scene_name);
                     continue;
                 };
                 let scene_defintion = SceneDefinition {
@@ -210,7 +234,7 @@ fn reload_main_script(
         }
         chosen_scene.list.sort();
     } else {
-        eprintln!(
+        error!(
             "Could not find episode object with name: {}",
             episode_object_name
         );

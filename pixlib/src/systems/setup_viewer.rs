@@ -2,10 +2,11 @@ use crate::animation::ann_file_to_animation_bundle;
 use crate::image::img_file_to_sprite_bundle;
 use crate::iso::{parse_file, read_file_from_iso, read_script, AmFile};
 use crate::resources::{
-    ChosenScene, GamePaths, InsertedDisk, RootEntityToDespawn, SceneDefinition, ScriptRunner,
+    ChosenScene, GamePaths, InsertedDisk, ObjectBuilderIssueManager, RootEntityToDespawn,
+    SceneDefinition, ScriptRunner,
 };
 use bevy::hierarchy::BuildChildren;
-use bevy::log::error;
+use bevy::log::{error, info};
 use bevy::prelude::SpatialBundle;
 use bevy::{
     ecs::system::Res,
@@ -34,13 +35,14 @@ pub fn setup_viewer(
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
     mut textures: ResMut<Assets<Image>>,
     mut script_runner: ResMut<ScriptRunner>,
+    mut issue_manager: ResMut<ObjectBuilderIssueManager>,
 ) {
     let Some(iso) = inserted_disk.get() else {
         panic!("No disk inserted!");
     };
     let ChosenScene { list, index } = chosen_scene.as_ref();
     let Some(SceneDefinition { name, path, .. }) = list.get(*index) else {
-        println!(
+        info!(
             "Could not load scene script: bad index {} for scene list {:?}",
             index, list
         );
@@ -54,6 +56,7 @@ pub fn setup_viewer(
         script_runner.get_root_script().map(|s| &s.path).cloned(),
         ScriptSource::Scene,
         &mut script_runner,
+        &mut issue_manager,
     );
     let Some(scene_object) = script_runner.get_object(name) else {
         panic!(
@@ -74,7 +77,7 @@ pub fn setup_viewer(
         );
     };
     let Some(scene_path) = scene_definition.read().unwrap().path.clone() else {
-        eprintln!("Scene {} has no path", &name);
+        error!("Scene {} has no path", &name);
         return;
     };
     let scene_script = script_runner.get_script(&scene_script_path).unwrap();
@@ -143,7 +146,7 @@ pub fn setup_viewer(
                     AmFile::Img(img_file) => {
                         let mut bundle = img_file_to_sprite_bundle(&img_file, &mut textures);
                         bundle.transform.translation.z = z_position;
-                        println!(
+                        info!(
                             "Handling image file: {file_path} z: {}",
                             &bundle.transform.translation.z
                         );
@@ -156,7 +159,7 @@ pub fn setup_viewer(
                             &mut texture_atlases,
                         );
                         bundle.sprite_sheet.transform.translation.z = z_position;
-                        println!(
+                        info!(
                             "Handling animation file: {file_path} z: {}",
                             &bundle.sprite_sheet.transform.translation.z
                         );
@@ -177,15 +180,38 @@ pub fn setup_viewer(
             );
             return;
         };
+        info!("Running __INIT__ behavior...");
         if let Some(code) = &init_beh.read().unwrap().code {
             code.run(&mut script_runner);
+        }
+    }
+
+    let scene_script = script_runner.get_script(&scene_script_path).unwrap();
+    info!("Scene objects: {:#?}", scene_script.objects);
+    let mut initable_objects: Vec<Arc<CnvObject>> = Vec::new();
+    scene_script.find_objects(
+        |o| match &o.content {
+            CnvType::Animation(animation) => animation.read().unwrap().on_init.is_some(),
+            _ => false,
+        },
+        &mut initable_objects,
+    );
+    info!("Found initable objects: {:?}", initable_objects);
+    for object in initable_objects {
+        match &object.content {
+            CnvType::Animation(animation) => {
+                if let Some(init_signal) = &animation.read().unwrap().on_init {
+                    init_signal.run(&mut script_runner);
+                }
+            }
+            _ => {}
         }
     }
 }
 
 fn get_path_to_scene_file(game_paths: &GamePaths, scene_path: &str, filename: &str) -> Arc<Path> {
     let mut path = game_paths.data_directory.join(scene_path).join(filename);
-    println!("PATHS: {:?}, {:?}, {:?}", &scene_path, &filename, &path);
+    info!("PATHS: {:?}, {:?}, {:?}", &scene_path, &filename, &path);
     path.as_mut_os_string().make_ascii_uppercase();
     path.into()
 }

@@ -5,6 +5,7 @@ use std::{
     sync::Arc,
 };
 
+use bevy::log::{error, info, warn};
 use cdfs::{DirectoryEntry, ISO9660};
 use pixlib_formats::file_formats::{
     ann::{parse_ann, AnnFile},
@@ -12,7 +13,8 @@ use pixlib_formats::file_formats::{
     img::{parse_img, ImgFile},
 };
 use pixlib_parser::{
-    common::{Issue, IssueHandler, Position},
+    classes::ObjectBuilderError,
+    common::{Issue, IssueHandler, IssueKind, IssueManager, Position},
     runner::ScriptSource,
     scanner::{CnvDecoder, CnvHeader, CnvScanner, CodepageDecoder, CP1250_LUT},
 };
@@ -32,13 +34,13 @@ pub fn read_file_from_iso(
     filename: &Path,
     output_filename: Option<&str>,
 ) -> Vec<u8> {
-    println!("PATH: {:?}", &filename);
+    info!("PATH: {:?}", &filename);
     let mut buffer = Vec::<u8>::new();
     if let Ok(Some(DirectoryEntry::File(file))) =
         iso.open(&filename.as_os_str().to_str().unwrap().replace('\\', "/"))
     {
         let bytes_read = file.read().read_to_end(&mut buffer).unwrap();
-        println!("Read file {:?} ({} bytes)", filename, bytes_read);
+        info!("Read file {:?} ({} bytes)", filename, bytes_read);
     } else {
         panic!(
             "File not found: {}",
@@ -67,36 +69,36 @@ pub fn parse_file<'a>(contents: &'a [u8], filename: &str) -> AmFile<'a> {
         "ARR" => AmFile::Arr(parse_arr(contents)),
         "CLASS" | "CNV" | "DEF" => AmFile::Cnv(parse_cnv(contents)),
         "DTA" => {
-            println!("Detected text database file.");
+            info!("Detected text database file.");
             AmFile::None
         }
         "FLD" => {
-            println!("Detected numerical matrix file.");
+            info!("Detected numerical matrix file.");
             AmFile::None
         }
         "FNT" => {
-            println!("Detected font file.");
+            info!("Detected font file.");
             AmFile::None
         }
         "IMG" => AmFile::Img(parse_img(contents)),
         "INI" => {
-            println!("Detected text configuration file.");
+            info!("Detected text configuration file.");
             AmFile::None
         }
         "LOG" => {
-            println!("Detected log file.");
+            info!("Detected log file.");
             AmFile::None
         }
         "SEQ" => {
-            println!("Detected animation sequence description file.");
+            info!("Detected animation sequence description file.");
             AmFile::None
         }
         "WAV" => {
-            println!("Detected audio file.");
+            info!("Detected audio file.");
             AmFile::None
         }
         _ => {
-            println!("Unknown file type!");
+            info!("Unknown file type!");
             AmFile::None
         }
     }
@@ -107,7 +109,10 @@ struct IssuePrinter;
 
 impl<I: Issue> IssueHandler<I> for IssuePrinter {
     fn handle(&mut self, issue: I) {
-        eprintln!("{:?}", issue);
+        match issue.kind() {
+            IssueKind::Warning => warn!("{:?}", issue),
+            _ => error!("{:?}", issue),
+        }
     }
 }
 
@@ -165,6 +170,7 @@ pub fn read_game_definition(
     iso: &ISO9660<File>,
     game_paths: &GamePaths,
     script_runner: &mut ScriptRunner,
+    issue_manager: &mut IssueManager<ObjectBuilderError>,
 ) -> Arc<Path> {
     let mut buffer = Vec::<u8>::new();
     let mut game_definition_path = game_paths
@@ -182,7 +188,7 @@ pub fn read_game_definition(
             .replace('\\', "/"),
     ) {
         let bytes_read = file.read().read_to_end(&mut buffer).unwrap();
-        println!(
+        info!(
             "Read file {:?} ({} bytes)",
             game_definition_path, bytes_read
         );
@@ -213,6 +219,7 @@ pub fn read_game_definition(
             }),
             None,
             ScriptSource::Root,
+            issue_manager,
         ) {
             panic!(
                 "Error loading script {:?}: {}",
@@ -247,6 +254,7 @@ pub fn read_script(
     parent_path: Option<Arc<Path>>,
     script_source: ScriptSource,
     script_runner: &mut ScriptRunner,
+    issue_manager: &mut IssueManager<ObjectBuilderError>,
 ) -> Arc<Path> {
     let mut buffer = Vec::<u8>::new();
     let script_path = build_data_path(path, filename, game_paths, Some(".CNV"));
@@ -254,7 +262,7 @@ pub fn read_script(
         iso.open(&script_path.as_os_str().to_str().unwrap().replace('\\', "/"))
     {
         let bytes_read = file.read().read_to_end(&mut buffer).unwrap();
-        println!("Read file {:?} ({} bytes)", script_path, bytes_read);
+        info!("Read file {:?} ({} bytes)", script_path, bytes_read);
     } else {
         panic!(
             "File not found: {}",
@@ -282,6 +290,7 @@ pub fn read_script(
             }),
             parent_path,
             script_source,
+            issue_manager,
         ) {
             panic!("Error loading script {:?}: {}", &script_path, parsing_err);
         }

@@ -8,7 +8,7 @@ use std::{
 
 use bevy::ecs::{entity::Entity, system::Resource};
 use cdfs::{ISOError, ISO9660};
-use pixlib_parser::runner::CnvRunner;
+use pixlib_parser::{classes::ObjectBuilderError, common::IssueManager, runner::CnvRunner};
 
 #[derive(Resource, Debug, Clone, PartialEq, Eq, Copy)]
 pub struct WindowConfiguration {
@@ -50,6 +50,23 @@ pub struct ChosenScene {
 
 #[derive(Resource, Debug, Clone, PartialEq, Eq)]
 pub struct RootEntityToDespawn(pub Option<Entity>);
+
+#[derive(Resource, Debug, Default)]
+pub struct ObjectBuilderIssueManager(pub IssueManager<ObjectBuilderError>);
+
+impl Deref for ObjectBuilderIssueManager {
+    type Target = IssueManager<ObjectBuilderError>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for ObjectBuilderIssueManager {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 #[derive(Resource, Debug, Default, Clone)]
 pub struct ScriptRunner(pub CnvRunner);

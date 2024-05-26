@@ -1,15 +1,27 @@
+use lalrpop_util::ParseError;
 use std::{
     collections::HashMap,
+    fmt::Display,
     num::{ParseFloatError, ParseIntError},
-    sync::RwLock,
+    path::{Path, PathBuf},
+    sync::{Arc, RwLock},
+    vec::IntoIter,
 };
+use thiserror::Error;
 
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use crate::{ast::IgnorableProgram, runner::CnvValue};
+use crate::{
+    ast::{IgnorableProgram, ParserFatal, ParserIssue},
+    common::{Issue, IssueHandler, IssueManager, Position},
+    lexer::{CnvLexer, CnvToken},
+    parser::CodeParser,
+    runner::CnvValue,
+    scanner::CnvScanner,
+};
 
 pub type EpisodeName = String;
 pub type SceneName = String;
@@ -48,8 +60,8 @@ impl CnvObjectBuilder {
                 ObjectBuildErrorKind::MissingType,
             )); // TODO: readable errors
         };
-        let content = CnvType::new(type_name, properties).map_err(|_| {
-            ObjectBuilderError::new(self.name.clone(), ObjectBuildErrorKind::ParsingError)
+        let content = CnvType::new(type_name, properties).map_err(|e| {
+            ObjectBuilderError::new(self.name.clone(), ObjectBuildErrorKind::ParsingError(e))
         })?;
         Ok(CnvObject {
             name: self.name,
@@ -59,22 +71,41 @@ impl CnvObjectBuilder {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Error)]
+#[error("Error building object {name}: {source}")]
 pub struct ObjectBuilderError {
     pub name: String,
-    pub kind: ObjectBuildErrorKind,
+    pub path: Arc<Path>,
+    pub source: ObjectBuildErrorKind,
 }
 
 impl ObjectBuilderError {
-    pub fn new(name: String, kind: ObjectBuildErrorKind) -> Self {
-        Self { name, kind }
+    pub fn new(name: String, source: ObjectBuildErrorKind) -> Self {
+        Self {
+            name,
+            path: PathBuf::from(".").into(),
+            source,
+        }
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+impl Issue for ObjectBuilderError {
+    fn kind(&self) -> crate::common::IssueKind {
+        match self.source {
+            ObjectBuildErrorKind::ParsingError(TypeParsingError::InvalidProgram(
+                ProgramParsingError(ParseError::User { .. }),
+            )) => crate::common::IssueKind::Fatal,
+            _ => crate::common::IssueKind::Fatal,
+        }
+    }
+}
+
+#[derive(Debug, Error)]
 pub enum ObjectBuildErrorKind {
+    #[error("Missing type property")]
     MissingType,
-    ParsingError,
+    #[error("Parsing error: {0}")]
+    ParsingError(TypeParsingError),
 }
 
 #[derive(Debug)]
@@ -182,16 +213,51 @@ impl CnvType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Error)]
 pub enum TypeParsingError {
+    #[error("Unknown type: {0}")]
     UnknownType(String),
+    #[error("Invalid bool literal: {0}")]
     InvalidBoolLiteral(String),
+    #[error("Invalid integer literal: {0}")]
     InvalidIntegerLiteral(ParseIntError),
+    #[error("Invalid floating-point literal: {0}")]
     InvalidFloatingLiteral(ParseFloatError),
+    #[error("Invalid rect literal: {0}")]
     InvalidRectLiteral(String),
+    #[error("Invalid condition operator: {0}")]
     InvalidConditionOperator(String),
+    #[error("Invalid complex condition operator: {0}")]
     InvalidComplexConditionOperator(String),
+    #[error("Invalid expression operator: {0}")]
     InvalidExpressionOperator(String),
+    #[error("Invalid program: {0}")]
+    InvalidProgram(ProgramParsingError),
+}
+
+#[derive(Debug, Error)]
+pub struct ProgramParsingError(pub ParseError<Position, CnvToken, ParserFatal>);
+
+impl Display for ProgramParsingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.0 {
+            ParseError::InvalidToken { location } => write!(f, "Invalid token at {}", location),
+            ParseError::UnrecognizedEof { location, expected } => {
+                write!(f, "Unexpected EOF at {}, expected {:?}", location, expected)
+            }
+            ParseError::UnrecognizedToken { token, expected } => {
+                write!(f, "Unexpected token {:?}, expected {:?}", token, expected)
+            }
+            ParseError::ExtraToken { token } => write!(f, "Extra token {:?}", token),
+            ParseError::User { error } => write!(f, "{}", error),
+        }
+    }
+}
+
+impl From<ParseError<Position, CnvToken, ParserFatal>> for TypeParsingError {
+    fn from(value: ParseError<Position, CnvToken, ParserFatal>) -> Self {
+        TypeParsingError::InvalidProgram(ProgramParsingError(value))
+    }
 }
 
 fn parse_bool(s: String) -> Result<bool, TypeParsingError> {
@@ -218,11 +284,26 @@ fn parse_comma_separated(s: String) -> Result<Vec<String>, TypeParsingError> {
     Ok(s.split(',').map(|s| s.trim().to_owned()).collect())
 }
 
-fn parse_program(_s: String) -> Result<IgnorableProgram, TypeParsingError> {
-    Ok(IgnorableProgram {
-        ignored: false,
-        value: crate::ast::Program::Block(Vec::new()),
-    }) // TODO: parse program
+#[derive(Debug)]
+struct IssuePrinter;
+
+impl<I: Issue> IssueHandler<I> for IssuePrinter {
+    fn handle(&mut self, issue: I) {
+        eprintln!("{:?}", issue);
+    }
+}
+
+fn parse_program(s: String) -> Result<Arc<IgnorableProgram>, TypeParsingError> {
+    let scanner =
+        CnvScanner::<IntoIter<_>>::new(s.chars().map(|c| Ok(c)).collect::<Vec<_>>().into_iter());
+    let lexer = CnvLexer::new(scanner, Default::default(), Default::default());
+    let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
+    parser_issue_manager.set_handler(Box::new(IssuePrinter));
+    Ok(Arc::new(CodeParser::new().parse(
+        &Default::default(),
+        &mut parser_issue_manager,
+        lexer,
+    )?))
 }
 
 fn parse_rect(s: String) -> Result<Rect, TypeParsingError> {
@@ -248,17 +329,18 @@ fn discard_if_empty(s: String) -> Option<String> {
 #[derive(Debug, Clone)]
 pub struct Animation {
     // ANIMO
-    pub as_button: Option<bool>,               // ASBUTTON
-    pub filename: Option<String>,              // FILENAME
-    pub flush_after_played: Option<bool>,      // FLUSHAFTERPLAYED
-    pub fps: Option<i32>,                      // FPS
-    pub monitor_collision: Option<bool>,       // MONITORCOLLISION
-    pub monitor_collision_alpha: Option<bool>, // MONITORCOLLISIONALPHA
-    pub preload: Option<bool>,                 // PRELOAD
-    pub priority: Option<i32>,                 // PRIORITY
-    pub release: Option<bool>,                 // RELEASE
-    pub to_canvas: Option<bool>,               // TOCANVAS
-    pub visible: Option<bool>,                 // VISIBLE
+    pub as_button: Option<bool>,                // ASBUTTON
+    pub filename: Option<String>,               // FILENAME
+    pub flush_after_played: Option<bool>,       // FLUSHAFTERPLAYED
+    pub fps: Option<i32>,                       // FPS
+    pub monitor_collision: Option<bool>,        // MONITORCOLLISION
+    pub monitor_collision_alpha: Option<bool>,  // MONITORCOLLISIONALPHA
+    pub preload: Option<bool>,                  // PRELOAD
+    pub priority: Option<i32>,                  // PRIORITY
+    pub release: Option<bool>,                  // RELEASE
+    pub to_canvas: Option<bool>,                // TOCANVAS
+    pub visible: Option<bool>,                  // VISIBLE
+    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
 }
 
 impl Animation {
@@ -314,6 +396,11 @@ impl Animation {
             .and_then(discard_if_empty)
             .map(parse_bool)
             .transpose()?;
+        let on_init = properties
+            .remove("ONINIT")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
         Ok(Self {
             as_button,
             filename,
@@ -326,6 +413,7 @@ impl Animation {
             release,
             to_canvas,
             visible,
+            on_init,
         })
     }
 }
@@ -404,8 +492,8 @@ impl Array {
 #[derive(Debug, Clone)]
 pub struct Behavior {
     // BEHAVIOUR
-    pub code: Option<IgnorableProgram>,   // CODE
-    pub condition: Option<ConditionName>, // CONDITION
+    pub code: Option<Arc<IgnorableProgram>>, // CODE
+    pub condition: Option<ConditionName>,    // CONDITION
 }
 
 impl Behavior {

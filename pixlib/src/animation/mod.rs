@@ -14,6 +14,7 @@ pub use playback_state::PlaybackState;
 use bevy::{
     asset::Assets,
     ecs::system::ResMut,
+    log::info,
     math::{UVec2, Vec2},
     prelude::default,
     render::{render_resource::TextureFormat, texture::Image},
@@ -61,7 +62,7 @@ pub fn ann_file_to_animation_bundle(
     }
 
     let duration = 1.0f32 / ann_file.header.frames_per_second as f32;
-    println!("Frame duration: {}", duration);
+    info!("Frame duration: {}", duration);
     let timer = AnimationTimer(Timer::from_seconds(duration, TimerMode::Repeating));
 
     AnimationBundle {

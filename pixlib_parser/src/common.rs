@@ -138,7 +138,7 @@ pub trait IssueHandler<I: Issue>: std::fmt::Debug {
 pub struct IssueManager<I: Issue> {
     had_errors: bool,
     had_fatal: bool,
-    handler: Option<Box<dyn IssueHandler<I>>>,
+    handler: Option<Box<dyn IssueHandler<I> + Send + Sync>>,
 }
 
 impl<I: Issue> Default for IssueManager<I> {
@@ -164,7 +164,7 @@ impl<I: Issue> IssueManager<I> {
         self.had_fatal
     }
 
-    pub fn set_handler(&mut self, handler: Box<dyn IssueHandler<I>>) {
+    pub fn set_handler(&mut self, handler: Box<dyn IssueHandler<I> + Send + Sync>) {
         self.handler = Some(handler);
     }
 

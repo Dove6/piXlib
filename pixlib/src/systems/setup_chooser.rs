@@ -6,6 +6,7 @@ use bevy::{
         system::{Commands, Res},
     },
     hierarchy::BuildChildren,
+    log::info,
     prelude::default,
     render::color::Color,
     text::TextStyle,
@@ -19,7 +20,8 @@ use pixlib_parser::classes::CnvType;
 use crate::{
     iso::read_game_definition,
     resources::{
-        ChosenScene, GamePaths, InsertedDisk, RootEntityToDespawn, SceneDefinition, ScriptRunner,
+        ChosenScene, GamePaths, InsertedDisk, ObjectBuilderIssueManager, RootEntityToDespawn,
+        SceneDefinition, ScriptRunner,
     },
 };
 
@@ -154,12 +156,14 @@ pub fn update_scene_list(
     game_paths: &GamePaths,
     script_runner: &mut ScriptRunner,
     scene_list: &mut SceneListComponent,
+    issue_manager: &mut ObjectBuilderIssueManager,
 ) {
     scene_list.scenes.clear();
     if let Some(iso) = inserted_disk.get() {
-        let game_definition_path = read_game_definition(iso, game_paths, script_runner);
+        let game_definition_path =
+            read_game_definition(iso, game_paths, script_runner, issue_manager);
         let game_definition = script_runner.0.get_script(&game_definition_path).unwrap();
-        println!("game_definition: {:?}", game_definition);
+        info!("game_definition: {:?}", game_definition);
         for (name, path, background) in
             game_definition
                 .objects
@@ -181,5 +185,5 @@ pub fn update_scene_list(
         }
         scene_list.scenes.sort();
     }
-    println!("scenes: {:?}", scene_list.scenes);
+    info!("scenes: {:?}", scene_list.scenes);
 }
