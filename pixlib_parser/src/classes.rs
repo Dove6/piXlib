@@ -1,6 +1,12 @@
 use lalrpop_util::ParseError;
 use std::{
-    any::Any, collections::HashMap, fmt::Display, num::{ParseFloatError, ParseIntError}, path::{Path, PathBuf}, sync::{Arc, RwLock}, vec::IntoIter
+    any::Any,
+    collections::HashMap,
+    fmt::Display,
+    num::{ParseFloatError, ParseIntError},
+    path::{Path, PathBuf},
+    sync::{Arc, RwLock},
+    vec::IntoIter,
 };
 use thiserror::Error;
 
@@ -428,24 +434,24 @@ impl CnvType for Animation {
     }
 
     fn has_event(&self, name: &str) -> bool {
-        match name {
-            "ONCLICK" => true,
-            "ONCOLLISION" => true,
-            "ONCOLLISIONFINISHED" => true,
-            "ONDONE" => true,
-            "ONFINISHED" => true,
-            "ONFIRSTFRAME" => true,
-            "ONFOCUSOFF" => true,
-            "ONFOCUSON" => true,
-            "ONFRAMECHANGED" => true,
-            "ONINIT" => true,
-            "ONPAUSED" => true,
-            "ONRELEASE" => true,
-            "ONRESUMED" => true,
-            "ONSIGNAL" => true,
-            "ONSTARTED" => true,
-            _ => false,
-        }
+        matches!(
+            name,
+            "ONCLICK"
+                | "ONCOLLISION"
+                | "ONCOLLISIONFINISHED"
+                | "ONDONE"
+                | "ONFINISHED"
+                | "ONFIRSTFRAME"
+                | "ONFOCUSOFF"
+                | "ONFOCUSON"
+                | "ONFRAMECHANGED"
+                | "ONINIT"
+                | "ONPAUSED"
+                | "ONRELEASE"
+                | "ONRESUMED"
+                | "ONSIGNAL"
+                | "ONSTARTED"
+        )
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -471,7 +477,9 @@ impl CnvType for Animation {
                 None
             }
             CallableIdentifier::Event("ONINIT") => {
-                self.on_init.as_ref().map(|v| v.run(script_runner, context));
+                if let Some(v) = self.on_init.as_ref() {
+                    v.run(script_runner, context)
+                }
                 None
             }
             _ => todo!(),
@@ -710,12 +718,7 @@ impl CnvType for Behavior {
     }
 
     fn has_event(&self, name: &str) -> bool {
-        match name {
-            "ONDONE" => true,
-            "ONINIT" => true,
-            "ONSIGNAL" => true,
-            _ => false,
-        }
+        matches!(name, "ONDONE" | "ONINIT" | "ONSIGNAL")
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -1529,18 +1532,18 @@ impl CnvType for Image {
     }
 
     fn has_event(&self, name: &str) -> bool {
-        match name {
-            "ONCLICK" => true,
-            "ONCOLLISION" => true,
-            "ONCOLLISIONFINISHED" => true,
-            "ONDONE" => true,
-            "ONFOCUSOFF" => true,
-            "ONFOCUSON" => true,
-            "ONINIT" => true,
-            "ONRELEASE" => true,
-            "ONSIGNAL" => true,
-            _ => false,
-        }
+        matches!(
+            name,
+            "ONCLICK"
+                | "ONCOLLISION"
+                | "ONCOLLISIONFINISHED"
+                | "ONDONE"
+                | "ONFOCUSOFF"
+                | "ONFOCUSON"
+                | "ONINIT"
+                | "ONRELEASE"
+                | "ONSIGNAL"
+        )
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -2034,14 +2037,10 @@ impl CnvType for Sequence {
     }
 
     fn has_event(&self, name: &str) -> bool {
-        match name {
-            "ONDONE" => true,
-            "ONFINISHED" => true,
-            "ONINIT" => true,
-            "ONSIGNAL" => true,
-            "ONSTARTED" => true,
-            _ => false,
-        }
+        matches!(
+            name,
+            "ONDONE" | "ONFINISHED" | "ONINIT" | "ONSIGNAL" | "ONSTARTED"
+        )
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -2086,15 +2085,10 @@ impl CnvType for Sound {
     }
 
     fn has_event(&self, name: &str) -> bool {
-        match name {
-            "ONDONE" => true,
-            "ONFINISHED" => true,
-            "ONINIT" => true,
-            "ONRESUMED" => true,
-            "ONSIGNAL" => true,
-            "ONSTARTED" => true,
-            _ => false,
-        }
+        matches!(
+            name,
+            "ONDONE" | "ONFINISHED" | "ONINIT" | "ONRESUMED" | "ONSIGNAL" | "ONSTARTED"
+        )
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -2426,13 +2420,7 @@ impl CnvType for Timer {
     }
 
     fn has_event(&self, name: &str) -> bool {
-        match name {
-            "ONDONE" => true,
-            "ONINIT" => true,
-            "ONSIGNAL" => true,
-            "ONTICK" => true,
-            _ => false,
-        }
+        matches!(name, "ONDONE" | "ONINIT" | "ONSIGNAL" | "ONTICK")
     }
 
     fn has_property(&self, _name: &str) -> bool {
