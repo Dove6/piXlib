@@ -45,6 +45,7 @@ Expression: ast::Expression = {
     "{" ";"? <(<IgnorableStatement> ";"+)*> "}" => ast::Expression::Block(<>),
     "true" => ast::Expression::LiteralBool(true),
     "false" => ast::Expression::LiteralBool(false),
+    "this" => ast::Expression::SelfReference,
 }
 
 Resolvable: ast::Expression = {

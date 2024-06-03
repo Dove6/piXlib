@@ -15,7 +15,7 @@ use bevy::{
         AlignItems, BorderColor, JustifyContent, Style, UiRect, Val,
     },
 };
-use pixlib_parser::classes::CnvType;
+use pixlib_parser::classes::PropertyValue;
 
 use crate::{
     iso::read_game_definition,
@@ -110,7 +110,7 @@ pub fn setup_chooser(chosen_scene: Res<ChosenScene>, mut commands: Commands) {
                             .list
                             .get(chosen_scene.index)
                             .map(|s| s.name.clone())
-                            .unwrap_or("(scene name)".to_owned()),
+                            .unwrap_or("(Empty list)".to_owned()),
                         TextStyle {
                             font_size: 40.0,
                             color: Color::rgb(0.9, 0.9, 0.9),
@@ -164,19 +164,24 @@ pub fn update_scene_list(
             read_game_definition(iso, game_paths, script_runner, issue_manager);
         let game_definition = script_runner.0.get_script(&game_definition_path).unwrap();
         info!("game_definition: {:?}", game_definition);
-        for (name, path, background) in
-            game_definition
-                .objects
-                .iter()
-                .filter_map(|o| match &o.content {
-                    CnvType::Scene(scene) if scene.read().unwrap().path.is_some() => Some((
-                        o.name.clone(),
-                        scene.read().unwrap().path.clone(),
-                        scene.read().unwrap().background.clone(),
-                    )),
-                    _ => None,
-                })
-        {
+        for (name, path, background) in game_definition.objects.iter().filter_map(|o| {
+            let content = o.content.read().unwrap();
+            if content.get_type_id() == "SCENE" {
+                Some((
+                    o.name.clone(),
+                    content.get_property("PATH").and_then(|v| match v {
+                        PropertyValue::String(s) => Some(s),
+                        _ => None,
+                    }),
+                    content.get_property("BACKGROUND").and_then(|v| match v {
+                        PropertyValue::String(s) => Some(s),
+                        _ => None,
+                    }),
+                ))
+            } else {
+                None
+            }
+        }) {
             scene_list.scenes.push(SceneDefinition {
                 name,
                 path: PathBuf::from(path.unwrap()),

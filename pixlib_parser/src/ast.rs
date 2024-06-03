@@ -39,6 +39,7 @@ pub struct Invocation {
 #[derive(Debug, Clone)]
 pub enum Expression {
     LiteralBool(bool),
+    SelfReference,
     Identifier(String),
     Parameter(String), // TODO: Parameter(usize)
     NameResolution(Box<Expression>),

@@ -1,11 +1,6 @@
 use lalrpop_util::ParseError;
 use std::{
-    collections::HashMap,
-    fmt::Display,
-    num::{ParseFloatError, ParseIntError},
-    path::{Path, PathBuf},
-    sync::{Arc, RwLock},
-    vec::IntoIter,
+    any::Any, collections::HashMap, fmt::Display, num::{ParseFloatError, ParseIntError}, path::{Path, PathBuf}, sync::{Arc, RwLock}, vec::IntoIter
 };
 use thiserror::Error;
 
@@ -19,7 +14,7 @@ use crate::{
     common::{Issue, IssueHandler, IssueManager, Position},
     lexer::{CnvLexer, CnvToken},
     parser::CodeParser,
-    runner::CnvValue,
+    runner::{CnvRunner, CnvStatement, CnvValue, RunnerContext},
     scanner::CnvScanner,
 };
 
@@ -60,13 +55,13 @@ impl CnvObjectBuilder {
                 ObjectBuildErrorKind::MissingType,
             )); // TODO: readable errors
         };
-        let content = CnvType::new(type_name, properties).map_err(|e| {
+        let content = CnvTypeFactory::create(type_name, properties).map_err(|e| {
             ObjectBuilderError::new(self.name.clone(), ObjectBuildErrorKind::ParsingError(e))
         })?;
         Ok(CnvObject {
             name: self.name,
             index: self.index,
-            content,
+            content: RwLock::new(content),
         })
     }
 }
@@ -112,102 +107,120 @@ pub enum ObjectBuildErrorKind {
 pub struct CnvObject {
     pub name: String,
     pub index: usize,
-    pub content: CnvType,
+    pub content: RwLock<Box<dyn CnvType>>,
+}
+
+#[derive(Debug)]
+pub enum CallableIdentifier<'a> {
+    Method(&'a str),
+    Event(&'a str),
 }
 
 impl CnvObject {
-    pub fn call_method(&self, _name: &str) -> Option<CnvValue> {
-        todo!()
+    pub fn call_method(
+        &self,
+        identifier: CallableIdentifier,
+        arguments: &[CnvValue],
+        script_runner: &mut CnvRunner,
+        context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        println!("Calling method: {:?} of: {:?}", identifier, self);
+        self.content
+            .write()
+            .unwrap()
+            .call_method(identifier, arguments, script_runner, context)
     }
 
-    pub fn get_value(&self) -> Option<CnvValue> {
-        todo!()
+    pub fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        self.content.read().unwrap().get_property(name)
     }
 }
 
 #[derive(Debug)]
-pub enum CnvType {
-    Animation(RwLock<Animation>),
-    Application(RwLock<Application>),
-    Array(RwLock<Array>),
-    Behavior(RwLock<Behavior>),
-    Boolean(RwLock<Bool>),
-    Button(RwLock<Button>),
-    CanvasObserver(RwLock<CanvasObserver>),
-    CnvLoader(RwLock<CnvLoader>),
-    Condition(RwLock<Condition>),
-    ComplexCondition(RwLock<ComplexCondition>),
-    Double(RwLock<Dbl>),
-    Episode(RwLock<Episode>),
-    Expression(RwLock<Expression>),
-    Font(RwLock<Font>),
-    Group(RwLock<Group>),
-    Image(RwLock<Image>),
-    Integer(RwLock<Int>),
-    Keyboard(RwLock<Keyboard>),
-    Mouse(RwLock<Mouse>),
-    MultiArray(RwLock<MultiArray>),
-    Music(RwLock<Music>),
-    Random(RwLock<Random>),
-    Scene(RwLock<Scene>),
-    Sequence(RwLock<Sequence>),
-    Sound(RwLock<Sound>),
-    String(RwLock<Str>),
-    Struct(RwLock<Struct>),
-    System(RwLock<System>),
-    Text(RwLock<Text>),
-    Timer(RwLock<Timer>),
+pub enum MemberInfo<'a> {
+    Property(PropertyInfo<'a>),
+    Callable(CallableInfo<'a>),
 }
 
-impl CnvType {
-    pub fn new(
+#[derive(Debug)]
+pub struct PropertyInfo<'a> {
+    name: &'a str,
+    r#type: PropertyValue,
+}
+
+#[derive(Debug)]
+pub struct CallableInfo<'a> {
+    identifier: CallableIdentifier<'a>,
+    parameters: &'a [PropertyInfo<'a>],
+}
+
+pub trait CnvType: Any + Send + Sync + std::fmt::Debug {
+    fn get_type_id(&self) -> &'static str;
+    fn has_event(&self, name: &str) -> bool;
+    fn has_property(&self, name: &str) -> bool;
+    fn has_method(&self, name: &str) -> bool;
+
+    fn get_property(&self, name: &str) -> Option<PropertyValue>;
+    fn call_method(
+        &mut self,
+        identifier: CallableIdentifier,
+        arguments: &[CnvValue],
+        script_runner: &mut CnvRunner,
+        context: &mut RunnerContext,
+    ) -> Option<CnvValue>;
+
+    fn new(properties: HashMap<String, String>) -> Result<Self, TypeParsingError>
+    where
+        Self: Sized;
+}
+
+impl dyn CnvType {}
+
+pub struct CnvTypeFactory;
+
+impl CnvTypeFactory {
+    pub fn create(
         type_name: String,
         properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<Box<dyn CnvType>, TypeParsingError> {
         match type_name.as_ref() {
-            "ANIMO" => Animation::new(properties).map(|o| CnvType::Animation(RwLock::new(o))),
-            "APPLICATION" => {
-                Application::new(properties).map(|o| CnvType::Application(RwLock::new(o)))
-            }
-            "ARRAY" => Array::new(properties).map(|o| CnvType::Array(RwLock::new(o))),
-            "BEHAVIOUR" => Behavior::new(properties).map(|o| CnvType::Behavior(RwLock::new(o))),
-            "BOOL" => Bool::new(properties).map(|o| CnvType::Boolean(RwLock::new(o))),
-            "BUTTON" => Button::new(properties).map(|o| CnvType::Button(RwLock::new(o))),
+            "ANIMO" => Animation::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "APPLICATION" => Application::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "ARRAY" => Array::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "BEHAVIOUR" => Behavior::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "BOOL" => Bool::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "BUTTON" => Button::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
             "CANVAS_OBSERVER" => {
-                CanvasObserver::new(properties).map(|o| CnvType::CanvasObserver(RwLock::new(o)))
+                CanvasObserver::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>)
             }
             "CANVASOBSERVER" => {
-                CanvasObserver::new(properties).map(|o| CnvType::CanvasObserver(RwLock::new(o)))
+                CanvasObserver::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>)
             }
-            "CNVLOADER" => CnvLoader::new(properties).map(|o| CnvType::CnvLoader(RwLock::new(o))),
-            "CONDITION" => Condition::new(properties).map(|o| CnvType::Condition(RwLock::new(o))),
+            "CNVLOADER" => CnvLoader::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "CONDITION" => Condition::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
             "COMPLEXCONDITION" => {
-                ComplexCondition::new(properties).map(|o| CnvType::ComplexCondition(RwLock::new(o)))
+                ComplexCondition::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>)
             }
-            "DOUBLE" => Dbl::new(properties).map(|o| CnvType::Double(RwLock::new(o))),
-            "EPISODE" => Episode::new(properties).map(|o| CnvType::Episode(RwLock::new(o))),
-            "EXPRESSION" => {
-                Expression::new(properties).map(|o| CnvType::Expression(RwLock::new(o)))
-            }
-            "FONT" => Font::new(properties).map(|o| CnvType::Font(RwLock::new(o))),
-            "GROUP" => Group::new(properties).map(|o| CnvType::Group(RwLock::new(o))),
-            "IMAGE" => Image::new(properties).map(|o| CnvType::Image(RwLock::new(o))),
-            "INTEGER" => Int::new(properties).map(|o| CnvType::Integer(RwLock::new(o))),
-            "KEYBOARD" => Keyboard::new(properties).map(|o| CnvType::Keyboard(RwLock::new(o))),
-            "MOUSE" => Mouse::new(properties).map(|o| CnvType::Mouse(RwLock::new(o))),
-            "MULTIARRAY" => {
-                MultiArray::new(properties).map(|o| CnvType::MultiArray(RwLock::new(o)))
-            }
-            "MUSIC" => Music::new(properties).map(|o| CnvType::Music(RwLock::new(o))),
-            "RANDOM" => Random::new(properties).map(|o| CnvType::Random(RwLock::new(o))),
-            "SCENE" => Scene::new(properties).map(|o| CnvType::Scene(RwLock::new(o))),
-            "SEQUENCE" => Sequence::new(properties).map(|o| CnvType::Sequence(RwLock::new(o))),
-            "SOUND" => Sound::new(properties).map(|o| CnvType::Sound(RwLock::new(o))),
-            "STRING" => Str::new(properties).map(|o| CnvType::String(RwLock::new(o))),
-            "STRUCT" => Struct::new(properties).map(|o| CnvType::Struct(RwLock::new(o))),
-            "SYSTEM" => System::new(properties).map(|o| CnvType::System(RwLock::new(o))),
-            "TEXT" => Text::new(properties).map(|o| CnvType::Text(RwLock::new(o))),
-            "TIMER" => Timer::new(properties).map(|o| CnvType::Timer(RwLock::new(o))),
+            "DOUBLE" => Dbl::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "EPISODE" => Episode::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "EXPRESSION" => Expression::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "FONT" => Font::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "GROUP" => Group::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "IMAGE" => Image::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "INTEGER" => Int::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "KEYBOARD" => Keyboard::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "MOUSE" => Mouse::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "MULTIARRAY" => MultiArray::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "MUSIC" => Music::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "RANDOM" => Random::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "SCENE" => Scene::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "SEQUENCE" => Sequence::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "SOUND" => Sound::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "STRING" => Str::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "STRUCT" => Struct::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "SYSTEM" => System::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "TEXT" => Text::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "TIMER" => Timer::new(properties).map(|o| Box::new(o) as Box<dyn CnvType>),
             _ => Err(TypeParsingError::UnknownType(type_name)),
         }
     }
@@ -325,6 +338,71 @@ fn discard_if_empty(s: String) -> Option<String> {
     }
 }
 
+#[derive(Debug)]
+pub enum PropertyValue {
+    Boolean(bool),
+    Integer(i32),
+    Double(f64),
+    String(String),
+    List(Vec<String>),
+    Rect(Rect),
+    Time(DateTime<Utc>),
+    Code(Arc<IgnorableProgram>),
+}
+
+impl From<bool> for PropertyValue {
+    fn from(value: bool) -> Self {
+        PropertyValue::Boolean(value)
+    }
+}
+
+impl From<i32> for PropertyValue {
+    fn from(value: i32) -> Self {
+        PropertyValue::Integer(value)
+    }
+}
+
+impl From<f64> for PropertyValue {
+    fn from(value: f64) -> Self {
+        PropertyValue::Double(value)
+    }
+}
+
+impl From<String> for PropertyValue {
+    fn from(value: String) -> Self {
+        PropertyValue::String(value)
+    }
+}
+
+impl From<Vec<String>> for PropertyValue {
+    fn from(value: Vec<String>) -> Self {
+        PropertyValue::List(value)
+    }
+}
+
+impl From<Rect> for PropertyValue {
+    fn from(value: Rect) -> Self {
+        PropertyValue::Rect(value)
+    }
+}
+
+impl From<DateTime<Utc>> for PropertyValue {
+    fn from(value: DateTime<Utc>) -> Self {
+        PropertyValue::Time(value)
+    }
+}
+
+impl From<Arc<IgnorableProgram>> for PropertyValue {
+    fn from(value: Arc<IgnorableProgram>) -> Self {
+        PropertyValue::Code(value)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AnimationState {
+    pub playing: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct Animation {
     // ANIMO
@@ -340,10 +418,76 @@ pub struct Animation {
     pub to_canvas: Option<bool>,                // TOCANVAS
     pub visible: Option<bool>,                  // VISIBLE
     pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
+
+    pub state: AnimationState,
 }
 
-impl Animation {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Animation {
+    fn get_type_id(&self) -> &'static str {
+        "ANIMO"
+    }
+
+    fn has_event(&self, name: &str) -> bool {
+        match name {
+            "ONCLICK" => true,
+            "ONCOLLISION" => true,
+            "ONCOLLISIONFINISHED" => true,
+            "ONDONE" => true,
+            "ONFINISHED" => true,
+            "ONFIRSTFRAME" => true,
+            "ONFOCUSOFF" => true,
+            "ONFOCUSON" => true,
+            "ONFRAMECHANGED" => true,
+            "ONINIT" => true,
+            "ONPAUSED" => true,
+            "ONRELEASE" => true,
+            "ONRESUMED" => true,
+            "ONSIGNAL" => true,
+            "ONSTARTED" => true,
+            _ => false,
+        }
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        script_runner: &mut CnvRunner,
+        context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        println!("Calling method: {:?} of object: {:?}", name, self);
+        match name {
+            CallableIdentifier::Method("PLAY") => {
+                println!("Calling method PLAY of {:?}", self);
+                self.state.playing = true;
+                None
+            }
+            CallableIdentifier::Event("ONINIT") => {
+                self.on_init.as_ref().map(|v| v.run(script_runner, context));
+                None
+            }
+            _ => todo!(),
+        }
+    }
+
+    fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        match name {
+            "FILENAME" => self.filename.clone().map(|v| v.into()),
+            "PRIORITY" => self.priority.map(|v| v.into()),
+            "ONINIT" => self.on_init.as_ref().map(|v| Arc::clone(v).into()),
+            _ => todo!(),
+        }
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let as_button = properties
             .remove("ASBUTTON")
             .and_then(discard_if_empty)
@@ -413,6 +557,7 @@ impl Animation {
             to_canvas,
             visible,
             on_init,
+            state: AnimationState::default(),
         })
     }
 }
@@ -431,8 +576,42 @@ pub struct Application {
     pub version: Option<String>,                 // VERSION
 }
 
-impl Application {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Application {
+    fn get_type_id(&self) -> &'static str {
+        "APPLICATION"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        false
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        match name {
+            "PATH" => self.path.clone().map(|v| v.into()),
+            "EPISODES" => self.episodes.clone().map(|v| v.into()),
+            _ => todo!(),
+        }
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);
         let bloomoo_version = properties
             .remove("BLOOMOO_VERSION")
@@ -476,8 +655,38 @@ pub struct Array {
     send_on_change: Option<bool>, // SENDONCHANGE
 }
 
-impl Array {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Array {
+    fn get_type_id(&self) -> &'static str {
+        "ARRAY"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let send_on_change = properties
             .remove("SENDONCHANGE")
             .and_then(discard_if_empty)
@@ -495,8 +704,43 @@ pub struct Behavior {
     pub condition: Option<ConditionName>,    // CONDITION
 }
 
-impl Behavior {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Behavior {
+    fn get_type_id(&self) -> &'static str {
+        "BEHAVIOUR"
+    }
+
+    fn has_event(&self, name: &str) -> bool {
+        match name {
+            "ONDONE" => true,
+            "ONINIT" => true,
+            "ONSIGNAL" => true,
+            _ => false,
+        }
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let code = properties
             .remove("CODE")
             .and_then(discard_if_empty)
@@ -516,8 +760,38 @@ pub struct Bool {
     value: Option<bool>,     // VALUE
 }
 
-impl Bool {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Bool {
+    fn get_type_id(&self) -> &'static str {
+        "BOOL"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let default = properties
             .remove("DEFAULT")
             .and_then(discard_if_empty)
@@ -576,8 +850,38 @@ pub struct Button {
     snd_standard: Option<SoundName>, // SNDSTANDARD
 }
 
-impl Button {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Button {
+    fn get_type_id(&self) -> &'static str {
+        "BUTTON"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let accent = properties
             .remove("ACCENT")
             .and_then(discard_if_empty)
@@ -636,8 +940,38 @@ pub struct CanvasObserver {
     // CANVAS_OBSERVER
 }
 
-impl CanvasObserver {
-    pub fn new(_properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for CanvasObserver {
+    fn get_type_id(&self) -> &'static str {
+        "CANVASOBSERVER"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(_properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         Ok(Self {})
     }
 }
@@ -648,8 +982,38 @@ pub struct CnvLoader {
     cnv_loader: Option<String>, // CNVLOADER
 }
 
-impl CnvLoader {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for CnvLoader {
+    fn get_type_id(&self) -> &'static str {
+        "CNVLOADER"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let cnv_loader = properties.remove("CNVLOADER").and_then(discard_if_empty);
         Ok(Self { cnv_loader })
     }
@@ -687,8 +1051,38 @@ pub struct Condition {
     operator: Option<ConditionOperator>, // OPERATOR
 }
 
-impl Condition {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Condition {
+    fn get_type_id(&self) -> &'static str {
+        "CONDITION"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);
         let operand2 = properties.remove("OPERAND2").and_then(discard_if_empty);
         let operator = properties
@@ -728,8 +1122,38 @@ pub struct ComplexCondition {
     operator: Option<ComplexConditionOperator>, // OPERATOR
 }
 
-impl ComplexCondition {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for ComplexCondition {
+    fn get_type_id(&self) -> &'static str {
+        "COMPLEXCONDITION"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);
         let operand2 = properties.remove("OPERAND2").and_then(discard_if_empty);
         let operator = properties
@@ -754,8 +1178,38 @@ pub struct Dbl {
     value: Option<f64>,      // VALUE
 }
 
-impl Dbl {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Dbl {
+    fn get_type_id(&self) -> &'static str {
+        "DOUBLE"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let default = properties
             .remove("DEFAULT")
             .and_then(discard_if_empty)
@@ -798,8 +1252,42 @@ pub struct Episode {
     pub version: Option<String>,                 // VERSION
 }
 
-impl Episode {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Episode {
+    fn get_type_id(&self) -> &'static str {
+        "EPISODE"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        match name {
+            "PATH" => self.path.clone().map(|v| v.into()),
+            "SCENES" => self.scenes.clone().map(|v| v.into()),
+            _ => todo!(),
+        }
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);
         let creation_time = properties
             .remove("CREATIONTIME")
@@ -841,8 +1329,38 @@ pub struct Expression {
     operator: Option<ExpressionOperator>, // OPERATOR
 }
 
-impl Expression {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Expression {
+    fn get_type_id(&self) -> &'static str {
+        "EXPRESSION"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);
         let operand2 = properties.remove("OPERAND2").and_then(discard_if_empty);
         let operator = properties
@@ -898,8 +1416,38 @@ lazy_static! {
     static ref FONT_DEF_REGEX: Regex = Regex::new(r"^DEF_(\w+)_(\w+)_(\d+)$").unwrap();
 }
 
-impl Font {
-    pub fn new(properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Font {
+    fn get_type_id(&self) -> &'static str {
+        "FONT"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let defs: HashMap<FontDef, Option<String>> = properties
             .into_iter()
             .filter_map(|(k, v)| {
@@ -924,8 +1472,38 @@ pub struct Group {
     // GROUP
 }
 
-impl Group {
-    pub fn new(_properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Group {
+    fn get_type_id(&self) -> &'static str {
+        "GROUP"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(_properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         Ok(Self {})
     }
 }
@@ -945,8 +1523,53 @@ pub struct Image {
     pub visible: Option<bool>,                 // VISIBLE
 }
 
-impl Image {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Image {
+    fn get_type_id(&self) -> &'static str {
+        "IMAGE"
+    }
+
+    fn has_event(&self, name: &str) -> bool {
+        match name {
+            "ONCLICK" => true,
+            "ONCOLLISION" => true,
+            "ONCOLLISIONFINISHED" => true,
+            "ONDONE" => true,
+            "ONFOCUSOFF" => true,
+            "ONFOCUSON" => true,
+            "ONINIT" => true,
+            "ONRELEASE" => true,
+            "ONSIGNAL" => true,
+            _ => false,
+        }
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        match name {
+            "FILENAME" => self.filename.clone().map(|v| v.into()),
+            "PRIORITY" => self.priority.map(|v| v.into()),
+            _ => todo!(),
+        }
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let as_button = properties
             .remove("ASBUTTON")
             .and_then(discard_if_empty)
@@ -1017,8 +1640,38 @@ pub struct Int {
     value: Option<i32>,      // VALUE
 }
 
-impl Int {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Int {
+    fn get_type_id(&self) -> &'static str {
+        "INTEGER"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let default = properties
             .remove("DEFAULT")
             .and_then(discard_if_empty)
@@ -1054,8 +1707,38 @@ pub struct Keyboard {
     keyboard: Option<String>, // KEYBOARD
 }
 
-impl Keyboard {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Keyboard {
+    fn get_type_id(&self) -> &'static str {
+        "KEYBOARD"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let keyboard = properties.remove("KEYBOARD").and_then(discard_if_empty);
         Ok(Self { keyboard })
     }
@@ -1068,8 +1751,38 @@ pub struct Mouse {
     raw: Option<i32>,      // RAW
 }
 
-impl Mouse {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Mouse {
+    fn get_type_id(&self) -> &'static str {
+        "MOUSE"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let mouse = properties.remove("MOUSE").and_then(discard_if_empty);
         let raw = properties
             .remove("RAW")
@@ -1086,8 +1799,38 @@ pub struct MultiArray {
     dimensions: Option<i32>, // DIMENSIONS
 }
 
-impl MultiArray {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for MultiArray {
+    fn get_type_id(&self) -> &'static str {
+        "MULTIARRAY"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let dimensions = properties
             .remove("DIMENSIONS")
             .and_then(discard_if_empty)
@@ -1103,8 +1846,38 @@ pub struct Music {
     filename: Option<String>, // FILENAME
 }
 
-impl Music {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Music {
+    fn get_type_id(&self) -> &'static str {
+        "MUSIC"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        false
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let filename = properties.remove("FILENAME").and_then(discard_if_empty);
         Ok(Self { filename })
     }
@@ -1115,8 +1888,38 @@ pub struct Random {
     // RAND
 }
 
-impl Random {
-    pub fn new(_properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Random {
+    fn get_type_id(&self) -> &'static str {
+        "RANDOM"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(_properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         Ok(Self {})
     }
 }
@@ -1137,8 +1940,42 @@ pub struct Scene {
     pub version: Option<String>,                 // VERSION
 }
 
-impl Scene {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Scene {
+    fn get_type_id(&self) -> &'static str {
+        "SCENE"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        match name {
+            "BACKGROUND" => self.background.clone().map(|v| v.into()),
+            "PATH" => self.path.clone().map(|v| v.into()),
+            _ => todo!(),
+        }
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);
         let background = properties
             .remove("BACKGROUND")
@@ -1191,8 +2028,45 @@ pub struct Sequence {
     filename: Option<String>, // FILENAME
 }
 
-impl Sequence {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Sequence {
+    fn get_type_id(&self) -> &'static str {
+        "SEQUENCE"
+    }
+
+    fn has_event(&self, name: &str) -> bool {
+        match name {
+            "ONDONE" => true,
+            "ONFINISHED" => true,
+            "ONINIT" => true,
+            "ONSIGNAL" => true,
+            "ONSTARTED" => true,
+            _ => false,
+        }
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let filename = properties.remove("FILENAME").and_then(discard_if_empty);
         Ok(Self { filename })
     }
@@ -1206,8 +2080,46 @@ pub struct Sound {
     preload: Option<bool>,            // PRELOAD
 }
 
-impl Sound {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Sound {
+    fn get_type_id(&self) -> &'static str {
+        "SOUND"
+    }
+
+    fn has_event(&self, name: &str) -> bool {
+        match name {
+            "ONDONE" => true,
+            "ONFINISHED" => true,
+            "ONINIT" => true,
+            "ONRESUMED" => true,
+            "ONSIGNAL" => true,
+            "ONSTARTED" => true,
+            _ => false,
+        }
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let filename = properties.remove("FILENAME").and_then(discard_if_empty);
         let flush_after_played = properties
             .remove("FLUSHAFTERPLAYED")
@@ -1236,8 +2148,38 @@ pub struct Str {
     value: Option<String>,   // VALUE
 }
 
-impl Str {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Str {
+    fn get_type_id(&self) -> &'static str {
+        "STRING"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let default = properties.remove("DEFAULT").and_then(discard_if_empty);
         let netnotify = properties
             .remove("NETNOTIFY")
@@ -1269,8 +2211,38 @@ pub struct Struct {
     fields: Option<Vec<(String, TypeName)>>,
 }
 
-impl Struct {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Struct {
+    fn get_type_id(&self) -> &'static str {
+        "STRUCT"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let fields = properties
             .remove("FIELDS")
             .and_then(discard_if_empty)
@@ -1292,8 +2264,38 @@ pub struct System {
     system: Option<String>, // SYSTEM
 }
 
-impl System {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for System {
+    fn get_type_id(&self) -> &'static str {
+        "SYSTEM"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let system = properties.remove("SYSTEM").and_then(discard_if_empty);
         Ok(Self { system })
     }
@@ -1315,8 +2317,38 @@ pub struct Text {
     vertical_justify: Option<bool>,        // VJUSTIFY
 }
 
-impl Text {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Text {
+    fn get_type_id(&self) -> &'static str {
+        "TEXT"
+    }
+
+    fn has_event(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let font = properties.remove("FONT").and_then(discard_if_empty);
         let horizontal_justify = properties
             .remove("HJUSTIFY")
@@ -1388,8 +2420,44 @@ pub struct Timer {
     ticks: Option<i32>,    // TICKS
 }
 
-impl Timer {
-    pub fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+impl CnvType for Timer {
+    fn get_type_id(&self) -> &'static str {
+        "TIMER"
+    }
+
+    fn has_event(&self, name: &str) -> bool {
+        match name {
+            "ONDONE" => true,
+            "ONINIT" => true,
+            "ONSIGNAL" => true,
+            "ONTICK" => true,
+            _ => false,
+        }
+    }
+
+    fn has_property(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn has_method(&self, _name: &str) -> bool {
+        todo!()
+    }
+
+    fn call_method(
+        &mut self,
+        _name: CallableIdentifier,
+        _arguments: &[CnvValue],
+        _script_runner: &mut CnvRunner,
+        _context: &mut RunnerContext,
+    ) -> Option<CnvValue> {
+        todo!()
+    }
+
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
+    }
+
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let elapse = properties
             .remove("ELAPSE")
             .and_then(discard_if_empty)

@@ -27,7 +27,7 @@ use bevy::{
 };
 use iso::{read_game_definition, read_script};
 use pixlib_parser::{
-    classes::{CnvType, ObjectBuilderError},
+    classes::{ObjectBuilderError, PropertyValue},
     common::{Issue, IssueHandler, IssueKind, IssueManager},
     runner::ScriptSource,
 };
@@ -67,7 +67,7 @@ fn main() {
             title: WINDOW_TITLE,
         })
         .insert_resource(DebugSettings {
-            force_animation_infinite_looping: true,
+            force_animation_infinite_looping: false,
         })
         .insert_resource(GamePaths {
             data_directory: "./DANE/".into(),
@@ -135,9 +135,10 @@ fn reload_main_script(
     let root_script_path =
         read_game_definition(iso, &game_paths, &mut script_runner, &mut issue_manager);
     let mut vec = Vec::new();
-    script_runner
-        .0
-        .find_objects(|o| matches!(o.content, CnvType::Application(_)), &mut vec);
+    script_runner.0.find_objects(
+        |o| matches!(o.content.read().unwrap().get_type_id(), "APPLICATION"),
+        &mut vec,
+    );
     if vec.len() != 1 {
         error!(
             "Incorrect number of APPLICATION objects (should be 1): {:?}",
@@ -145,16 +146,14 @@ fn reload_main_script(
         );
         return;
     }
-    let application_name = vec[0].name.clone();
-    let CnvType::Application(application) = &vec[0].content else {
-        panic!();
-    };
-    let application_name = application_name.clone();
-    let application_path = application.read().unwrap().path.clone();
-    if let Some(application_script_path) = application_path.as_ref() {
+    let application = vec.into_iter().next().unwrap();
+    let application_name = application.name.clone();
+    if let Some(PropertyValue::String(ref application_path)) =
+        application.content.read().unwrap().get_property("PATH")
+    {
         read_script(
             iso,
-            application_script_path,
+            application_path,
             &application_name,
             &game_paths,
             Some(Arc::clone(&root_script_path)),
@@ -163,38 +162,29 @@ fn reload_main_script(
             &mut issue_manager,
         );
     }
-    let CnvType::Application(application) = &vec[0].content else {
+    let Some(PropertyValue::List(episode_list)) =
+        application.content.read().unwrap().get_property("EPISODES")
+    else {
         panic!();
     };
-    let episode_object_name = if application
-        .read()
-        .unwrap()
-        .episodes
-        .as_ref()
-        .map(|v| v.len())
-        .unwrap_or(0)
-        == 1
-    {
-        application.read().unwrap().episodes.as_ref().unwrap()[0].to_owned()
+    let episode_object_name = if episode_list.len() == 1 {
+        episode_list.into_iter().next().unwrap()
     } else {
         error!(
             "Unexpected number of episodes (expected 1): {:?}",
-            application.read().unwrap().episodes
+            episode_list
         );
         return;
     };
     let episode_object_name = episode_object_name.clone();
     if let Some(episode_object) = script_runner.get_object(&episode_object_name) {
         let episode_name = episode_object.name.clone();
-        let CnvType::Episode(episode) = &episode_object.content else {
-            panic!();
-        };
-        let episode_name = episode_name.clone();
-        let episode_path = episode.read().unwrap().path.clone();
-        if let Some(episode_script_path) = episode_path.as_ref() {
+        if let Some(PropertyValue::String(ref episode_path)) =
+            episode_object.content.read().unwrap().get_property("PATH")
+        {
             read_script(
                 iso,
-                episode_script_path,
+                episode_path,
                 &episode_name,
                 &game_paths,
                 Some(Arc::clone(&root_script_path)),
@@ -203,31 +193,39 @@ fn reload_main_script(
                 &mut issue_manager,
             );
         }
-        let CnvType::Episode(episode) = &episode_object.content else {
-            unreachable!();
-        };
         chosen_scene.list.clear();
         chosen_scene.index = 0;
-        for scene_name in episode
+        let Some(PropertyValue::List(scene_list)) = episode_object
+            .content
             .read()
             .unwrap()
-            .scenes
-            .as_ref()
-            .map(|v| v.iter())
-            .unwrap_or(Vec::new().iter())
-        {
+            .get_property("SCENES")
+        else {
+            panic!();
+        };
+        for scene_name in scene_list.iter() {
             if let Some(scene_object) = script_runner.get_object(scene_name) {
-                let CnvType::Scene(scene) = &scene_object.content else {
+                if scene_object.content.read().unwrap().get_type_id() != "SCENE" {
                     panic!();
                 };
-                let Some(scene_script_path) = scene.read().unwrap().path.clone() else {
+                let Some(PropertyValue::String(scene_script_path)) =
+                    scene_object.content.read().unwrap().get_property("PATH")
+                else {
                     error!("Scene {} has no path", scene_name);
                     continue;
                 };
                 let scene_defintion = SceneDefinition {
                     name: scene_name.to_string(),
                     path: PathBuf::from(scene_script_path),
-                    background: scene.read().unwrap().background.clone(),
+                    background: scene_object
+                        .content
+                        .read()
+                        .unwrap()
+                        .get_property("BACKGROUND")
+                        .and_then(|v| match v {
+                            PropertyValue::String(s) => Some(s),
+                            _ => None,
+                        }),
                 };
                 chosen_scene.list.push(scene_defintion);
             }
