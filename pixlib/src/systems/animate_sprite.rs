@@ -1,7 +1,9 @@
 use crate::anchors::{add_tuples, get_anchor, UpdatableAnchor};
-use crate::animation::PlaybackState;
 use crate::animation::{AnimationDefinition, AnimationState, AnimationTimer};
-use crate::resources::DebugSettings;
+use crate::animation::{CnvIdentifier, PlaybackState};
+use crate::resources::{DebugSettings, ScriptRunner};
+use bevy::ecs::system::ResMut;
+use bevy::log::{info, warn};
 use bevy::{
     ecs::system::Res,
     prelude::Query,
@@ -9,11 +11,15 @@ use bevy::{
     time::Time,
 };
 use pixlib_formats::file_formats::ann::LoopingSettings;
+use pixlib_parser::classes::{Animation, GraphicsEvents, PropertyValue};
+use pixlib_parser::runner::{CnvStatement, RunnerContext};
 
 pub fn animate_sprite(
     time: Res<Time>,
     debug_settings: Res<DebugSettings>,
+    mut script_runner: ResMut<ScriptRunner>,
     mut query: Query<(
+        &CnvIdentifier,
         &AnimationDefinition,
         &mut AnimationTimer,
         &mut AnimationState,
@@ -21,12 +27,73 @@ pub fn animate_sprite(
         &mut TextureAtlas,
     )>,
 ) {
-    // let mut times: Vec<f32> = Vec::new();
-    for (animation, mut timer, mut state, mut atlas_sprite, mut atlas) in &mut query {
-        // let t_start = std::time::Instant::now();
+    info!("Delta {:?}", time.delta());
+    for (ident, animation, mut timer, mut state, mut atlas_sprite, mut atlas) in &mut query {
+        let Some(ident) = &ident.0 else {
+            continue;
+        };
         timer.tick(time.delta());
         let sequence = &animation.sequences[state.sequence_idx];
+        let Some(animation_obj_whole) = script_runner.get_object(&ident) else {
+            warn!(
+                "Animation has no associated object in script runner: {}",
+                ident
+            );
+            continue;
+        };
+        let mut animation_obj_guard = animation_obj_whole.content.write().unwrap();
+        let animation_obj = animation_obj_guard
+            .as_any_mut()
+            .downcast_mut::<Animation>()
+            .unwrap();
+        info!("{} s events {:?}", ident, animation_obj.events);
+        let changed_playback_state = animation_obj
+            .events
+            .iter()
+            .filter(|e| matches!(e, GraphicsEvents::Play(_) | GraphicsEvents::Stop(_)))
+            .last();
+        let changed_playback_state = changed_playback_state.map(|e| e.clone());
+        animation_obj
+            .events
+            .retain(|e| !matches!(e, GraphicsEvents::Play(_) | GraphicsEvents::Stop(_)));
         if sequence.frames.is_empty() {
+            if state.playing_state != PlaybackState::Stopped {
+                info!("Stopping empty animation {}", ident);
+                state.playing_state = PlaybackState::Stopped;
+                animation_obj
+                    .events
+                    .push(GraphicsEvents::Finished(String::new()));
+            }
+            match changed_playback_state {
+                Some(GraphicsEvents::Play(_)) => {
+                    info!("Playing empty animation {}", ident);
+                    state.frame_idx = 0;
+                    state.playing_state = PlaybackState::Forward;
+                }
+                _ => {}
+            }
+            let finished_playing = animation_obj
+                .events
+                .iter()
+                .filter(|e| matches!(e, GraphicsEvents::Finished(_)))
+                .count()
+                > 0;
+            animation_obj
+                .events
+                .retain(|e| !matches!(e, GraphicsEvents::Finished(_)));
+            drop(animation_obj_guard);
+            if finished_playing {
+                let mut context = RunnerContext {
+                    self_object: ident.clone(),
+                    current_object: ident.clone(),
+                };
+                if let Some(PropertyValue::Code(handler)) =
+                    animation_obj_whole.get_property("ONFINISHED")
+                {
+                    info!("Calling ONFINISHED on object: {:?}", animation_obj_whole);
+                    handler.run(&mut script_runner, &mut context)
+                }
+            }
             continue;
         }
         match state.playing_state {
@@ -43,6 +110,15 @@ pub fn animate_sprite(
                 } else {
                     state.frame_idx = frame_limit.saturating_sub(1);
                     state.playing_state = PlaybackState::Stopped;
+                    info!("Stopping animation {} (seq {}, frame {})", ident, state.sequence_idx, state.frame_idx);
+                    animation_obj.events.push(GraphicsEvents::Finished(
+                        animation
+                            .sequences
+                            .get(state.sequence_idx)
+                            .map(|s| s.name.clone())
+                            .or(animation.sequences.iter().next().map(|s| s.name.clone()))
+                            .unwrap_or_default(),
+                    ));
                 }
                 let frame = &sequence.frames[state.frame_idx];
                 let sprite = &animation.sprites[frame.sprite_idx];
@@ -52,10 +128,61 @@ pub fn animate_sprite(
                     sprite.size_px,
                 ));
             }
-            PlaybackState::Backward if timer.just_finished() => continue,
-            _ => continue,
+            PlaybackState::Backward if timer.just_finished() => {}
+            _ => {}
         }
-        // times.push((std::time::Instant::now() - t_start).as_secs_f32());
+        match changed_playback_state {
+            Some(GraphicsEvents::Play(sequence_name)) => {
+                let previous_seq_idx = state.sequence_idx;
+                state.sequence_idx = animation
+                    .sequences
+                    .iter()
+                    .position(|s| s.name == *sequence_name)
+                    .unwrap_or_default();
+                if previous_seq_idx != state.sequence_idx
+                    || state.playing_state == PlaybackState::Stopped
+                {
+                    state.frame_idx = 0;
+                }
+                state.playing_state = PlaybackState::Forward;
+                info!("Playing animation {} (seq {}, frame {})", ident, state.sequence_idx, state.frame_idx);
+            }
+            Some(GraphicsEvents::Stop(_)) if state.playing_state != PlaybackState::Stopped => {
+                info!("Stopping animation {} (seq {}, frame {})", ident, state.sequence_idx, state.frame_idx);
+                state.playing_state = PlaybackState::Stopped;
+                animation_obj.events.push(GraphicsEvents::Finished(
+                    animation
+                        .sequences
+                        .get(state.sequence_idx)
+                        .map(|s| s.name.clone())
+                        .or(animation.sequences.iter().next().map(|s| s.name.clone()))
+                        .unwrap_or_default(),
+                ));
+            }
+            _ => {}
+        }
+        info!("{} e events {:?}", ident, animation_obj.events);
+        let finished_playing = animation_obj
+            .events
+            .iter()
+            .filter(|e| matches!(e, GraphicsEvents::Finished(_)))
+            .count()
+            > 0;
+        animation_obj
+            .events
+            .retain(|e| !matches!(e, GraphicsEvents::Finished(_)));
+        drop(animation_obj_guard);
+        if finished_playing {
+            let mut context = RunnerContext {
+                self_object: ident.clone(),
+                current_object: ident.clone(),
+            };
+            if let Some(PropertyValue::Code(handler)) =
+                animation_obj_whole.get_property("ONFINISHED")
+            {
+                info!("Calling ONFINISHED on object: {:?}", animation_obj_whole);
+                handler.run(&mut script_runner, &mut context)
+            }
+        }
     }
-    // println!("Times: {:?}", times);
 }

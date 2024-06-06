@@ -130,7 +130,7 @@ impl CnvObject {
         script_runner: &mut CnvRunner,
         context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        println!("Calling method: {:?} of: {:?}", identifier, self);
+        // println!("Calling method: {:?} of: {:?}", identifier, self);
         self.content
             .write()
             .unwrap()
@@ -160,11 +160,14 @@ pub struct CallableInfo<'a> {
     parameters: &'a [PropertyInfo<'a>],
 }
 
-pub trait CnvType: Any + Send + Sync + std::fmt::Debug {
+pub trait CnvType: Send + Sync + std::fmt::Debug {
     fn get_type_id(&self) -> &'static str;
     fn has_event(&self, name: &str) -> bool;
     fn has_property(&self, name: &str) -> bool;
     fn has_method(&self, name: &str) -> bool;
+
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 
     fn get_property(&self, name: &str) -> Option<PropertyValue>;
     fn call_method(
@@ -404,31 +407,44 @@ impl From<Arc<IgnorableProgram>> for PropertyValue {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct AnimationState {
-    pub playing: bool,
+#[derive(Debug, Clone)]
+pub enum GraphicsEvents {
+    Play(String),
+    Stop(bool),
+    Finished(String),
+    Show,
+    Hide,
 }
 
 #[derive(Debug, Clone)]
 pub struct Animation {
     // ANIMO
-    pub as_button: Option<bool>,                // ASBUTTON
-    pub filename: Option<String>,               // FILENAME
-    pub flush_after_played: Option<bool>,       // FLUSHAFTERPLAYED
-    pub fps: Option<i32>,                       // FPS
-    pub monitor_collision: Option<bool>,        // MONITORCOLLISION
-    pub monitor_collision_alpha: Option<bool>,  // MONITORCOLLISIONALPHA
-    pub preload: Option<bool>,                  // PRELOAD
-    pub priority: Option<i32>,                  // PRIORITY
-    pub release: Option<bool>,                  // RELEASE
-    pub to_canvas: Option<bool>,                // TOCANVAS
-    pub visible: Option<bool>,                  // VISIBLE
-    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
+    pub as_button: Option<bool>,                    // ASBUTTON
+    pub filename: Option<String>,                   // FILENAME
+    pub flush_after_played: Option<bool>,           // FLUSHAFTERPLAYED
+    pub fps: Option<i32>,                           // FPS
+    pub monitor_collision: Option<bool>,            // MONITORCOLLISION
+    pub monitor_collision_alpha: Option<bool>,      // MONITORCOLLISIONALPHA
+    pub preload: Option<bool>,                      // PRELOAD
+    pub priority: Option<i32>,                      // PRIORITY
+    pub release: Option<bool>,                      // RELEASE
+    pub to_canvas: Option<bool>,                    // TOCANVAS
+    pub visible: Option<bool>,                      // VISIBLE
+    pub on_init: Option<Arc<IgnorableProgram>>,     // ONINIT signal
+    pub on_finished: Option<Arc<IgnorableProgram>>, // ONFINISHED signal
 
-    pub state: AnimationState,
+    pub events: Vec<GraphicsEvents>,
 }
 
 impl CnvType for Animation {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "ANIMO"
     }
@@ -465,19 +481,32 @@ impl CnvType for Animation {
     fn call_method(
         &mut self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
+        arguments: &[CnvValue],
         script_runner: &mut CnvRunner,
         context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        println!("Calling method: {:?} of object: {:?}", name, self);
+        // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("PLAY") => {
-                println!("Calling method PLAY of {:?}", self);
-                self.state.playing = true;
+                self.events.push(GraphicsEvents::Play(arguments[0].to_string()));
+                None
+            }
+            CallableIdentifier::Method("STOP") => {
+                self.events.push(GraphicsEvents::Stop(arguments[0].to_boolean()));
+                None
+            }
+            CallableIdentifier::Method("HIDE") => {
+                self.events.push(GraphicsEvents::Hide);
                 None
             }
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.on_init.as_ref() {
+                    v.run(script_runner, context)
+                }
+                None
+            }
+            CallableIdentifier::Event("ONFINISHED") => {
+                if let Some(v) = self.on_finished.as_ref() {
                     v.run(script_runner, context)
                 }
                 None
@@ -491,6 +520,7 @@ impl CnvType for Animation {
             "FILENAME" => self.filename.clone().map(|v| v.into()),
             "PRIORITY" => self.priority.map(|v| v.into()),
             "ONINIT" => self.on_init.as_ref().map(|v| Arc::clone(v).into()),
+            "ONFINISHED" => self.on_finished.as_ref().map(|v| Arc::clone(v).into()),
             _ => todo!(),
         }
     }
@@ -552,6 +582,11 @@ impl CnvType for Animation {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
+        let on_finished = properties
+            .remove("ONFINISHED")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
         Ok(Self {
             as_button,
             filename,
@@ -565,7 +600,8 @@ impl CnvType for Animation {
             to_canvas,
             visible,
             on_init,
-            state: AnimationState::default(),
+            on_finished,
+            events: Vec::new(),
         })
     }
 }
@@ -585,6 +621,14 @@ pub struct Application {
 }
 
 impl CnvType for Application {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "APPLICATION"
     }
@@ -664,6 +708,14 @@ pub struct Array {
 }
 
 impl CnvType for Array {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "ARRAY"
     }
@@ -713,6 +765,14 @@ pub struct Behavior {
 }
 
 impl CnvType for Behavior {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "BEHAVIOUR"
     }
@@ -764,6 +824,14 @@ pub struct Bool {
 }
 
 impl CnvType for Bool {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "BOOL"
     }
@@ -854,6 +922,14 @@ pub struct Button {
 }
 
 impl CnvType for Button {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "BUTTON"
     }
@@ -944,6 +1020,14 @@ pub struct CanvasObserver {
 }
 
 impl CnvType for CanvasObserver {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "CANVASOBSERVER"
     }
@@ -986,6 +1070,14 @@ pub struct CnvLoader {
 }
 
 impl CnvType for CnvLoader {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "CNVLOADER"
     }
@@ -1055,6 +1147,14 @@ pub struct Condition {
 }
 
 impl CnvType for Condition {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "CONDITION"
     }
@@ -1126,6 +1226,14 @@ pub struct ComplexCondition {
 }
 
 impl CnvType for ComplexCondition {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "COMPLEXCONDITION"
     }
@@ -1182,6 +1290,14 @@ pub struct Dbl {
 }
 
 impl CnvType for Dbl {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "DOUBLE"
     }
@@ -1243,6 +1359,11 @@ impl CnvType for Dbl {
 }
 
 #[derive(Debug, Clone)]
+pub enum EpisodeEvents {
+    GoTo(String),
+}
+
+#[derive(Debug, Clone)]
 pub struct Episode {
     // EPISODE
     pub author: Option<String>,                  // AUTHOR
@@ -1253,9 +1374,19 @@ pub struct Episode {
     pub scenes: Option<Vec<SceneName>>,          // SCENES
     pub start_with: Option<SceneName>,           // STARTWITH
     pub version: Option<String>,                 // VERSION
+
+    pub events: Vec<EpisodeEvents>,
 }
 
 impl CnvType for Episode {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "EPISODE"
     }
@@ -1274,12 +1405,19 @@ impl CnvType for Episode {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
-        _arguments: &[CnvValue],
+        name: CallableIdentifier,
+        arguments: &[CnvValue],
         _script_runner: &mut CnvRunner,
         _context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        todo!()
+        // println!("Calling method: {:?} of object: {:?}", name, self);
+        match name {
+            CallableIdentifier::Method("GOTO") => {
+                self.events.push(EpisodeEvents::GoTo(arguments[0].to_string()));
+                None
+            }
+            _ => todo!(),
+        }
     }
 
     fn get_property(&self, name: &str) -> Option<PropertyValue> {
@@ -1320,6 +1458,7 @@ impl CnvType for Episode {
             scenes,
             start_with,
             version,
+            events: Vec::new(),
         })
     }
 }
@@ -1333,6 +1472,14 @@ pub struct Expression {
 }
 
 impl CnvType for Expression {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "EXPRESSION"
     }
@@ -1420,6 +1567,14 @@ lazy_static! {
 }
 
 impl CnvType for Font {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "FONT"
     }
@@ -1476,6 +1631,14 @@ pub struct Group {
 }
 
 impl CnvType for Group {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "GROUP"
     }
@@ -1514,19 +1677,30 @@ impl CnvType for Group {
 #[derive(Debug, Clone)]
 pub struct Image {
     // IMAGE
-    pub as_button: Option<bool>,               // ASBUTTON
-    pub filename: Option<String>,              // FILENAME
-    pub flush_after_played: Option<bool>,      // FLUSHAFTERPLAYED
-    pub monitor_collision: Option<bool>,       // MONITORCOLLISION
-    pub monitor_collision_alpha: Option<bool>, // MONITORCOLLISIONALPHA
-    pub preload: Option<bool>,                 // PRELOAD
-    pub priority: Option<i32>,                 // PRIORITY
-    pub release: Option<bool>,                 // RELEASE
-    pub to_canvas: Option<bool>,               // TOCANVAS
-    pub visible: Option<bool>,                 // VISIBLE
+    pub as_button: Option<bool>,                    // ASBUTTON
+    pub filename: Option<String>,                   // FILENAME
+    pub flush_after_played: Option<bool>,           // FLUSHAFTERPLAYED
+    pub monitor_collision: Option<bool>,            // MONITORCOLLISION
+    pub monitor_collision_alpha: Option<bool>,      // MONITORCOLLISIONALPHA
+    pub preload: Option<bool>,                      // PRELOAD
+    pub priority: Option<i32>,                      // PRIORITY
+    pub release: Option<bool>,                      // RELEASE
+    pub to_canvas: Option<bool>,                    // TOCANVAS
+    pub visible: Option<bool>,                      // VISIBLE
+    pub on_init: Option<Arc<IgnorableProgram>>,     // ONINIT signal
+
+    pub events: Vec<GraphicsEvents>,
 }
 
 impl CnvType for Image {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "IMAGE"
     }
@@ -1556,12 +1730,25 @@ impl CnvType for Image {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
+        name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _script_runner: &mut CnvRunner,
-        _context: &mut RunnerContext,
+        script_runner: &mut CnvRunner,
+        context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        todo!()
+        // println!("Calling method: {:?} of object: {:?}", name, self);
+        match name {
+            CallableIdentifier::Method("HIDE") => {
+                self.events.push(GraphicsEvents::Hide);
+                None
+            }
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.on_init.as_ref() {
+                    v.run(script_runner, context)
+                }
+                None
+            }
+            _ => todo!(),
+        }
     }
 
     fn get_property(&self, name: &str) -> Option<PropertyValue> {
@@ -1619,6 +1806,11 @@ impl CnvType for Image {
             .and_then(discard_if_empty)
             .map(parse_bool)
             .transpose()?;
+        let on_init = properties
+            .remove("ONINIT")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
         Ok(Self {
             as_button,
             filename,
@@ -1630,6 +1822,8 @@ impl CnvType for Image {
             release,
             to_canvas,
             visible,
+            on_init,
+            events: Vec::new(),
         })
     }
 }
@@ -1644,6 +1838,14 @@ pub struct Int {
 }
 
 impl CnvType for Int {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "INTEGER"
     }
@@ -1711,6 +1913,14 @@ pub struct Keyboard {
 }
 
 impl CnvType for Keyboard {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "KEYBOARD"
     }
@@ -1755,6 +1965,14 @@ pub struct Mouse {
 }
 
 impl CnvType for Mouse {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "MOUSE"
     }
@@ -1803,6 +2021,14 @@ pub struct MultiArray {
 }
 
 impl CnvType for MultiArray {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "MULTIARRAY"
     }
@@ -1850,6 +2076,14 @@ pub struct Music {
 }
 
 impl CnvType for Music {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "MUSIC"
     }
@@ -1892,6 +2126,14 @@ pub struct Random {
 }
 
 impl CnvType for Random {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "RANDOM"
     }
@@ -1944,6 +2186,14 @@ pub struct Scene {
 }
 
 impl CnvType for Scene {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "SCENE"
     }
@@ -2032,6 +2282,14 @@ pub struct Sequence {
 }
 
 impl CnvType for Sequence {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "SEQUENCE"
     }
@@ -2080,6 +2338,14 @@ pub struct Sound {
 }
 
 impl CnvType for Sound {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "SOUND"
     }
@@ -2143,6 +2409,14 @@ pub struct Str {
 }
 
 impl CnvType for Str {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "STRING"
     }
@@ -2206,6 +2480,14 @@ pub struct Struct {
 }
 
 impl CnvType for Struct {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "STRUCT"
     }
@@ -2259,6 +2541,14 @@ pub struct System {
 }
 
 impl CnvType for System {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "SYSTEM"
     }
@@ -2312,6 +2602,14 @@ pub struct Text {
 }
 
 impl CnvType for Text {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "TEXT"
     }
@@ -2415,6 +2713,14 @@ pub struct Timer {
 }
 
 impl CnvType for Timer {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn get_type_id(&self) -> &'static str {
         "TIMER"
     }

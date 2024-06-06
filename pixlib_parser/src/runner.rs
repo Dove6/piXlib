@@ -171,7 +171,7 @@ impl CnvRunner {
     }
 
     pub fn get_object(&self, name: &str) -> Option<Arc<CnvObject>> {
-        println!("Getting object: {:?}", name);
+        // println!("Getting object: {:?}", name);
         for script in self.scripts.values() {
             for object in script.objects.iter() {
                 if object.name == name {
@@ -363,7 +363,7 @@ impl CnvValue {
             CnvValue::Double(d) => d.to_string(), // TODO: check
             CnvValue::Boolean(b) => b.to_string(), //TODO: check
             CnvValue::String(s) => s.clone(),
-            CnvValue::Reference(_) => todo!(),
+            CnvValue::Reference(r) => r.name.clone(), // TODO: not always
         }
     }
 }
@@ -448,7 +448,7 @@ pub trait CnvStatement {
 
 impl CnvExpression for Invocation {
     fn calculate(&self, runner: &mut CnvRunner, context: &mut RunnerContext) -> Option<CnvValue> {
-        println!("Invocation::calculate: {:?}", self);
+        // println!("Invocation::calculate: {:?}", self);
         if self.parent.is_none() {
             None // TODO: match &self.name
         } else {
@@ -458,14 +458,24 @@ impl CnvExpression for Invocation {
                 .unwrap()
                 .calculate(runner, context)
                 .expect("Invalid invocation parent");
-            println!("Calling method: {:?} of: {:?}", self.name, self.parent);
+            let arguments: Vec<_> = self
+                .arguments
+                .iter()
+                .map(|e| {
+                    let c = e.calculate(runner, context);
+                    // println!("Calculated {:?} into {:?}", e, c);
+                    c
+                })
+                .collect();
+            let arguments: Vec<_> = arguments.into_iter().map(|e| e.unwrap()).collect();
+            // println!("Calling method: {:?} of: {:?}", self.name, self.parent);
             match parent {
                 CnvValue::Reference(obj) => obj.call_method(
                     CallableIdentifier::Method(&self.name),
-                    &Vec::new(),
+                    &arguments,
                     runner,
                     context,
-                ), // TODO: arguments
+                ),
                 _ => panic!(
                     "Expected invocation parent to be an object, got {:?}",
                     parent
@@ -477,10 +487,13 @@ impl CnvExpression for Invocation {
 
 impl CnvExpression for Expression {
     fn calculate(&self, runner: &mut CnvRunner, context: &mut RunnerContext) -> Option<CnvValue> {
-        println!("Expression::calculate: {:?}", self);
+        // println!("Expression::calculate: {:?}", self);
         match self {
             Expression::LiteralBool(b) => Some(CnvValue::Boolean(*b)),
-            Expression::Identifier(name) => runner.get_object(&name[..]).map(CnvValue::Reference), // error
+            Expression::Identifier(name) => runner
+                .get_object(&name[..].trim_matches('\"'))
+                .map(CnvValue::Reference)
+                .or_else(|| Some(CnvValue::String(name.trim_matches('\"').to_owned()))),
             Expression::SelfReference => runner
                 .get_object(&context.self_object)
                 .map(CnvValue::Reference), // error
@@ -516,7 +529,7 @@ impl CnvExpression for Expression {
 
 impl CnvStatement for IgnorableProgram {
     fn run(&self, runner: &mut CnvRunner, context: &mut RunnerContext) {
-        println!("IgnorableProgram::run: {:?}", self);
+        // println!("IgnorableProgram::run: {:?}", self);
         if self.ignored {
             return;
         }
@@ -526,7 +539,7 @@ impl CnvStatement for IgnorableProgram {
 
 impl CnvStatement for Program {
     fn run(&self, runner: &mut CnvRunner, context: &mut RunnerContext) {
-        println!("Program::run: {:?}", self);
+        // println!("Program::run: {:?}", self);
         match self {
             Program::Identifier(identifier) => {
                 let _obj = runner
@@ -545,7 +558,7 @@ impl CnvStatement for Program {
 
 impl CnvStatement for IgnorableStatement {
     fn run(&self, runner: &mut CnvRunner, context: &mut RunnerContext) {
-        println!("IgnorableStatement::run: {:?}", self);
+        // println!("IgnorableStatement::run: {:?}", self);
         if self.ignored {
             return;
         }
@@ -555,7 +568,7 @@ impl CnvStatement for IgnorableStatement {
 
 impl CnvStatement for Statement {
     fn run(&self, runner: &mut CnvRunner, context: &mut RunnerContext) {
-        println!("Statement::run: {:?}", self);
+        // println!("Statement::run: {:?}", self);
         match self {
             Statement::Invocation(invocation) => {
                 invocation.calculate(runner, context);

@@ -12,22 +12,24 @@ pub mod systems;
 
 use std::{env, path::PathBuf, sync::Arc};
 
+use animation::CnvIdentifier;
 use bevy::{
     ecs::{
         change_detection::DetectChanges,
         schedule::{common_conditions::in_state, IntoSystemConfigs, OnEnter, OnExit},
-        system::{Res, ResMut},
+        system::{Query, Res, ResMut},
     },
-    log::{error, warn},
+    log::{error, info, warn},
     prelude::{default, App, PluginGroup, Startup, Update},
-    render::texture::ImagePlugin,
+    render::{texture::ImagePlugin, view::Visibility},
+    sprite::Sprite,
     window::{PresentMode, Window, WindowPlugin},
     winit::WinitSettings,
     DefaultPlugins,
 };
 use iso::{read_game_definition, read_script};
 use pixlib_parser::{
-    classes::{ObjectBuilderError, PropertyValue},
+    classes::{Animation, GraphicsEvents, Image, ObjectBuilderError, PropertyValue},
     common::{Issue, IssueHandler, IssueKind, IssueManager},
     runner::ScriptSource,
 };
@@ -37,8 +39,7 @@ use resources::{
 };
 use states::AppState;
 use systems::{
-    animate_sprite, cleanup_root, detect_return_to_chooser, draw_cursor, handle_dropped_iso,
-    navigate_chooser, setup, setup_chooser, setup_viewer, update_chooser_labels,
+    animate_sprite, cleanup_root, detect_return_to_chooser, detect_return_to_chooser_goto, draw_cursor, handle_dropped_iso, navigate_chooser, setup, setup_chooser, setup_viewer, update_chooser_labels
 };
 
 const WINDOW_SIZE: (usize, usize) = (800, 600);
@@ -95,15 +96,70 @@ fn main() {
         .add_systems(OnEnter(AppState::SceneViewer), setup_viewer)
         .add_systems(
             Update,
-            animate_sprite.run_if(in_state(AppState::SceneViewer)),
+            (animate_sprite, show_hide_graphics).run_if(in_state(AppState::SceneViewer)),
         )
         .add_systems(Update, reload_main_script)
         .add_systems(
             Update,
-            detect_return_to_chooser.run_if(in_state(AppState::SceneViewer)),
+            (detect_return_to_chooser, detect_return_to_chooser_goto).run_if(in_state(AppState::SceneViewer)),
         )
         .add_systems(OnExit(AppState::SceneViewer), cleanup_root)
         .run();
+}
+
+pub fn show_hide_graphics(
+    script_runner: Res<ScriptRunner>,
+    mut query: Query<(&CnvIdentifier, &Sprite, &mut Visibility)>,
+) {
+    for (ident, _, mut visibility) in &mut query {
+        let Some(ident) = &ident.0 else {
+            continue;
+        };
+        let Some(animation_obj_whole) = script_runner.get_object(&ident) else {
+            warn!(
+                "Animation has no associated object in script runner: {}",
+                ident
+            );
+            continue;
+        };
+        // info!("Object {ident}: {:?}", animation_obj_whole.content);
+        let mut animation_obj_guard = animation_obj_whole.content.write().unwrap();
+        let Some(events) = (if let Some(animation_obj) =
+            animation_obj_guard.as_any_mut().downcast_mut::<Animation>()
+        {
+            Some(&mut animation_obj.events)
+        } else if let Some(image_obj) = animation_obj_guard.as_any_mut().downcast_mut::<Image>() {
+            Some(&mut image_obj.events)
+        } else {
+            None
+        }) else {
+            return;
+        };
+        let hidden = matches!(
+            events
+                .iter()
+                .filter(|e| matches!(e, GraphicsEvents::Hide | GraphicsEvents::Show))
+                .last(),
+            Some(GraphicsEvents::Hide)
+        );
+        let shown = matches!(
+            events
+                .iter()
+                .filter(|e| matches!(e, GraphicsEvents::Hide | GraphicsEvents::Show))
+                .last(),
+            Some(GraphicsEvents::Show)
+        );
+        events.retain(|e| !matches!(e, GraphicsEvents::Hide | GraphicsEvents::Show));
+        drop(animation_obj_guard);
+        if hidden {
+            info!("{} GraphicsEvents::Hide()", ident);
+            *visibility = Visibility::Hidden;
+        }
+        if shown {
+            info!("{} GraphicsEvents::Show()", ident);
+            *visibility = Visibility::Visible;
+        }
+    }
 }
 
 #[derive(Debug)]

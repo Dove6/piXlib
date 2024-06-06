@@ -9,6 +9,7 @@ pub use animation_bundle::AnimationMarker;
 pub use animation_sequence_component::AnimationDefinition;
 pub use animation_state::AnimationState;
 pub use animation_timer::AnimationTimer;
+use bevy::ecs::component::Component;
 pub use playback_state::PlaybackState;
 
 use bevy::{
@@ -32,6 +33,9 @@ use crate::{
 };
 
 use self::animation_sequence_component::SpriteDefinition;
+
+#[derive(Component, Debug, Clone, Default)]
+pub struct CnvIdentifier(pub Option<String>);
 
 pub fn ann_file_to_animation_bundle(
     ann_file: &AnnFile,

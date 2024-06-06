@@ -1,4 +1,4 @@
-use crate::animation::ann_file_to_animation_bundle;
+use crate::animation::{ann_file_to_animation_bundle, CnvIdentifier};
 use crate::image::img_file_to_sprite_bundle;
 use crate::iso::{parse_file, read_file_from_iso, read_script, AmFile};
 use crate::resources::{
@@ -21,6 +21,7 @@ use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 struct OrderedGraphics {
+    pub identifier: Option<String>,
     pub file_path: String,
     pub script_index: usize,
     pub object_index: usize,
@@ -91,6 +92,7 @@ pub fn setup_viewer(
                 .get_property("BACKGROUND")
             {
                 initial_images.push(OrderedGraphics {
+                    identifier: None,
                     file_path: get_path_to_scene_file(
                         &game_paths,
                         &scene_path,
@@ -105,6 +107,7 @@ pub fn setup_viewer(
                 });
             }
             for OrderedGraphics {
+                identifier,
                 file_path,
                 script_index,
                 object_index,
@@ -138,6 +141,7 @@ pub fn setup_viewer(
                                 .unwrap_or_default(),
                         );
                         OrderedGraphics {
+                            identifier: Some(cnv_object.name.clone()),
                             file_path: get_path_to_scene_file(&game_paths, &scene_path, &filename)
                                 .to_str()
                                 .unwrap()
@@ -159,7 +163,7 @@ pub fn setup_viewer(
                             "Handling image file: {file_path} z: {}",
                             &bundle.transform.translation.z
                         );
-                        parent.spawn(bundle);
+                        parent.spawn((CnvIdentifier(identifier), bundle));
                     }
                     AmFile::Ann(ann_file) => {
                         let mut bundle = ann_file_to_animation_bundle(
@@ -172,7 +176,7 @@ pub fn setup_viewer(
                             "Handling animation file: {file_path} z: {}",
                             &bundle.sprite_sheet.transform.translation.z
                         );
-                        parent.spawn(bundle);
+                        parent.spawn((CnvIdentifier(identifier), bundle));
                     }
                     _ => panic!(),
                 }
