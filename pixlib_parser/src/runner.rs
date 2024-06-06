@@ -461,11 +461,7 @@ impl CnvExpression for Invocation {
             let arguments: Vec<_> = self
                 .arguments
                 .iter()
-                .map(|e| {
-                    let c = e.calculate(runner, context);
-                    // println!("Calculated {:?} into {:?}", e, c);
-                    c
-                })
+                .map(|e| e.calculate(runner, context))
                 .collect();
             let arguments: Vec<_> = arguments.into_iter().map(|e| e.unwrap()).collect();
             // println!("Calling method: {:?} of: {:?}", self.name, self.parent);
@@ -491,7 +487,7 @@ impl CnvExpression for Expression {
         match self {
             Expression::LiteralBool(b) => Some(CnvValue::Boolean(*b)),
             Expression::Identifier(name) => runner
-                .get_object(&name[..].trim_matches('\"'))
+                .get_object(name[..].trim_matches('\"'))
                 .map(CnvValue::Reference)
                 .or_else(|| Some(CnvValue::String(name.trim_matches('\"').to_owned()))),
             Expression::SelfReference => runner

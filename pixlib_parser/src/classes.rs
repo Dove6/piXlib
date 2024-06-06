@@ -488,11 +488,13 @@ impl CnvType for Animation {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("PLAY") => {
-                self.events.push(GraphicsEvents::Play(arguments[0].to_string()));
+                self.events
+                    .push(GraphicsEvents::Play(arguments[0].to_string()));
                 None
             }
             CallableIdentifier::Method("STOP") => {
-                self.events.push(GraphicsEvents::Stop(arguments[0].to_boolean()));
+                self.events
+                    .push(GraphicsEvents::Stop(arguments[0].to_boolean()));
                 None
             }
             CallableIdentifier::Method("HIDE") => {
@@ -1413,7 +1415,8 @@ impl CnvType for Episode {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("GOTO") => {
-                self.events.push(EpisodeEvents::GoTo(arguments[0].to_string()));
+                self.events
+                    .push(EpisodeEvents::GoTo(arguments[0].to_string()));
                 None
             }
             _ => todo!(),
@@ -1677,17 +1680,17 @@ impl CnvType for Group {
 #[derive(Debug, Clone)]
 pub struct Image {
     // IMAGE
-    pub as_button: Option<bool>,                    // ASBUTTON
-    pub filename: Option<String>,                   // FILENAME
-    pub flush_after_played: Option<bool>,           // FLUSHAFTERPLAYED
-    pub monitor_collision: Option<bool>,            // MONITORCOLLISION
-    pub monitor_collision_alpha: Option<bool>,      // MONITORCOLLISIONALPHA
-    pub preload: Option<bool>,                      // PRELOAD
-    pub priority: Option<i32>,                      // PRIORITY
-    pub release: Option<bool>,                      // RELEASE
-    pub to_canvas: Option<bool>,                    // TOCANVAS
-    pub visible: Option<bool>,                      // VISIBLE
-    pub on_init: Option<Arc<IgnorableProgram>>,     // ONINIT signal
+    pub as_button: Option<bool>,                // ASBUTTON
+    pub filename: Option<String>,               // FILENAME
+    pub flush_after_played: Option<bool>,       // FLUSHAFTERPLAYED
+    pub monitor_collision: Option<bool>,        // MONITORCOLLISION
+    pub monitor_collision_alpha: Option<bool>,  // MONITORCOLLISIONALPHA
+    pub preload: Option<bool>,                  // PRELOAD
+    pub priority: Option<i32>,                  // PRIORITY
+    pub release: Option<bool>,                  // RELEASE
+    pub to_canvas: Option<bool>,                // TOCANVAS
+    pub visible: Option<bool>,                  // VISIBLE
+    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
 
     pub events: Vec<GraphicsEvents>,
 }

@@ -35,7 +35,7 @@ pub fn detect_return_to_chooser_goto(
         },
         &mut episodes,
     );
-    let Some(episode_obj) = episodes.iter().next() else {
+    let Some(episode_obj) = episodes.first() else {
         warn!("Could not find EPISODE object",);
         return;
     };
@@ -46,13 +46,13 @@ pub fn detect_return_to_chooser_goto(
     let changed_scene = episode
         .events
         .iter()
-        .filter(|e| matches!(e, EpisodeEvents::GoTo(_)))
-        .next();
-    let changed_scene = changed_scene.map(|e| e.clone());
+        .find(|e| matches!(e, EpisodeEvents::GoTo(_)))
+        .cloned();
     episode
         .events
         .retain(|e| !matches!(e, EpisodeEvents::GoTo(_)));
-    if let Some(EpisodeEvents::GoTo(next_scene)) = changed_scene { // TODO: switch scene
+    if let Some(EpisodeEvents::GoTo(next_scene)) = changed_scene {
+        // TODO: switch scene
         info!("EpisodeEvents::GoTo({})", next_scene);
         next_state.set(AppState::SceneChooser);
     }

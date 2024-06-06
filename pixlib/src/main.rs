@@ -39,7 +39,9 @@ use resources::{
 };
 use states::AppState;
 use systems::{
-    animate_sprite, cleanup_root, detect_return_to_chooser, detect_return_to_chooser_goto, draw_cursor, handle_dropped_iso, navigate_chooser, setup, setup_chooser, setup_viewer, update_chooser_labels
+    animate_sprite, cleanup_root, detect_return_to_chooser, detect_return_to_chooser_goto,
+    draw_cursor, handle_dropped_iso, navigate_chooser, setup, setup_chooser, setup_viewer,
+    update_chooser_labels,
 };
 
 const WINDOW_SIZE: (usize, usize) = (800, 600);
@@ -101,7 +103,8 @@ fn main() {
         .add_systems(Update, reload_main_script)
         .add_systems(
             Update,
-            (detect_return_to_chooser, detect_return_to_chooser_goto).run_if(in_state(AppState::SceneViewer)),
+            (detect_return_to_chooser, detect_return_to_chooser_goto)
+                .run_if(in_state(AppState::SceneViewer)),
         )
         .add_systems(OnExit(AppState::SceneViewer), cleanup_root)
         .run();
@@ -115,7 +118,7 @@ pub fn show_hide_graphics(
         let Some(ident) = &ident.0 else {
             continue;
         };
-        let Some(animation_obj_whole) = script_runner.get_object(&ident) else {
+        let Some(animation_obj_whole) = script_runner.get_object(ident) else {
             warn!(
                 "Animation has no associated object in script runner: {}",
                 ident

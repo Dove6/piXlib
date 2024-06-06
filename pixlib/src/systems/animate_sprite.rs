@@ -34,7 +34,7 @@ pub fn animate_sprite(
         };
         timer.tick(time.delta());
         let sequence = &animation.sequences[state.sequence_idx];
-        let Some(animation_obj_whole) = script_runner.get_object(&ident) else {
+        let Some(animation_obj_whole) = script_runner.get_object(ident) else {
             warn!(
                 "Animation has no associated object in script runner: {}",
                 ident
@@ -51,8 +51,8 @@ pub fn animate_sprite(
             .events
             .iter()
             .filter(|e| matches!(e, GraphicsEvents::Play(_) | GraphicsEvents::Stop(_)))
-            .last();
-        let changed_playback_state = changed_playback_state.map(|e| e.clone());
+            .last()
+            .cloned();
         animation_obj
             .events
             .retain(|e| !matches!(e, GraphicsEvents::Play(_) | GraphicsEvents::Stop(_)));
@@ -70,7 +70,13 @@ pub fn animate_sprite(
                     state.frame_idx = 0;
                     state.playing_state = PlaybackState::Forward;
                 }
-                _ => {}
+                None => {}
+                _ => {
+                    info!(
+                        "Another event for empty animation {}: {:?}",
+                        ident, changed_playback_state
+                    );
+                }
             }
             let finished_playing = animation_obj
                 .events
@@ -110,13 +116,16 @@ pub fn animate_sprite(
                 } else {
                     state.frame_idx = frame_limit.saturating_sub(1);
                     state.playing_state = PlaybackState::Stopped;
-                    info!("Stopping animation {} (seq {}, frame {})", ident, state.sequence_idx, state.frame_idx);
+                    info!(
+                        "Stopping animation {} (seq {}, frame {})",
+                        ident, state.sequence_idx, state.frame_idx
+                    );
                     animation_obj.events.push(GraphicsEvents::Finished(
                         animation
                             .sequences
                             .get(state.sequence_idx)
                             .map(|s| s.name.clone())
-                            .or(animation.sequences.iter().next().map(|s| s.name.clone()))
+                            .or(animation.sequences.first().map(|s| s.name.clone()))
                             .unwrap_or_default(),
                     ));
                 }
@@ -145,17 +154,23 @@ pub fn animate_sprite(
                     state.frame_idx = 0;
                 }
                 state.playing_state = PlaybackState::Forward;
-                info!("Playing animation {} (seq {}, frame {})", ident, state.sequence_idx, state.frame_idx);
+                info!(
+                    "Playing animation {} (seq {}, frame {})",
+                    ident, state.sequence_idx, state.frame_idx
+                );
             }
             Some(GraphicsEvents::Stop(_)) if state.playing_state != PlaybackState::Stopped => {
-                info!("Stopping animation {} (seq {}, frame {})", ident, state.sequence_idx, state.frame_idx);
+                info!(
+                    "Stopping animation {} (seq {}, frame {})",
+                    ident, state.sequence_idx, state.frame_idx
+                );
                 state.playing_state = PlaybackState::Stopped;
                 animation_obj.events.push(GraphicsEvents::Finished(
                     animation
                         .sequences
                         .get(state.sequence_idx)
                         .map(|s| s.name.clone())
-                        .or(animation.sequences.iter().next().map(|s| s.name.clone()))
+                        .or(animation.sequences.first().map(|s| s.name.clone()))
                         .unwrap_or_default(),
                 ));
             }
