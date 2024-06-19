@@ -814,6 +814,34 @@ impl CnvType for Behavior {
                 None
             }
             CallableIdentifier::Method("RUN") => {
+                if let Some(condition) = self.condition.as_ref() {
+                    let condition = script_runner.get_object(condition).clone().unwrap();
+                    match condition.call_method(
+                        CallableIdentifier::Method("CHECK"),
+                        &Vec::new(),
+                        script_runner,
+                        context,
+                    ) {
+                        Some(CnvValue::Boolean(false)) => {
+                            condition.call_method(
+                                CallableIdentifier::Event("ONRUNTIMEFAILED"),
+                                &Vec::new(),
+                                script_runner,
+                                context,
+                            );
+                            return None;
+                        }
+                        Some(CnvValue::Boolean(true)) => {
+                            condition.call_method(
+                                CallableIdentifier::Event("ONRUNTIMESUCCESS"),
+                                &Vec::new(),
+                                script_runner,
+                                context,
+                            );
+                        }
+                        _ => todo!(),
+                    }
+                }
                 if let Some(v) = self.code.as_ref() {
                     v.run(script_runner, context)
                 }
@@ -1239,9 +1267,11 @@ impl ConditionOperator {
 #[derive(Debug, Clone)]
 pub struct Condition {
     // CONDITION
-    operand1: Option<VariableName>,      // OPERAND1
-    operand2: Option<VariableName>,      // OPERAND2
-    operator: Option<ConditionOperator>, // OPERATOR
+    pub operand1: Option<VariableName>,      // OPERAND1
+    pub operand2: Option<VariableName>,      // OPERAND2
+    pub operator: Option<ConditionOperator>, // OPERATOR
+    pub on_runtime_failed: Option<Arc<IgnorableProgram>>, // ONRUNTIMEFAILED signal
+    pub on_runtime_success: Option<Arc<IgnorableProgram>>, // ONRUNTIMESUCCESS signal
 }
 
 impl CnvType for Condition {
@@ -1271,16 +1301,73 @@ impl CnvType for Condition {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
+        name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _script_runner: &mut CnvRunner,
-        _context: &mut RunnerContext,
+        script_runner: &mut CnvRunner,
+        context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        todo!()
+        match name {
+            CallableIdentifier::Method("CHECK") => {
+                let Some(left) = &self.operand1 else {
+                    return None;
+                };
+                let Some(right) = &self.operand2 else {
+                    return None;
+                };
+                let left = script_runner
+                    .get_object(left)
+                    .map(|o| {
+                        o.call_method(
+                            CallableIdentifier::Method("GET"),
+                            &Vec::new(),
+                            script_runner,
+                            context,
+                        )
+                        .unwrap()
+                    })
+                    .unwrap_or_else(|| CnvValue::String(left.clone()));
+                let right = script_runner
+                    .get_object(right)
+                    .map(|o| {
+                        o.call_method(
+                            CallableIdentifier::Method("GET"),
+                            &Vec::new(),
+                            script_runner,
+                            context,
+                        )
+                        .unwrap()
+                    })
+                    .unwrap_or_else(|| CnvValue::String(right.clone()));
+                let Some(operator) = &self.operator else {
+                    return None;
+                };
+                match operator {
+                    ConditionOperator::Equal => Some(CnvValue::Boolean(&left == &right)),
+                    _ => todo!(),
+                }
+            }
+            CallableIdentifier::Event("ONRUNTIMEFAILED") => {
+                if let Some(v) = self.on_runtime_failed.as_ref() {
+                    v.run(script_runner, context)
+                }
+                None
+            }
+            CallableIdentifier::Event("ONRUNTIMESUCCESS") => {
+                if let Some(v) = self.on_runtime_success.as_ref() {
+                    v.run(script_runner, context)
+                }
+                None
+            }
+            _ => todo!(),
+        }
     }
 
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
+    fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        match name {
+            "ONRUNTIMEFAILED" => self.on_runtime_failed.clone().map(|v| v.into()),
+            "ONRUNTIMESUCCESS" => self.on_runtime_success.clone().map(|v| v.into()),
+            _ => todo!(),
+        }
     }
 
     fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
@@ -1291,10 +1378,22 @@ impl CnvType for Condition {
             .and_then(discard_if_empty)
             .map(ConditionOperator::parse)
             .transpose()?;
+        let on_runtime_failed = properties
+            .remove("ONRUNTIMEFAILED")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
+        let on_runtime_success = properties
+            .remove("ONRUNTIMESUCCESS")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
         Ok(Self {
             operand1,
             operand2,
             operator,
+            on_runtime_failed,
+            on_runtime_success,
         })
     }
 }
@@ -1976,6 +2075,9 @@ impl CnvType for Int {
                 self.value = arguments[0].to_integer();
                 None
             }
+            CallableIdentifier::Method("GET") => {
+                Some(CnvValue::Integer(self.value))
+            }
             _ => todo!(),
         }
     }
@@ -2641,6 +2743,9 @@ impl CnvType for Str {
                 assert!(arguments.len() == 1);
                 self.value = arguments[0].to_string();
                 None
+            }
+            CallableIdentifier::Method("GET") => {
+                Some(CnvValue::String(self.value.clone()))
             }
             _ => todo!(),
         }

@@ -440,6 +440,18 @@ impl Rem for &CnvValue {
     }
 }
 
+impl PartialEq for &CnvValue {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            CnvValue::Integer(i) => *i == other.to_integer(),
+            CnvValue::Double(d) => *d == other.to_double(),
+            CnvValue::Boolean(b) => *b == other.to_boolean(),
+            CnvValue::String(s) => *s == other.to_string(),
+            CnvValue::Reference(_) => todo!(),
+        }
+    }
+}
+
 pub trait CnvExpression {
     fn calculate(&self, runner: &mut CnvRunner, context: &mut RunnerContext) -> Option<CnvValue>;
 }

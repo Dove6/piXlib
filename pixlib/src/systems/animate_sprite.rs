@@ -50,12 +50,12 @@ pub fn animate_sprite(
         let changed_playback_state = animation_obj
             .events
             .iter()
-            .filter(|e| matches!(e, GraphicsEvents::Play(_) | GraphicsEvents::Stop(_)))
+            .filter(|e| matches!(e, GraphicsEvents::Play(_) | GraphicsEvents::Pause | GraphicsEvents::Stop(_)))
             .last()
             .cloned();
         animation_obj
             .events
-            .retain(|e| !matches!(e, GraphicsEvents::Play(_) | GraphicsEvents::Stop(_)));
+            .retain(|e| !matches!(e, GraphicsEvents::Play(_) | GraphicsEvents::Pause | GraphicsEvents::Stop(_)));
         if sequence.frames.is_empty() {
             if state.playing_state != PlaybackState::Stopped {
                 info!("Stopping empty animation {}", ident);
@@ -167,6 +167,18 @@ pub fn animate_sprite(
                     state.frame_idx,
                     animation.sequences[state.sequence_idx].frames.len()
                 );
+            }
+            Some(GraphicsEvents::Pause) if state.playing_state != PlaybackState::Stopped => {
+                info!(
+                    "Pausing animation {} (seq {}/{}, frame {}/{})",
+                    ident,
+                    state.sequence_idx,
+                    animation.sequences.len(),
+                    state.frame_idx,
+                    animation.sequences[state.sequence_idx].frames.len()
+                );
+                state.playing_state = if state.playing_state == PlaybackState::Forward { PlaybackState::ForwardPaused } else { PlaybackState::BackwardPaused };
+                // TODO: emit ONPAUSED
             }
             Some(GraphicsEvents::Stop(_)) if state.playing_state != PlaybackState::Stopped => {
                 info!(
