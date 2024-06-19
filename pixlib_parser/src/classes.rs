@@ -130,7 +130,7 @@ impl CnvObject {
         script_runner: &mut CnvRunner,
         context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        // println!("Calling method: {:?} of: {:?}", identifier, self);
+        println!("Calling method: {:?} of: {:?}", identifier, self);
         self.content
             .write()
             .unwrap()
@@ -138,6 +138,7 @@ impl CnvObject {
     }
 
     pub fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        println!("Getting property: {:?} of: {:?}", name, self);
         self.content.read().unwrap().get_property(name)
     }
 }
@@ -410,6 +411,7 @@ impl From<Arc<IgnorableProgram>> for PropertyValue {
 #[derive(Debug, Clone)]
 pub enum GraphicsEvents {
     Play(String),
+    Pause,
     Stop(bool),
     Finished(String),
     Show,
@@ -495,6 +497,10 @@ impl CnvType for Animation {
             CallableIdentifier::Method("STOP") => {
                 self.events
                     .push(GraphicsEvents::Stop(arguments[0].to_boolean()));
+                None
+            }
+            CallableIdentifier::Method("PAUSE") => {
+                self.events.push(GraphicsEvents::Pause);
                 None
             }
             CallableIdentifier::Method("HIDE") => {
@@ -762,8 +768,9 @@ impl CnvType for Array {
 #[derive(Debug, Clone)]
 pub struct Behavior {
     // BEHAVIOUR
-    pub code: Option<Arc<IgnorableProgram>>, // CODE
-    pub condition: Option<ConditionName>,    // CONDITION
+    pub code: Option<Arc<IgnorableProgram>>,    // CODE
+    pub condition: Option<ConditionName>,       // CONDITION
+    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
 }
 
 impl CnvType for Behavior {
@@ -793,16 +800,34 @@ impl CnvType for Behavior {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
+        name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _script_runner: &mut CnvRunner,
-        _context: &mut RunnerContext,
+        script_runner: &mut CnvRunner,
+        context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        todo!()
+        // println!("Calling method: {:?} of object: {:?}", name, self);
+        match name {
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.on_init.as_ref() {
+                    v.run(script_runner, context)
+                }
+                None
+            }
+            CallableIdentifier::Method("RUN") => {
+                if let Some(v) = self.code.as_ref() {
+                    v.run(script_runner, context)
+                }
+                None
+            }
+            _ => todo!(),
+        }
     }
 
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
+    fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        match name {
+            "ONINIT" => self.on_init.clone().map(|v| v.into()),
+            _ => todo!(),
+        }
     }
 
     fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
@@ -812,7 +837,16 @@ impl CnvType for Behavior {
             .map(parse_program)
             .transpose()?;
         let condition = properties.remove("CONDITION").and_then(discard_if_empty);
-        Ok(Self { code, condition })
+        let on_init = properties
+            .remove("ONINIT")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
+        Ok(Self {
+            code,
+            condition,
+            on_init,
+        })
     }
 }
 
@@ -909,18 +943,19 @@ impl Default for Rect {
 #[derive(Debug, Clone)]
 pub struct Button {
     // BUTTON
-    accent: Option<bool>,            // ACCENT
-    drag: Option<bool>,              // DRAG
-    draggable: Option<bool>,         // DRAGGABLE
-    enable: Option<bool>,            // ENABLE
-    gfx_on_click: Option<ImageName>, // GFXONCLICK
-    gfx_on_move: Option<ImageName>,  // GFXONMOVE
-    gfx_standard: Option<ImageName>, // GFXSTANDARD
-    priority: Option<i32>,           // PRIORITY
-    rect: Option<Rect>,              // RECT
-    snd_on_click: Option<SoundName>, // SNDONCLICK
-    snd_on_move: Option<SoundName>,  // SNDONMOVE
-    snd_standard: Option<SoundName>, // SNDSTANDARD
+    accent: Option<bool>,                       // ACCENT
+    drag: Option<bool>,                         // DRAG
+    draggable: Option<bool>,                    // DRAGGABLE
+    enable: Option<bool>,                       // ENABLE
+    gfx_on_click: Option<ImageName>,            // GFXONCLICK
+    gfx_on_move: Option<ImageName>,             // GFXONMOVE
+    gfx_standard: Option<ImageName>,            // GFXSTANDARD
+    priority: Option<i32>,                      // PRIORITY
+    rect: Option<Rect>,                         // RECT
+    snd_on_click: Option<SoundName>,            // SNDONCLICK
+    snd_on_move: Option<SoundName>,             // SNDONMOVE
+    snd_standard: Option<SoundName>,            // SNDSTANDARD
+    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
 }
 
 impl CnvType for Button {
@@ -936,8 +971,22 @@ impl CnvType for Button {
         "BUTTON"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
+    fn has_event(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "ONACTION"
+                | "ONCLICKED"
+                | "ONDONE"
+                | "ONDRAGGING"
+                | "ONENDDRAGGING"
+                | "ONFOCUSOFF"
+                | "ONFOCUSON"
+                | "ONINIT"
+                | "ONPAUSED"
+                | "ONRELEASED"
+                | "ONSIGNAL"
+                | "ONSTARTDRAGGING"
+        )
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -950,16 +999,28 @@ impl CnvType for Button {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
+        name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _script_runner: &mut CnvRunner,
-        _context: &mut RunnerContext,
+        script_runner: &mut CnvRunner,
+        context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        todo!()
+        // println!("Calling method: {:?} of object: {:?}", name, self);
+        match name {
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.on_init.as_ref() {
+                    v.run(script_runner, context)
+                }
+                None
+            }
+            _ => todo!(),
+        }
     }
 
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
+    fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        match name {
+            "ONINIT" => self.on_init.clone().map(|v| v.into()),
+            _ => todo!(),
+        }
     }
 
     fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
@@ -999,6 +1060,11 @@ impl CnvType for Button {
         let snd_on_click = properties.remove("SNDONCLICK").and_then(discard_if_empty);
         let snd_on_move = properties.remove("SNDONMOVE").and_then(discard_if_empty);
         let snd_standard = properties.remove("SNDSTANDARD").and_then(discard_if_empty);
+        let on_init = properties
+            .remove("ONINIT")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
         Ok(Self {
             accent,
             drag,
@@ -1012,6 +1078,7 @@ impl CnvType for Button {
             snd_on_click,
             snd_on_move,
             snd_standard,
+            on_init,
         })
     }
 }
@@ -1019,6 +1086,7 @@ impl CnvType for Button {
 #[derive(Debug, Clone)]
 pub struct CanvasObserver {
     // CANVAS_OBSERVER
+    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
 }
 
 impl CnvType for CanvasObserver {
@@ -1034,8 +1102,19 @@ impl CnvType for CanvasObserver {
         "CANVASOBSERVER"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
+    fn has_event(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "ONDONE"
+                | "ONINIT"
+                | "ONINITIALUPDATE"
+                | "ONINITIALUPDATED"
+                | "ONSIGNAL"
+                | "ONUPDATE"
+                | "ONUPDATED"
+                | "ONWINDOWFOCUSOFF"
+                | "ONWINDOWFOCUSON"
+        )
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -1048,20 +1127,37 @@ impl CnvType for CanvasObserver {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
+        name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _script_runner: &mut CnvRunner,
-        _context: &mut RunnerContext,
+        script_runner: &mut CnvRunner,
+        context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        todo!()
+        // println!("Calling method: {:?} of object: {:?}", name, self);
+        match name {
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.on_init.as_ref() {
+                    v.run(script_runner, context)
+                }
+                None
+            }
+            _ => todo!(),
+        }
     }
 
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
+    fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        match name {
+            "ONINIT" => self.on_init.clone().map(|v| v.into()),
+            _ => todo!(),
+        }
     }
 
-    fn new(_properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
-        Ok(Self {})
+    fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
+        let on_init = properties
+            .remove("ONINIT")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
+        Ok(Self { on_init })
     }
 }
 
@@ -1161,8 +1257,8 @@ impl CnvType for Condition {
         "CONDITION"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
+    fn has_event(&self, name: &str) -> bool {
+        matches!(name, "ONRUNTIMEFAILED" | "ONRUNTIMESUCCESS")
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -1660,12 +1756,13 @@ impl CnvType for Group {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
+        name: CallableIdentifier,
         _arguments: &[CnvValue],
         _script_runner: &mut CnvRunner,
         _context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        todo!()
+        eprintln!("Skipping method call {:?} for GROUP {:?}", name, self); // TODO: fill in
+        None
     }
 
     fn get_property(&self, _name: &str) -> Option<PropertyValue> {
@@ -1758,6 +1855,7 @@ impl CnvType for Image {
         match name {
             "FILENAME" => self.filename.clone().map(|v| v.into()),
             "PRIORITY" => self.priority.map(|v| v.into()),
+            "ONINIT" => self.on_init.clone().map(|v| v.into()),
             _ => todo!(),
         }
     }
@@ -1837,7 +1935,7 @@ pub struct Int {
     default: Option<i32>,    // DEFAULT
     netnotify: Option<bool>, // NETNOTIFY
     to_ini: Option<bool>,    // TOINI
-    value: Option<i32>,      // VALUE
+    value: i32,              // VALUE
 }
 
 impl CnvType for Int {
@@ -1867,12 +1965,19 @@ impl CnvType for Int {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
-        _arguments: &[CnvValue],
+        name: CallableIdentifier,
+        arguments: &[CnvValue],
         _script_runner: &mut CnvRunner,
         _context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        todo!()
+        match name {
+            CallableIdentifier::Method("SET") => {
+                assert!(arguments.len() == 1);
+                self.value = arguments[0].to_integer();
+                None
+            }
+            _ => todo!(),
+        }
     }
 
     fn get_property(&self, _name: &str) -> Option<PropertyValue> {
@@ -1899,7 +2004,8 @@ impl CnvType for Int {
             .remove("VALUE")
             .and_then(discard_if_empty)
             .map(parse_i32)
-            .transpose()?;
+            .transpose()?
+            .unwrap_or_default();
         Ok(Self {
             default,
             netnotify,
@@ -1912,7 +2018,8 @@ impl CnvType for Int {
 #[derive(Debug, Clone)]
 pub struct Keyboard {
     // KEYBOARD
-    keyboard: Option<String>, // KEYBOARD
+    keyboard: Option<String>,                   // KEYBOARD
+    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
 }
 
 impl CnvType for Keyboard {
@@ -1928,8 +2035,11 @@ impl CnvType for Keyboard {
         "KEYBOARD"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
+    fn has_event(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "ONCHAR" | "ONDONE" | "ONINIT" | "ONKEYDOWN" | "ONKEYUP" | "ONSIGNAL"
+        )
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -1942,29 +2052,46 @@ impl CnvType for Keyboard {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
+        name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _script_runner: &mut CnvRunner,
-        _context: &mut RunnerContext,
+        script_runner: &mut CnvRunner,
+        context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        todo!()
+        match name {
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.on_init.as_ref() {
+                    v.run(script_runner, context)
+                }
+                None
+            }
+            _ => todo!(),
+        }
     }
 
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
+    fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        match name {
+            "ONINIT" => self.on_init.clone().map(|v| v.into()),
+            _ => todo!(),
+        }
     }
 
     fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let keyboard = properties.remove("KEYBOARD").and_then(discard_if_empty);
-        Ok(Self { keyboard })
+        let on_init = properties
+            .remove("ONINIT")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
+        Ok(Self { keyboard, on_init })
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Mouse {
     // MOUSE
-    mouse: Option<String>, // MOUSE
-    raw: Option<i32>,      // RAW
+    mouse: Option<String>,                      // MOUSE
+    raw: Option<i32>,                           // RAW
+    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
 }
 
 impl CnvType for Mouse {
@@ -1980,8 +2107,11 @@ impl CnvType for Mouse {
         "MOUSE"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
+    fn has_event(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "ONCLICK" | "ONDBLCLICK" | "ONDONE" | "ONINIT" | "ONMOVE" | "ONRELEASE" | "ONSIGNAL"
+        )
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -1994,16 +2124,28 @@ impl CnvType for Mouse {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
+        name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _script_runner: &mut CnvRunner,
-        _context: &mut RunnerContext,
+        script_runner: &mut CnvRunner,
+        context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        todo!()
+        // println!("Calling method: {:?} of object: {:?}", name, self);
+        match name {
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.on_init.as_ref() {
+                    v.run(script_runner, context)
+                }
+                None
+            }
+            _ => todo!(),
+        }
     }
 
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
+    fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        match name {
+            "ONINIT" => self.on_init.clone().map(|v| v.into()),
+            _ => todo!(),
+        }
     }
 
     fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
@@ -2013,7 +2155,16 @@ impl CnvType for Mouse {
             .and_then(discard_if_empty)
             .map(parse_i32)
             .transpose()?;
-        Ok(Self { mouse, raw })
+        let on_init = properties
+            .remove("ONINIT")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
+        Ok(Self {
+            mouse,
+            raw,
+            on_init,
+        })
     }
 }
 
@@ -2281,7 +2432,8 @@ impl CnvType for Scene {
 #[derive(Debug, Clone)]
 pub struct Sequence {
     // SEQUENCE
-    filename: Option<String>, // FILENAME
+    filename: Option<String>,                   // FILENAME
+    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
 }
 
 impl CnvType for Sequence {
@@ -2314,30 +2466,48 @@ impl CnvType for Sequence {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
+        name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _script_runner: &mut CnvRunner,
-        _context: &mut RunnerContext,
+        script_runner: &mut CnvRunner,
+        context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        todo!()
+        // println!("Calling method: {:?} of object: {:?}", name, self);
+        match name {
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.on_init.as_ref() {
+                    v.run(script_runner, context)
+                }
+                None
+            }
+            _ => todo!(),
+        }
     }
 
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
+    fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        match name {
+            "ONINIT" => self.on_init.clone().map(|v| v.into()),
+            _ => todo!(),
+        }
     }
 
     fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
         let filename = properties.remove("FILENAME").and_then(discard_if_empty);
-        Ok(Self { filename })
+        let on_init = properties
+            .remove("ONINIT")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
+        Ok(Self { filename, on_init })
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Sound {
     // SOUND
-    filename: Option<String>,         // FILENAME
-    flush_after_played: Option<bool>, // FLUSHAFTERPLAYED
-    preload: Option<bool>,            // PRELOAD
+    filename: Option<String>,                   // FILENAME
+    flush_after_played: Option<bool>,           // FLUSHAFTERPLAYED
+    preload: Option<bool>,                      // PRELOAD
+    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
 }
 
 impl CnvType for Sound {
@@ -2370,16 +2540,33 @@ impl CnvType for Sound {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
-        _arguments: &[CnvValue],
-        _script_runner: &mut CnvRunner,
-        _context: &mut RunnerContext,
+        name: CallableIdentifier,
+        arguments: &[CnvValue],
+        script_runner: &mut CnvRunner,
+        context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        todo!()
+        // println!("Calling method: {:?} of object: {:?}", name, self);
+        match name {
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.on_init.as_ref() {
+                    v.run(script_runner, context)
+                }
+                None
+            }
+            CallableIdentifier::Method("PLAY") => {
+                assert!(arguments.len() == 0);
+                // TODO: play sound
+                None
+            }
+            _ => todo!(),
+        }
     }
 
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
+    fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        match name {
+            "ONINIT" => self.on_init.clone().map(|v| v.into()),
+            _ => todo!(),
+        }
     }
 
     fn new(mut properties: HashMap<String, String>) -> Result<Self, TypeParsingError> {
@@ -2394,10 +2581,16 @@ impl CnvType for Sound {
             .and_then(discard_if_empty)
             .map(parse_bool)
             .transpose()?;
+        let on_init = properties
+            .remove("ONINIT")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
         Ok(Self {
             filename,
             flush_after_played,
             preload,
+            on_init,
         })
     }
 }
@@ -2408,7 +2601,7 @@ pub struct Str {
     default: Option<String>, // DEFAULT
     netnotify: Option<bool>, // NETNOTIFY
     to_ini: Option<bool>,    // TOINI
-    value: Option<String>,   // VALUE
+    value: String,           // VALUE
 }
 
 impl CnvType for Str {
@@ -2438,12 +2631,19 @@ impl CnvType for Str {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
-        _arguments: &[CnvValue],
+        name: CallableIdentifier,
+        arguments: &[CnvValue],
         _script_runner: &mut CnvRunner,
         _context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        todo!()
+        match name {
+            CallableIdentifier::Method("SET") => {
+                assert!(arguments.len() == 1);
+                self.value = arguments[0].to_string();
+                None
+            }
+            _ => todo!(),
+        }
     }
 
     fn get_property(&self, _name: &str) -> Option<PropertyValue> {
@@ -2462,7 +2662,7 @@ impl CnvType for Str {
             .and_then(discard_if_empty)
             .map(parse_bool)
             .transpose()?;
-        let value = properties.remove("VALUE").and_then(discard_if_empty);
+        let value = properties.remove("VALUE").unwrap_or_default();
         Ok(Self {
             default,
             netnotify,
@@ -2710,9 +2910,10 @@ impl CnvType for Text {
 #[derive(Debug, Clone)]
 pub struct Timer {
     // TIMER
-    elapse: Option<i32>,   // ELAPSE
-    enabled: Option<bool>, // ENABLED
-    ticks: Option<i32>,    // TICKS
+    elapse: Option<i32>,                        // ELAPSE
+    enabled: Option<bool>,                      // ENABLED
+    ticks: Option<i32>,                         // TICKS
+    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
 }
 
 impl CnvType for Timer {
@@ -2742,12 +2943,21 @@ impl CnvType for Timer {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
+        name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _script_runner: &mut CnvRunner,
-        _context: &mut RunnerContext,
+        script_runner: &mut CnvRunner,
+        context: &mut RunnerContext,
     ) -> Option<CnvValue> {
-        todo!()
+        // println!("Calling method: {:?} of object: {:?}", name, self);
+        match name {
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.on_init.as_ref() {
+                    v.run(script_runner, context)
+                }
+                None
+            }
+            _ => todo!(),
+        }
     }
 
     fn get_property(&self, _name: &str) -> Option<PropertyValue> {
@@ -2770,10 +2980,16 @@ impl CnvType for Timer {
             .and_then(discard_if_empty)
             .map(parse_i32)
             .transpose()?;
+        let on_init = properties
+            .remove("ONINIT")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
         Ok(Self {
             elapse,
             enabled,
             ticks,
+            on_init,
         })
     }
 }

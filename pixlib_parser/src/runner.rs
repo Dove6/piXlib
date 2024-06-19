@@ -51,6 +51,8 @@ pub struct RunnerContext {
 }
 
 impl CnvRunner {
+    // pub fn step(&mut self, )
+
     pub fn load_script(
         &mut self,
         path: Arc<Path>,
@@ -538,10 +540,15 @@ impl CnvStatement for Program {
         // println!("Program::run: {:?}", self);
         match self {
             Program::Identifier(identifier) => {
-                let _obj = runner
+                let obj = runner
                     .get_object(identifier)
                     .unwrap_or_else(|| panic!("Expected existing object named {}", &identifier));
-                todo!(); // run object
+                obj.call_method(
+                    CallableIdentifier::Method("RUN"),
+                    &Vec::new(),
+                    runner,
+                    context,
+                );
             }
             Program::Block(ignorable_statements) => {
                 for ignorable_statement in ignorable_statements {

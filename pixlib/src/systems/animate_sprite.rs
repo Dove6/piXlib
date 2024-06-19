@@ -104,22 +104,27 @@ pub fn animate_sprite(
         }
         match state.playing_state {
             PlaybackState::Forward if timer.just_finished() => {
+                let prev_frame_idx = state.frame_idx;
                 let mut frame_limit = sequence.frames.len();
                 if let LoopingSettings::LoopingAfter(looping_after) = sequence.looping {
                     frame_limit = frame_limit.min(looping_after);
                 }
-                if matches!(sequence.looping, LoopingSettings::LoopingAfter(_))
-                    || debug_settings.force_animation_infinite_looping
+                state.frame_idx =
+                    (state.frame_idx + timer.times_finished_this_tick() as usize) % frame_limit;
+                if state.frame_idx < prev_frame_idx
+                    && !matches!(sequence.looping, LoopingSettings::LoopingAfter(_))
+                    && !debug_settings.force_animation_infinite_looping
                 {
-                    state.frame_idx =
-                        (state.frame_idx + timer.times_finished_this_tick() as usize) % frame_limit;
-                } else {
+                    info!(
+                        "Stopping animation {} (seq {}/{}, frame {}/{})",
+                        ident,
+                        state.sequence_idx,
+                        animation.sequences.len(),
+                        state.frame_idx,
+                        animation.sequences[state.sequence_idx].frames.len()
+                    );
                     state.frame_idx = frame_limit.saturating_sub(1);
                     state.playing_state = PlaybackState::Stopped;
-                    info!(
-                        "Stopping animation {} (seq {}, frame {})",
-                        ident, state.sequence_idx, state.frame_idx
-                    );
                     animation_obj.events.push(GraphicsEvents::Finished(
                         animation
                             .sequences
@@ -155,14 +160,22 @@ pub fn animate_sprite(
                 }
                 state.playing_state = PlaybackState::Forward;
                 info!(
-                    "Playing animation {} (seq {}, frame {})",
-                    ident, state.sequence_idx, state.frame_idx
+                    "Playing animation {} (seq {}/{}, frame {}/{})",
+                    ident,
+                    state.sequence_idx,
+                    animation.sequences.len(),
+                    state.frame_idx,
+                    animation.sequences[state.sequence_idx].frames.len()
                 );
             }
             Some(GraphicsEvents::Stop(_)) if state.playing_state != PlaybackState::Stopped => {
                 info!(
-                    "Stopping animation {} (seq {}, frame {})",
-                    ident, state.sequence_idx, state.frame_idx
+                    "Stopping animation {} (seq {}/{}, frame {}/{})",
+                    ident,
+                    state.sequence_idx,
+                    animation.sequences.len(),
+                    state.frame_idx,
+                    animation.sequences[state.sequence_idx].frames.len()
                 );
                 state.playing_state = PlaybackState::Stopped;
                 animation_obj.events.push(GraphicsEvents::Finished(
