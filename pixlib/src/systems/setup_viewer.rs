@@ -1,6 +1,5 @@
-use crate::animation::{ann_file_to_animation_bundle, CnvIdentifier};
-use crate::image::img_file_to_sprite_bundle;
-use crate::iso::{parse_file, read_file_from_iso, read_script, AmFile};
+use crate::animation::{AnimationBundle, CnvIdentifier};
+use crate::iso::read_script;
 use crate::resources::{
     ChosenScene, GamePaths, InsertedDisk, ObjectBuilderIssueManager, RootEntityToDespawn,
     SceneDefinition, ScriptRunner,
@@ -8,15 +7,15 @@ use crate::resources::{
 use bevy::hierarchy::BuildChildren;
 use bevy::log::{error, info};
 use bevy::prelude::SpatialBundle;
+use bevy::sprite::SpriteBundle;
 use bevy::{
     ecs::system::Res,
-    prelude::{Assets, Commands, Image, ResMut},
-    sprite::TextureAtlasLayout,
+    prelude::{Commands, ResMut},
 };
 use pixlib_parser::classes::{CallableIdentifier, CnvObject, PropertyValue};
 use pixlib_parser::runner::{CnvStatement, RunnerContext, ScriptSource};
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -33,8 +32,6 @@ pub fn setup_viewer(
     inserted_disk: Res<InsertedDisk>,
     chosen_scene: Res<ChosenScene>,
     mut commands: Commands,
-    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
-    mut textures: ResMut<Assets<Image>>,
     mut script_runner: ResMut<ScriptRunner>,
     mut issue_manager: ResMut<ObjectBuilderIssueManager>,
 ) {
@@ -152,31 +149,14 @@ pub fn setup_viewer(
                         }
                     }),
             ) {
-                let buffer = read_file_from_iso(iso, &PathBuf::from(&file_path), None);
                 let z_position =
                     priority as f32 + (script_index * 1000 + object_index) as f32 / 100000f32;
-                match parse_file(&buffer, &file_path) {
-                    AmFile::Img(img_file) => {
-                        let mut bundle = img_file_to_sprite_bundle(&img_file, &mut textures);
-                        bundle.transform.translation.z = z_position;
-                        info!(
-                            "Handling image file: {file_path} z: {}",
-                            &bundle.transform.translation.z
-                        );
-                        parent.spawn((CnvIdentifier(identifier), bundle));
+                match file_path.to_lowercase().chars().rev().take(3).collect::<String>().as_str() {
+                    "gmi" => {
+                        parent.spawn((CnvIdentifier(identifier), SpriteBundle::default()));
                     }
-                    AmFile::Ann(ann_file) => {
-                        let mut bundle = ann_file_to_animation_bundle(
-                            &ann_file,
-                            &mut textures,
-                            &mut texture_atlases,
-                        );
-                        bundle.sprite_sheet.transform.translation.z = z_position;
-                        info!(
-                            "Handling animation file: {file_path} z: {}",
-                            &bundle.sprite_sheet.transform.translation.z
-                        );
-                        parent.spawn((CnvIdentifier(identifier), bundle));
+                    "nna" => {
+                        parent.spawn((CnvIdentifier(identifier), AnimationBundle::default()));
                     }
                     _ => panic!(),
                 }
@@ -189,39 +169,40 @@ pub fn setup_viewer(
         if init_beh_obj.content.read().unwrap().get_type_id() != "BEHAVIOUR" {
             error!(
                 "Expected __INIT__ object to be a behavior, not: {:?}",
-                &init_beh_obj.content
+                &init_beh_obj.content.read().unwrap().get_type_id()
             );
             return;
         }
         info!("Running __INIT__ behavior...");
         let mut context = RunnerContext {
+            runner: &mut script_runner,
             self_object: init_beh_obj.name.clone(),
             current_object: init_beh_obj.name.clone(),
         };
         init_beh_obj.call_method(
             CallableIdentifier::Method("RUN"),
             &Vec::new(),
-            &mut script_runner,
             &mut context,
         );
     }
 
     let scene_script = script_runner.get_script(&scene_script_path).unwrap();
-    info!("Scene objects: {:#?}", scene_script.objects);
+    info!("Scene objects: {:#?}", scene_script.objects.iter().map(|o| &o.name).collect::<Vec<_>>());
     let mut initable_objects: Vec<Arc<CnvObject>> = Vec::new();
     scene_script.find_objects(
         |o| o.content.read().unwrap().has_event("ONINIT"),
         &mut initable_objects,
     );
-    info!("Found initable objects: {:?}", initable_objects);
+    info!("Found initable objects: {:?}", initable_objects.iter().map(|o| &o.name).collect::<Vec<_>>());
     for object in initable_objects {
         let mut context = RunnerContext {
+            runner: &mut script_runner,
             self_object: object.name.clone(),
             current_object: object.name.clone(),
         };
         if let Some(PropertyValue::Code(handler)) = object.get_property("ONINIT") {
-            println!("Processing initable object: {:?}", object);
-            handler.run(&mut script_runner, &mut context)
+            println!("Processing initable object: {:?}", object.name);
+            handler.run(&mut context)
         }
     }
 }
@@ -230,5 +211,6 @@ fn get_path_to_scene_file(game_paths: &GamePaths, scene_path: &str, filename: &s
     let mut path = game_paths.data_directory.join(scene_path).join(filename);
     info!("PATHS: {:?}, {:?}, {:?}", &scene_path, &filename, &path);
     path.as_mut_os_string().make_ascii_uppercase();
+    info!("get_path_to_scene_file: {}, {}, {}", game_paths.data_directory.to_str().unwrap_or_default(), scene_path, filename);
     path.into()
 }

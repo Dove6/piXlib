@@ -10,7 +10,11 @@ pub mod resources;
 pub mod states;
 pub mod systems;
 
-use std::{env, path::PathBuf, sync::Arc};
+use std::{
+    env,
+    path::PathBuf,
+    sync::{Arc, RwLock},
+};
 
 use animation::CnvIdentifier;
 use bevy::{
@@ -29,9 +33,9 @@ use bevy::{
 };
 use iso::{read_game_definition, read_script};
 use pixlib_parser::{
-    classes::{Animation, GraphicsEvents, Image, ObjectBuilderError, PropertyValue},
+    classes::{Animation, Image, ObjectBuilderError, PropertyValue},
     common::{Issue, IssueHandler, IssueKind, IssueManager},
-    runner::ScriptSource,
+    runner::{CnvRunner, ScriptSource},
 };
 use resources::{
     ChosenScene, DebugSettings, GamePaths, InsertedDisk, ObjectBuilderIssueManager,
@@ -39,9 +43,8 @@ use resources::{
 };
 use states::AppState;
 use systems::{
-    animate_sprite, cleanup_root, detect_return_to_chooser, detect_return_to_chooser_goto,
-    draw_cursor, handle_dropped_iso, navigate_chooser, setup, setup_chooser, setup_viewer,
-    update_chooser_labels,
+    animate_sprite, cleanup_root, detect_return_to_chooser, draw_cursor, handle_dropped_iso,
+    navigate_chooser, setup, setup_chooser, setup_viewer, update_chooser_labels,
 };
 
 const WINDOW_SIZE: (usize, usize) = (800, 600);
@@ -83,7 +86,10 @@ fn main() {
         })
         .insert_resource(InsertedDisk::try_from(env::args()).expect("Usage: pixlib path_to_iso"))
         .insert_resource(ChosenScene::default())
-        .insert_resource(ScriptRunner::default())
+        .insert_resource(ScriptRunner(CnvRunner {
+            scripts: Default::default(),
+            filesystem: Arc::new(RwLock::new(InsertedDisk::try_from(env::args()).unwrap())),
+        }))
         .insert_resource(ObjectBuilderIssueManager(issue_manager))
         .init_state::<AppState>()
         .add_systems(Startup, setup)
@@ -103,8 +109,7 @@ fn main() {
         .add_systems(Update, reload_main_script)
         .add_systems(
             Update,
-            (detect_return_to_chooser, detect_return_to_chooser_goto)
-                .run_if(in_state(AppState::SceneViewer)),
+            (detect_return_to_chooser).run_if(in_state(AppState::SceneViewer)),
         )
         .add_systems(OnExit(AppState::SceneViewer), cleanup_root)
         .run();
@@ -123,45 +128,31 @@ pub fn show_hide_graphics(
                 "Animation has no associated object in script runner: {}",
                 ident
             );
+            *visibility = Visibility::Hidden;
             continue;
         };
         // info!("Object {ident}: {:?}", animation_obj_whole.content);
         let mut animation_obj_guard = animation_obj_whole.content.write().unwrap();
-        let Some(events) = (if let Some(animation_obj) =
+        let is_visible = if let Some(animation_obj) =
             animation_obj_guard.as_any_mut().downcast_mut::<Animation>()
         {
-            Some(&mut animation_obj.events)
+            animation_obj.is_visible()
         } else if let Some(image_obj) = animation_obj_guard.as_any_mut().downcast_mut::<Image>() {
-            Some(&mut image_obj.events)
+            image_obj.is_visible()
         } else {
-            None
-        }) else {
-            return;
+            false
         };
-        let hidden = matches!(
-            events
-                .iter()
-                .filter(|e| matches!(e, GraphicsEvents::Hide | GraphicsEvents::Show))
-                .last(),
-            Some(GraphicsEvents::Hide)
-        );
-        let shown = matches!(
-            events
-                .iter()
-                .filter(|e| matches!(e, GraphicsEvents::Hide | GraphicsEvents::Show))
-                .last(),
-            Some(GraphicsEvents::Show)
-        );
-        events.retain(|e| !matches!(e, GraphicsEvents::Hide | GraphicsEvents::Show));
         drop(animation_obj_guard);
-        if hidden {
-            info!("{} GraphicsEvents::Hide()", ident);
-            *visibility = Visibility::Hidden;
+        if *visibility == Visibility::Visible && !is_visible {
+            info!("{} HIDE", ident);
+        } else if *visibility == Visibility::Hidden && is_visible {
+            info!("{} SHOW", ident)
         }
-        if shown {
-            info!("{} GraphicsEvents::Show()", ident);
-            *visibility = Visibility::Visible;
-        }
+        *visibility = if is_visible {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
     }
 }
 
@@ -201,7 +192,7 @@ fn reload_main_script(
     if vec.len() != 1 {
         error!(
             "Incorrect number of APPLICATION objects (should be 1): {:?}",
-            vec
+            vec.iter().map(|o| &o.name)
         );
         return;
     }

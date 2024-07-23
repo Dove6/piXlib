@@ -1,10 +1,7 @@
 use std::{collections::HashMap, io::Read, path::PathBuf};
 
 use pixlib_parser::{
-    classes::{CnvObject, CnvObjectBuilder},
-    common::{Issue, IssueHandler, IssueManager},
-    declarative_parser::{CnvDeclaration, DeclarativeParser, ParserIssue},
-    scanner::{CnvDecoder, CnvHeader, CnvScanner, CodepageDecoder, CP1250_LUT},
+    classes::{CnvObject, CnvObjectBuilder}, common::{Issue, IssueHandler, IssueManager}, declarative_parser::{CnvDeclaration, DeclarativeParser, ParserIssue}, runner::FileSystem, scanner::{CnvDecoder, CnvHeader, CnvScanner, CodepageDecoder, CP1250_LUT}
 };
 
 #[derive(Debug)]
@@ -28,9 +25,22 @@ impl<T> SomePanicable for Option<T> {
     }
 }
 
+#[derive(Debug)]
+struct PlainFileSystem;
+
+impl FileSystem for PlainFileSystem {
+    fn read_file(&self, filename: &str) -> std::io::Result<Vec<u8>> {
+        std::fs::read(filename)
+    }
+
+    fn write_file(&mut self, filename: &str, data: &[u8]) -> std::io::Result<()> {
+        std::fs::write(filename, data)
+    }
+}
+
 fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
     eprintln!("{:?}", &filename);
-    let input = std::fs::File::open(filename)?;
+    let input = std::fs::File::open(filename.clone())?;
     let mut input = input.bytes().peekable();
     let mut first_line = Vec::<u8>::new();
     while let Some(res) =
@@ -65,7 +75,7 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
         match dec {
             CnvDeclaration::ObjectInitialization(name) => {
                 objects
-                    .insert(name.clone(), CnvObjectBuilder::new(name, counter))
+                    .insert(name.clone(), CnvObjectBuilder::new(filename.clone().into(), name, counter))
                     .and_panic();
                 counter += 1;
             }
@@ -89,13 +99,14 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
         println!("{:?}", err);
     }
     println!("Parsing ended. Building objects.");
+    let filesystem = PlainFileSystem;
     let objects: HashMap<String, CnvObject> = objects
         .into_iter()
-        .map(|(name, builder)| (name, builder.build().unwrap()))
+        .map(|(name, builder)| (name, builder.build(&filesystem).unwrap()))
         .collect();
     println!("Built objects:");
     for obj in objects {
-        println!("{:#?}", obj);
+        println!("{:#?}", obj.1.name);
     }
     Ok(())
 }

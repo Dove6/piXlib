@@ -1,42 +1,37 @@
 use crate::anchors::{add_tuples, get_anchor, UpdatableAnchor};
-use crate::animation::{AnimationDefinition, AnimationState, AnimationTimer};
-use crate::animation::{CnvIdentifier, PlaybackState};
-use crate::resources::{DebugSettings, ScriptRunner};
+use crate::animation::AnimationDefinition;
+use crate::animation::CnvIdentifier;
+use crate::resources::ScriptRunner;
+use bevy::asset::{Assets, Handle};
 use bevy::ecs::system::ResMut;
-use bevy::log::{info, warn};
-use bevy::{
-    ecs::system::Res,
-    prelude::Query,
-    sprite::{Sprite, TextureAtlas},
-    time::Time,
-};
-use pixlib_formats::file_formats::ann::LoopingSettings;
-use pixlib_parser::classes::{Animation, GraphicsEvents, PropertyValue};
-use pixlib_parser::runner::{CnvStatement, RunnerContext};
+use bevy::log::{error, info, warn};
+use bevy::render::render_asset::RenderAssetUsages;
+use bevy::render::render_resource::{Extent3d, TextureFormat};
+use bevy::render::texture::Image;
+use bevy::render::view::Visibility;
+use bevy::{ecs::system::Res, prelude::Query, sprite::Sprite, time::Time};
+use pixlib_parser::classes::Animation;
 
 pub fn animate_sprite(
     time: Res<Time>,
-    debug_settings: Res<DebugSettings>,
     mut script_runner: ResMut<ScriptRunner>,
+    mut textures: ResMut<Assets<Image>>,
     mut query: Query<(
         &CnvIdentifier,
         &AnimationDefinition,
-        &mut AnimationTimer,
-        &mut AnimationState,
         &mut Sprite,
-        &mut TextureAtlas,
+        &mut Visibility,
+        &mut Handle<Image>,
     )>,
 ) {
     info!("Delta {:?}", time.delta());
-    for (ident, animation, mut timer, mut state, mut atlas_sprite, mut atlas) in &mut query {
+    for (ident, _, mut atlas_sprite, mut visibility, mut texture) in &mut query {
         let Some(ident) = &ident.0 else {
             continue;
         };
-        timer.tick(time.delta());
-        let sequence = &animation.sequences[state.sequence_idx];
-        let Some(animation_obj_whole) = script_runner.get_object(ident) else {
+        let Some(animation_obj_whole) = script_runner.get_object(&ident) else {
             warn!(
-                "Animation has no associated object in script runner: {}",
+                "Animation has no associated object in script runner: {:?}",
                 ident
             );
             continue;
@@ -46,183 +41,38 @@ pub fn animate_sprite(
             .as_any_mut()
             .downcast_mut::<Animation>()
             .unwrap();
-        info!("{} s events {:?}", ident, animation_obj.events);
-        let changed_playback_state = animation_obj
-            .events
-            .iter()
-            .filter(|e| matches!(e, GraphicsEvents::Play(_) | GraphicsEvents::Pause | GraphicsEvents::Stop(_)))
-            .last()
-            .cloned();
-        animation_obj
-            .events
-            .retain(|e| !matches!(e, GraphicsEvents::Play(_) | GraphicsEvents::Pause | GraphicsEvents::Stop(_)));
-        if sequence.frames.is_empty() {
-            if state.playing_state != PlaybackState::Stopped {
-                info!("Stopping empty animation {}", ident);
-                state.playing_state = PlaybackState::Stopped;
-                animation_obj
-                    .events
-                    .push(GraphicsEvents::Finished(String::new()));
-            }
-            match changed_playback_state {
-                Some(GraphicsEvents::Play(_)) => {
-                    info!("Playing empty animation {}", ident);
-                    state.frame_idx = 0;
-                    state.playing_state = PlaybackState::Forward;
-                }
-                None => {}
-                _ => {
-                    info!(
-                        "Another event for empty animation {}: {:?}",
-                        ident, changed_playback_state
-                    );
-                }
-            }
-            let finished_playing = animation_obj
-                .events
-                .iter()
-                .filter(|e| matches!(e, GraphicsEvents::Finished(_)))
-                .count()
-                > 0;
-            animation_obj
-                .events
-                .retain(|e| !matches!(e, GraphicsEvents::Finished(_)));
-            drop(animation_obj_guard);
-            if finished_playing {
-                let mut context = RunnerContext {
-                    self_object: ident.clone(),
-                    current_object: ident.clone(),
-                };
-                if let Some(PropertyValue::Code(handler)) =
-                    animation_obj_whole.get_property("ONFINISHED")
-                {
-                    info!("Calling ONFINISHED on object: {:?}", animation_obj_whole);
-                    handler.run(&mut script_runner, &mut context)
-                }
-            }
-            continue;
-        }
-        match state.playing_state {
-            PlaybackState::Forward if timer.just_finished() => {
-                let prev_frame_idx = state.frame_idx;
-                let mut frame_limit = sequence.frames.len();
-                if let LoopingSettings::LoopingAfter(looping_after) = sequence.looping {
-                    frame_limit = frame_limit.min(looping_after);
-                }
-                state.frame_idx =
-                    (state.frame_idx + timer.times_finished_this_tick() as usize) % frame_limit;
-                if state.frame_idx < prev_frame_idx
-                    && !matches!(sequence.looping, LoopingSettings::LoopingAfter(_))
-                    && !debug_settings.force_animation_infinite_looping
-                {
-                    info!(
-                        "Stopping animation {} (seq {}/{}, frame {}/{})",
-                        ident,
-                        state.sequence_idx,
-                        animation.sequences.len(),
-                        state.frame_idx,
-                        animation.sequences[state.sequence_idx].frames.len()
-                    );
-                    state.frame_idx = frame_limit.saturating_sub(1);
-                    state.playing_state = PlaybackState::Stopped;
-                    animation_obj.events.push(GraphicsEvents::Finished(
-                        animation
-                            .sequences
-                            .get(state.sequence_idx)
-                            .map(|s| s.name.clone())
-                            .or(animation.sequences.first().map(|s| s.name.clone()))
-                            .unwrap_or_default(),
-                    ));
-                }
-                let frame = &sequence.frames[state.frame_idx];
-                let sprite = &animation.sprites[frame.sprite_idx];
-                atlas.index = frame.sprite_idx;
-                atlas_sprite.update_anchor(get_anchor(
-                    add_tuples(sprite.offset_px, frame.offset_px),
-                    sprite.size_px,
-                ));
-            }
-            PlaybackState::Backward if timer.just_finished() => {}
-            _ => {}
-        }
-        match changed_playback_state {
-            Some(GraphicsEvents::Play(sequence_name)) => {
-                let previous_seq_idx = state.sequence_idx;
-                state.sequence_idx = animation
-                    .sequences
-                    .iter()
-                    .position(|s| s.name == *sequence_name)
-                    .unwrap_or_default();
-                if previous_seq_idx != state.sequence_idx
-                    || state.playing_state == PlaybackState::Stopped
-                {
-                    state.frame_idx = 0;
-                }
-                state.playing_state = PlaybackState::Forward;
-                info!(
-                    "Playing animation {} (seq {}/{}, frame {}/{})",
-                    ident,
-                    state.sequence_idx,
-                    animation.sequences.len(),
-                    state.frame_idx,
-                    animation.sequences[state.sequence_idx].frames.len()
-                );
-            }
-            Some(GraphicsEvents::Pause) if state.playing_state != PlaybackState::Stopped => {
-                info!(
-                    "Pausing animation {} (seq {}/{}, frame {}/{})",
-                    ident,
-                    state.sequence_idx,
-                    animation.sequences.len(),
-                    state.frame_idx,
-                    animation.sequences[state.sequence_idx].frames.len()
-                );
-                state.playing_state = if state.playing_state == PlaybackState::Forward { PlaybackState::ForwardPaused } else { PlaybackState::BackwardPaused };
-                // TODO: emit ONPAUSED
-            }
-            Some(GraphicsEvents::Stop(_)) if state.playing_state != PlaybackState::Stopped => {
-                info!(
-                    "Stopping animation {} (seq {}/{}, frame {}/{})",
-                    ident,
-                    state.sequence_idx,
-                    animation.sequences.len(),
-                    state.frame_idx,
-                    animation.sequences[state.sequence_idx].frames.len()
-                );
-                state.playing_state = PlaybackState::Stopped;
-                animation_obj.events.push(GraphicsEvents::Finished(
-                    animation
-                        .sequences
-                        .get(state.sequence_idx)
-                        .map(|s| s.name.clone())
-                        .or(animation.sequences.first().map(|s| s.name.clone()))
-                        .unwrap_or_default(),
-                ));
-            }
-            _ => {}
-        }
-        info!("{} e events {:?}", ident, animation_obj.events);
-        let finished_playing = animation_obj
-            .events
-            .iter()
-            .filter(|e| matches!(e, GraphicsEvents::Finished(_)))
-            .count()
-            > 0;
-        animation_obj
-            .events
-            .retain(|e| !matches!(e, GraphicsEvents::Finished(_)));
-        drop(animation_obj_guard);
-        if finished_playing {
-            let mut context = RunnerContext {
+        animation_obj.tick(
+            &mut pixlib_parser::runner::RunnerContext {
+                runner: &mut script_runner,
                 self_object: ident.clone(),
                 current_object: ident.clone(),
-            };
-            if let Some(PropertyValue::Code(handler)) =
-                animation_obj_whole.get_property("ONFINISHED")
-            {
-                info!("Calling ONFINISHED on object: {:?}", animation_obj_whole);
-                handler.run(&mut script_runner, &mut context)
-            }
-        }
+            },
+            time.delta().as_secs_f64(),
+        );
+        let Ok(frame_to_show) = animation_obj
+            .get_frame_to_show()
+            .inspect_err(|e| error!("Error getting frame to show: {:?}", e))
+        else {
+            continue;
+        };
+        let Some((frame, sprite, data)) = frame_to_show else {
+            *visibility = Visibility::Hidden;
+            continue;
+        };
+        *texture = textures.add(Image::new(
+            Extent3d {
+                width: sprite.size_px.0,
+                height: sprite.size_px.1,
+                depth_or_array_layers: 1,
+            },
+            bevy::render::render_resource::TextureDimension::D2,
+            data.data.to_owned(),
+            TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::default(),
+        ));
+        atlas_sprite.update_anchor(get_anchor(
+            add_tuples(sprite.offset_px, frame.offset_px),
+            sprite.size_px,
+        ));
     }
 }

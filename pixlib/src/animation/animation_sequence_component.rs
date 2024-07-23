@@ -1,7 +1,7 @@
 use bevy::ecs::component::Component;
 use pixlib_formats::file_formats::ann::{self, AnnFile, LoopingSettings};
 
-#[derive(Component, Clone, Debug, PartialEq, Eq)]
+#[derive(Component, Clone, Debug, PartialEq, Eq, Default)]
 pub struct AnimationDefinition {
     pub sequences: Vec<SequenceDefinition>,
     pub sprites: Vec<SpriteDefinition>,

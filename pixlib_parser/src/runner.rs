@@ -2,14 +2,14 @@ use std::{
     collections::{HashMap, VecDeque},
     ops::{Add, Div, Mul, Rem, Sub},
     path::Path,
-    sync::Arc,
+    sync::{Arc, RwLock},
 };
 
 use crate::{
     ast::{
         Expression, IgnorableProgram, IgnorableStatement, Invocation, Operation, Program, Statement,
     },
-    classes::{CallableIdentifier, CnvObject, CnvObjectBuilder, ObjectBuilderError},
+    classes::{CallableIdentifier, CnvObject, CnvObjectBuilder, ObjectBuilderError, RunnerResult},
     common::{Issue, IssueHandler, IssueManager},
     declarative_parser::{
         CnvDeclaration, DeclarativeParser, ParserFatal, ParserInput, ParserIssue,
@@ -40,14 +40,34 @@ where
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct CnvRunner {
-    scripts: HashMap<Arc<Path>, CnvScript>,
+    pub scripts: HashMap<Arc<Path>, CnvScript>,
+    pub filesystem: Arc<RwLock<dyn FileSystem>>,
 }
 
-pub struct RunnerContext {
+pub struct RunnerContext<'a> {
+    pub runner: &'a mut CnvRunner,
     pub self_object: String,
     pub current_object: String,
+}
+
+pub trait FileSystem: std::fmt::Debug + Send + Sync {
+    fn read_file(&self, filename: &str) -> std::io::Result<Vec<u8>>;
+    fn write_file(&mut self, filename: &str, data: &[u8]) -> std::io::Result<()>;
+}
+
+#[derive(Debug)]
+pub struct DummyFileSystem;
+
+impl FileSystem for DummyFileSystem {
+    fn read_file(&self, filename: &str) -> std::io::Result<Vec<u8>> {
+        Ok(Vec::new())
+    }
+
+    fn write_file(&mut self, filename: &str, data: &[u8]) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 impl CnvRunner {
@@ -70,9 +90,13 @@ impl CnvRunner {
         while let Some(Ok((_pos, dec, _))) = dec_parser.next_if(|result| result.is_ok()) {
             match dec {
                 CnvDeclaration::ObjectInitialization(name) => {
-                    objects.push(CnvObjectBuilder::new(name.clone(), objects.len()));
+                    objects.push(CnvObjectBuilder::new(
+                        Arc::clone(&path),
+                        name.trim().to_owned(),
+                        objects.len(),
+                    ));
                     name_to_object
-                        .insert(name, objects.len() - 1)
+                        .insert(name.trim().to_owned(), objects.len() - 1)
                         .warn_if_some();
                 }
                 CnvDeclaration::PropertyAssignment {
@@ -82,7 +106,7 @@ impl CnvRunner {
                     value,
                 } => {
                     let Some(obj) = name_to_object
-                        .get(&parent)
+                        .get(parent.trim())
                         .and_then(|i| objects.get_mut(*i))
                     else {
                         panic!(
@@ -99,7 +123,7 @@ impl CnvRunner {
         }
         let objects: Vec<Arc<CnvObject>> = objects
             .into_iter()
-            .filter_map(|builder| match builder.build() {
+            .filter_map(|builder| match builder.build(&*self.filesystem.read().unwrap()) {
                 Ok(built_object) => Some(Arc::new(built_object)),
                 Err(e) => {
                     issue_manager.emit_issue(e);
@@ -214,16 +238,16 @@ impl CnvRunner {
             return Err(BehaviorRunningError::InvalidType);
         };
         let mut context = RunnerContext {
+            runner: self,
             self_object: init_beh_obj.name.clone(),
             current_object: init_beh_obj.name.clone(),
         };
-        init_beh_obj.call_method(
-            CallableIdentifier::Method("RUN"),
-            &Vec::new(),
-            self,
-            &mut context,
-        );
+        init_beh_obj.call_method(CallableIdentifier::Method("RUN"), &Vec::new(), &mut context);
         Ok(None)
+    }
+
+    pub fn change_scene(&mut self, scene_name: &str) -> Result<(), ()> {
+        todo!()
     }
 }
 
@@ -453,39 +477,36 @@ impl PartialEq for &CnvValue {
 }
 
 pub trait CnvExpression {
-    fn calculate(&self, runner: &mut CnvRunner, context: &mut RunnerContext) -> Option<CnvValue>;
+    fn calculate(&self, context: &mut RunnerContext) -> RunnerResult<Option<CnvValue>>;
 }
 
 pub trait CnvStatement {
-    fn run(&self, runner: &mut CnvRunner, context: &mut RunnerContext);
+    fn run(&self, context: &mut RunnerContext);
 }
 
 impl CnvExpression for Invocation {
-    fn calculate(&self, runner: &mut CnvRunner, context: &mut RunnerContext) -> Option<CnvValue> {
+    fn calculate(&self, context: &mut RunnerContext) -> RunnerResult<Option<CnvValue>> {
         // println!("Invocation::calculate: {:?}", self);
         if self.parent.is_none() {
-            None // TODO: match &self.name
+            Ok(None) // TODO: match &self.name
         } else {
             let parent = self
                 .parent
                 .as_ref()
                 .unwrap()
-                .calculate(runner, context)
+                .calculate(context)?
                 .expect("Invalid invocation parent");
-            let arguments: Vec<_> = self
+            let arguments = self
                 .arguments
                 .iter()
-                .map(|e| e.calculate(runner, context))
-                .collect();
+                .map(|e| e.calculate(context))
+                .collect::<RunnerResult<Vec<_>>>()?;
             let arguments: Vec<_> = arguments.into_iter().map(|e| e.unwrap()).collect();
             // println!("Calling method: {:?} of: {:?}", self.name, self.parent);
             match parent {
-                CnvValue::Reference(obj) => obj.call_method(
-                    CallableIdentifier::Method(&self.name),
-                    &arguments,
-                    runner,
-                    context,
-                ),
+                CnvValue::Reference(obj) => {
+                    obj.call_method(CallableIdentifier::Method(&self.name), &arguments, context)
+                }
                 _ => panic!(
                     "Expected invocation parent to be an object, got {:?}",
                     parent
@@ -496,31 +517,36 @@ impl CnvExpression for Invocation {
 }
 
 impl CnvExpression for Expression {
-    fn calculate(&self, runner: &mut CnvRunner, context: &mut RunnerContext) -> Option<CnvValue> {
+    fn calculate(&self, context: &mut RunnerContext) -> RunnerResult<Option<CnvValue>> {
         // println!("Expression::calculate: {:?}", self);
         match self {
-            Expression::LiteralBool(b) => Some(CnvValue::Boolean(*b)),
-            Expression::Identifier(name) => runner
+            Expression::LiteralBool(b) => Ok(Some(CnvValue::Boolean(*b))),
+            Expression::Identifier(name) => Ok(context
+                .runner
                 .get_object(name[..].trim_matches('\"'))
                 .map(CnvValue::Reference)
-                .or_else(|| Some(CnvValue::String(name.trim_matches('\"').to_owned()))),
-            Expression::SelfReference => runner
+                .or_else(|| Some(CnvValue::String(name.trim_matches('\"').to_owned())))),
+            Expression::SelfReference => Ok(context
+                .runner
                 .get_object(&context.self_object)
-                .map(CnvValue::Reference), // error
-            Expression::Parameter(_name) => None, // access function scope and retrieve arguments
+                .map(CnvValue::Reference)), // error
+            Expression::Parameter(_name) => Ok(None), // access function scope and retrieve arguments
             Expression::NameResolution(expression) => {
-                let _name = &expression.calculate(runner, context);
+                let _name = &expression.calculate(context);
                 let name = String::new(); // TODO: stringify
-                runner.get_object(&name[..]).map(CnvValue::Reference) // error
+                Ok(context
+                    .runner
+                    .get_object(&name[..])
+                    .map(CnvValue::Reference)) // error
             }
             Expression::FieldAccess(_expression, _field) => todo!(),
             Expression::Operation(expression, operations) => {
                 let mut result = expression
-                    .calculate(runner, context)
+                    .calculate(context)?
                     .expect("Expected non-void argument in operation");
                 for (operation, argument) in operations {
                     let argument = argument
-                        .calculate(runner, context)
+                        .calculate(context)?
                         .expect("Expected non-void argument in operation");
                     result = match operation {
                         Operation::Addition => &result + &argument,
@@ -530,7 +556,7 @@ impl CnvExpression for Expression {
                         Operation::Remainder => &result % &argument,
                     }
                 }
-                Some(result)
+                Ok(Some(result))
             }
             Expression::Block(_block) => todo!(), // create a temporary function
         }
@@ -538,33 +564,29 @@ impl CnvExpression for Expression {
 }
 
 impl CnvStatement for IgnorableProgram {
-    fn run(&self, runner: &mut CnvRunner, context: &mut RunnerContext) {
+    fn run(&self, context: &mut RunnerContext) {
         // println!("IgnorableProgram::run: {:?}", self);
         if self.ignored {
             return;
         }
-        self.value.run(runner, context);
+        self.value.run(context);
     }
 }
 
 impl CnvStatement for Program {
-    fn run(&self, runner: &mut CnvRunner, context: &mut RunnerContext) {
+    fn run(&self, context: &mut RunnerContext) {
         // println!("Program::run: {:?}", self);
         match self {
             Program::Identifier(identifier) => {
-                let obj = runner
+                let obj = context
+                    .runner
                     .get_object(identifier)
                     .unwrap_or_else(|| panic!("Expected existing object named {}", &identifier));
-                obj.call_method(
-                    CallableIdentifier::Method("RUN"),
-                    &Vec::new(),
-                    runner,
-                    context,
-                );
+                obj.call_method(CallableIdentifier::Method("RUN"), &Vec::new(), context);
             }
             Program::Block(ignorable_statements) => {
                 for ignorable_statement in ignorable_statements {
-                    ignorable_statement.run(runner, context);
+                    ignorable_statement.run(context);
                 }
             }
         }
@@ -572,24 +594,24 @@ impl CnvStatement for Program {
 }
 
 impl CnvStatement for IgnorableStatement {
-    fn run(&self, runner: &mut CnvRunner, context: &mut RunnerContext) {
+    fn run(&self, context: &mut RunnerContext) {
         // println!("IgnorableStatement::run: {:?}", self);
         if self.ignored {
             return;
         }
-        self.value.run(runner, context);
+        self.value.run(context);
     }
 }
 
 impl CnvStatement for Statement {
-    fn run(&self, runner: &mut CnvRunner, context: &mut RunnerContext) {
+    fn run(&self, context: &mut RunnerContext) {
         // println!("Statement::run: {:?}", self);
         match self {
             Statement::Invocation(invocation) => {
-                invocation.calculate(runner, context);
+                invocation.calculate(context);
             }
             Statement::ExpressionStatement(expression) => {
-                expression.calculate(runner, context);
+                expression.calculate(context);
             }
         }
     }

@@ -5,10 +5,10 @@ use bevy::{
 
 use super::{AnimationDefinition, AnimationState, AnimationTimer};
 
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct AnimationMarker;
 
-#[derive(Bundle, Clone)]
+#[derive(Bundle, Clone, Default)]
 pub struct AnimationBundle {
     pub marker: AnimationMarker,
     pub sprite_sheet: SpriteSheetBundle,

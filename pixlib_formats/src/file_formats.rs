@@ -1,6 +1,8 @@
 use codepage_strings::{Coding, ConvertError};
 use lazy_static::lazy_static;
 
+use crate::compression_algorithms::{lzw2::decode_lzw2, rle::decode_rle};
+
 pub mod ann;
 pub mod arr;
 pub mod img;
@@ -38,6 +40,66 @@ pub enum CompressionType {
     Lzw2,
     RleInLzw2,
     Jpeg,
+}
+
+impl<'a> ImageData<'a> {
+    pub fn to_rgba8888(&self, format: ColorFormat, compression: CompressionType) -> Vec<u8> {
+        let has_alpha = self.alpha.len() > 0;
+        let color_data = match compression {
+            CompressionType::None => self.color.to_owned(),
+            CompressionType::Rle => decode_rle(self.color, 2),
+            CompressionType::Lzw2 => decode_lzw2(self.color),
+            CompressionType::RleInLzw2 => decode_rle(&decode_lzw2(self.color), 2),
+            _ => panic!(),
+        };
+        let alpha_data = match compression {
+            _ if !has_alpha => vec![],
+            CompressionType::None => self.alpha.to_owned(),
+            CompressionType::Rle => decode_rle(self.alpha, 1),
+            CompressionType::Lzw2 | CompressionType::Jpeg => decode_lzw2(self.alpha),
+            CompressionType::RleInLzw2 => decode_rle(&decode_lzw2(self.alpha), 1),
+            _ => panic!(),
+        };
+        assert!(color_data.len() % 2 == 0);
+        if has_alpha {
+            assert!(alpha_data.len() * 2 == color_data.len());
+        }
+        let target_length = color_data.len() * 2;
+        let mut data = vec![255; target_length];
+        match format {
+            ColorFormat::Rgb565 => {
+                for i in 0..(color_data.len() / 2) {
+                    let rgb565_l = color_data[2 * i];
+                    let rgb565_h = color_data[2 * i + 1];
+                    let r5: u16 = ((rgb565_h >> 3) & 0x1f).into();
+                    let g6: u16 = (((rgb565_l >> 5) | (rgb565_h << 3)) & 0x3f).into();
+                    let b5: u16 = (rgb565_l & 0x1f).into();
+                    data[4 * i] = (r5 * 255 / 31).try_into().unwrap();
+                    data[4 * i + 1] = (g6 * 255 / 63).try_into().unwrap();
+                    data[4 * i + 2] = (b5 * 255 / 31).try_into().unwrap();
+                    if has_alpha {
+                        data[4 * i + 3] = alpha_data[i];
+                    }
+                }
+            }
+            ColorFormat::Rgb555 => {
+                for i in 0..(color_data.len() / 2) {
+                    let rgb555_l = color_data[2 * i];
+                    let rgb555_h = color_data[2 * i + 1];
+                    let r5: u16 = ((rgb555_h >> 2) & 0x1f).into();
+                    let g5: u16 = (((rgb555_l >> 5) | (rgb555_h << 3)) & 0x1f).into();
+                    let b5: u16 = (rgb555_l & 0x1f).into();
+                    data[4 * i] = (r5 * 255 / 31).try_into().unwrap();
+                    data[4 * i + 1] = (g5 * 255 / 31).try_into().unwrap();
+                    data[4 * i + 2] = (b5 * 255 / 31).try_into().unwrap();
+                    if has_alpha {
+                        data[4 * i + 3] = alpha_data[i];
+                    }
+                }
+            }
+        }
+        data
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

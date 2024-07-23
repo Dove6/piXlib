@@ -1,14 +1,22 @@
 use std::{
     env::Args,
     fs::File,
+    io::Read,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
     sync::Arc,
 };
 
-use bevy::ecs::{entity::Entity, system::Resource};
-use cdfs::{ISOError, ISO9660};
-use pixlib_parser::{classes::ObjectBuilderError, common::IssueManager, runner::CnvRunner};
+use bevy::{
+    ecs::{entity::Entity, system::Resource},
+    log::info,
+};
+use cdfs::{DirectoryEntry, ISOError, ISO9660};
+use pixlib_parser::{
+    classes::ObjectBuilderError,
+    common::IssueManager,
+    runner::{CnvRunner, FileSystem},
+};
 
 #[derive(Resource, Debug, Clone, PartialEq, Eq, Copy)]
 pub struct WindowConfiguration {
@@ -68,7 +76,7 @@ impl DerefMut for ObjectBuilderIssueManager {
     }
 }
 
-#[derive(Resource, Debug, Default, Clone)]
+#[derive(Resource, Debug, Clone)]
 pub struct ScriptRunner(pub CnvRunner);
 
 impl Deref for ScriptRunner {
@@ -88,6 +96,34 @@ impl DerefMut for ScriptRunner {
 #[derive(Resource, Default)]
 pub struct InsertedDisk {
     handle: Option<ISO9660<File>>,
+}
+
+impl std::fmt::Debug for InsertedDisk {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InsertedDisk")
+            .field("handle", &"...")
+            .finish()
+    }
+}
+
+impl FileSystem for InsertedDisk {
+    fn read_file(&self, filename: &str) -> std::io::Result<Vec<u8>> {
+        let Some(handle) = &self.handle else {
+            return Err(std::io::Error::from(std::io::ErrorKind::Unsupported));
+        };
+        if let Ok(Some(DirectoryEntry::File(file))) = handle.open(&filename.replace('\\', "/")) {
+            let mut buffer = Vec::new();
+            let bytes_read = file.read().read_to_end(&mut buffer).unwrap();
+            info!("Read file {:?} ({} bytes)", filename, bytes_read);
+            Ok(buffer)
+        } else {
+            panic!("File not found: {}", &filename);
+        }
+    }
+
+    fn write_file(&mut self, filename: &str, data: &[u8]) -> std::io::Result<()> {
+        Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
+    }
 }
 
 impl InsertedDisk {

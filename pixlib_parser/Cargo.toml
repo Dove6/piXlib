@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+pixlib_formats = { path = "../pixlib_formats" }
 lazy_static = "1.4"
 thiserror = "1.0"
 lalrpop-util = { version = "0.20", features = ["lexer", "unicode"] }

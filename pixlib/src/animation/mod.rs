@@ -4,6 +4,8 @@ mod animation_state;
 mod animation_timer;
 mod playback_state;
 
+use std::fmt::Display;
+
 pub use animation_bundle::AnimationBundle;
 pub use animation_bundle::AnimationMarker;
 pub use animation_sequence_component::AnimationDefinition;
