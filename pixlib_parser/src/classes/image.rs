@@ -51,6 +51,7 @@ pub struct LoadedImage {
 #[derive(Debug, Clone)]
 pub struct Image {
     // IMAGE
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: ImageInit,
 
     is_flipped_horizontally: bool,
@@ -66,9 +67,8 @@ pub struct Image {
 
 impl Image {
     pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
         initial_properties: ImageInit,
-        filesystem: &dyn FileSystem,
-        path: Arc<Path>,
     ) -> Self {
         let preload = initial_properties.preload.is_some_and(|v| v);
         let filename = initial_properties.filename.clone().unwrap_or_default();
@@ -76,6 +76,7 @@ impl Image {
         let is_button = initial_properties.as_button.unwrap_or(false);
         let priority = initial_properties.priority.unwrap_or(0);
         let mut image = Self {
+            parent: Arc::clone(&parent),
             initial_properties,
             is_flipped_horizontally: false,
             is_flipped_vertically: false,
@@ -87,7 +88,14 @@ impl Image {
             position: (0, 0),
         };
         if preload {
-            image.load(filesystem, path.with_file_name(&filename).to_str().unwrap());
+            let parent = parent.read().unwrap();
+            let script = parent.parent.read().unwrap();
+            let filesystem = Arc::clone(&script.runner.read().unwrap().filesystem);
+            let path = Arc::clone(&script.path);
+            image.load(
+                &*filesystem.read().unwrap(),
+                path.with_file_name(&filename).to_str().unwrap(),
+            );
         }
         image
     }
@@ -583,9 +591,8 @@ impl CnvType for Image {
     }
 
     fn new(
-        path: Arc<Path>,
+        parent: Arc<RwLock<CnvObject>>,
         mut properties: HashMap<String, String>,
-        filesystem: &dyn FileSystem,
     ) -> Result<Self, TypeParsingError> {
         let as_button = properties
             .remove("ASBUTTON")
@@ -684,6 +691,7 @@ impl CnvType for Image {
             .map(parse_program)
             .transpose()?;
         Ok(Image::from_initial_properties(
+            parent,
             ImageInit {
                 as_button,
                 filename,
@@ -705,8 +713,6 @@ impl CnvType for Image {
                 on_release,
                 on_signal,
             },
-            filesystem,
-            path,
         ))
     }
 }

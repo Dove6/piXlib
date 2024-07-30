@@ -15,7 +15,7 @@ use pixlib_formats::file_formats::{
 use pixlib_parser::{
     classes::ObjectBuilderError,
     common::{Issue, IssueHandler, IssueKind, IssueManager, Position},
-    runner::ScriptSource,
+    runner::{CnvRunner, ScriptSource},
     scanner::{CnvDecoder, CnvHeader, CnvScanner, CodepageDecoder, CP1250_LUT},
 };
 
@@ -169,7 +169,7 @@ pub fn parse_cnv(input: &[u8]) -> CnvFile {
 pub fn read_game_definition(
     iso: &ISO9660<File>,
     game_paths: &GamePaths,
-    script_runner: &mut ScriptRunner,
+    script_runner: &ScriptRunner,
     issue_manager: &mut IssueManager<ObjectBuilderError>,
 ) -> Arc<Path> {
     let mut buffer = Vec::<u8>::new();
@@ -200,7 +200,8 @@ pub fn read_game_definition(
     }
     let result = parse_file(&buffer, game_definition_path.as_ref().to_str().unwrap());
     if let AmFile::Cnv(cnv_file) = result {
-        if let Err(parsing_err) = script_runner.0.load_script(
+        if let Err(parsing_err) = CnvRunner::load_script(
+            &script_runner.0,
             Arc::clone(&game_definition_path),
             cnv_file.0.char_indices().map(|(i, c)| {
                 Ok((
@@ -253,7 +254,7 @@ pub fn read_script(
     game_paths: &GamePaths,
     parent_path: Option<Arc<Path>>,
     script_source: ScriptSource,
-    script_runner: &mut ScriptRunner,
+    script_runner: &ScriptRunner,
     issue_manager: &mut IssueManager<ObjectBuilderError>,
 ) -> Arc<Path> {
     let mut buffer = Vec::<u8>::new();
@@ -271,7 +272,8 @@ pub fn read_script(
     }
     let result = parse_file(&buffer, script_path.as_ref().to_str().unwrap());
     if let AmFile::Cnv(cnv_file) = result {
-        if let Err(parsing_err) = script_runner.0.load_script(
+        if let Err(parsing_err) = CnvRunner::load_script(
+            &script_runner.0,
             Arc::clone(&script_path),
             cnv_file.0.char_indices().map(|(i, c)| {
                 Ok((

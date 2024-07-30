@@ -17,12 +17,17 @@ pub struct EpisodeInit {
 #[derive(Debug, Clone)]
 pub struct Episode {
     // EPISODE
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: EpisodeInit,
 }
 
 impl Episode {
-    pub fn from_initial_properties(initial_properties: EpisodeInit) -> Self {
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: EpisodeInit,
+    ) -> Self {
         Self {
+            parent,
             initial_properties,
         }
     }
@@ -105,7 +110,10 @@ impl CnvType for Episode {
         }
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);
         let creation_time = properties
             .remove("CREATIONTIME")
@@ -126,15 +134,18 @@ impl CnvType for Episode {
             .transpose()?;
         let start_with = properties.remove("STARTWITH").and_then(discard_if_empty);
         let version = properties.remove("VERSION").and_then(discard_if_empty);
-        Ok(Episode::from_initial_properties(EpisodeInit {
-            author,
-            creation_time,
-            description,
-            last_modify_time,
-            path,
-            scenes,
-            start_with,
-            version,
-        }))
+        Ok(Episode::from_initial_properties(
+            parent,
+            EpisodeInit {
+                author,
+                creation_time,
+                description,
+                last_modify_time,
+                path,
+                scenes,
+                start_with,
+                version,
+            },
+        ))
     }
 }

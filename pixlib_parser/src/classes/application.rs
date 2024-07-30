@@ -58,7 +58,10 @@ impl CnvType for Application {
         }
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);
         let bloomoo_version = properties
             .remove("BLOOMOO_VERSION")

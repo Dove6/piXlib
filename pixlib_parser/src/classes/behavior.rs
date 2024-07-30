@@ -5,8 +5,8 @@ use super::*;
 #[derive(Debug, Clone)]
 pub struct BehaviorInit {
     // BEHAVIOUR
-    pub code: Option<Arc<IgnorableProgram>>,    // CODE
-    pub condition: Option<ConditionName>,       // CONDITION
+    pub code: Option<Arc<IgnorableProgram>>, // CODE
+    pub condition: Option<ConditionName>,    // CONDITION
 
     pub on_done: Option<Arc<IgnorableProgram>>, // ONDONE signal
     pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
@@ -16,14 +16,19 @@ pub struct BehaviorInit {
 #[derive(Debug, Clone)]
 pub struct Behavior {
     // BEHAVIOUR
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: BehaviorInit,
 
     is_enabled: bool,
 }
 
 impl Behavior {
-    pub fn from_initial_properties(initial_properties: BehaviorInit) -> Self {
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: BehaviorInit,
+    ) -> Self {
         Self {
+            parent,
             initial_properties,
             is_enabled: true,
         }
@@ -39,29 +44,29 @@ impl Behavior {
 
     pub fn run(&self, context: &mut RunnerContext) -> RunnerResult<()> {
         if let Some(condition) = self.initial_properties.condition.as_ref() {
-            let condition = context.runner.get_object(condition).clone().unwrap();
-            match condition.call_method(
+            let condition = context.runner.get_object(condition).unwrap();
+            match condition.write().unwrap().call_method(
                 CallableIdentifier::Method("CHECK"),
                 &Vec::new(),
                 context,
             )? {
                 Some(CnvValue::Boolean(false)) => {
-                    condition.call_method(
+                    condition.write().unwrap().call_method(
                         CallableIdentifier::Event("ONRUNTIMEFAILED"),
                         &Vec::new(),
                         context,
-                    );
+                    )?;
                     return Ok(());
                 }
                 Some(CnvValue::Boolean(true)) => {
-                    condition.call_method(
+                    condition.write().unwrap().call_method(
                         CallableIdentifier::Event("ONRUNTIMESUCCESS"),
                         &Vec::new(),
                         context,
-                    );
+                    )?;
                 }
                 _ => todo!(),
-            }
+            };
         }
         if let Some(v) = self.initial_properties.code.as_ref() {
             v.run(context)
@@ -144,7 +149,12 @@ impl CnvType for Behavior {
                 Ok(None)
             }
             CallableIdentifier::Event("ONSIGNAL") => {
-                if let Some(v) = self.initial_properties.on_signal.get(&arguments[0].to_string()).as_ref() {
+                if let Some(v) = self
+                    .initial_properties
+                    .on_signal
+                    .get(&arguments[0].to_string())
+                    .as_ref()
+                {
                     v.run(context)
                 }
                 Ok(None)
@@ -160,7 +170,10 @@ impl CnvType for Behavior {
         }
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let code = properties
             .remove("CODE")
             .and_then(discard_if_empty)
@@ -186,12 +199,15 @@ impl CnvType for Behavior {
             }
         }
         properties.retain(|k, _| k != "ONSIGNAL" && !k.starts_with("ONSIGNAL^"));
-        Ok(Behavior::from_initial_properties(BehaviorInit {
-            code,
-            condition,
-            on_done,
-            on_init,
-            on_signal,
-        }))
+        Ok(Behavior::from_initial_properties(
+            parent,
+            BehaviorInit {
+                code,
+                condition,
+                on_done,
+                on_init,
+                on_signal,
+            },
+        ))
     }
 }

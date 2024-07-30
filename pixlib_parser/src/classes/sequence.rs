@@ -17,12 +17,19 @@ pub struct SequenceInit {
 #[derive(Debug, Clone)]
 pub struct Sequence {
     // SEQUENCE
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: SequenceInit,
 }
 
 impl Sequence {
-    pub fn from_initial_properties(initial_properties: SequenceInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: SequenceInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 
     pub fn get_event_name() {
@@ -139,7 +146,10 @@ impl CnvType for Sequence {
         }
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let filename = properties.remove("FILENAME").and_then(discard_if_empty);
         let on_done = properties
             .remove("ONDONE")
@@ -166,13 +176,16 @@ impl CnvType for Sequence {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(SequenceInit {
-            filename,
-            on_done,
-            on_finished,
-            on_init,
-            on_signal,
-            on_started,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            SequenceInit {
+                filename,
+                on_done,
+                on_finished,
+                on_init,
+                on_signal,
+                on_started,
+            },
+        ))
     }
 }

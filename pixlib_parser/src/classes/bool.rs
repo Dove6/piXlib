@@ -20,72 +20,91 @@ pub struct BoolInit {
 
 #[derive(Debug, Clone)]
 pub struct Bool {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: BoolInit,
     value: bool,
 }
 
 impl Bool {
-    pub fn from_initial_properties(initial_properties: BoolInit) -> Self {
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: BoolInit,
+    ) -> Self {
         let value = initial_properties.value.unwrap_or(false);
         Self {
+            parent,
             value,
             initial_properties,
         }
     }
 
-    pub fn and() { // AND
+    pub fn and() {
+        // AND
         todo!()
     }
 
-    pub fn clear() { // CLEAR
+    pub fn clear() {
+        // CLEAR
         todo!()
     }
 
-    pub fn copy_file() { // COPYFILE
+    pub fn copy_file() {
+        // COPYFILE
         todo!()
     }
 
-    pub fn dec() { // DEC
+    pub fn dec() {
+        // DEC
         todo!()
     }
 
-    pub fn get() { // GET
+    pub fn get() {
+        // GET
         todo!()
     }
 
-    pub fn inc() { // INC
+    pub fn inc() {
+        // INC
         todo!()
     }
 
-    pub fn not() { // NOT
+    pub fn not() {
+        // NOT
         todo!()
     }
 
-    pub fn or() { // OR
+    pub fn or() {
+        // OR
         todo!()
     }
 
-    pub fn random() { // RANDOM
+    pub fn random() {
+        // RANDOM
         todo!()
     }
 
-    pub fn reset_ini() { // RESETINI
+    pub fn reset_ini() {
+        // RESETINI
         todo!()
     }
 
-    pub fn set() { // SET
+    pub fn set() {
+        // SET
         todo!()
     }
 
-    pub fn set_default() { // SETDEFAULT
+    pub fn set_default() {
+        // SETDEFAULT
         todo!()
     }
 
-    pub fn switch() { // SWITCH
+    pub fn switch() {
+        // SWITCH
         todo!()
     }
 
-    pub fn xor() { // XOR
+    pub fn xor() {
+        // XOR
         todo!()
     }
 }
@@ -128,7 +147,10 @@ impl CnvType for Bool {
         todo!()
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let default = properties
             .remove("DEFAULT")
             .and_then(discard_if_empty)
@@ -179,17 +201,20 @@ impl CnvType for Bool {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(BoolInit {
-            default,
-            netnotify,
-            to_ini,
-            value,
-            on_brutal_changed,
-            on_changed,
-            on_done,
-            on_init,
-            on_net_changed,
-            on_signal,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            BoolInit {
+                default,
+                netnotify,
+                to_ini,
+                value,
+                on_brutal_changed,
+                on_changed,
+                on_done,
+                on_init,
+                on_net_changed,
+                on_signal,
+            },
+        ))
     }
 }

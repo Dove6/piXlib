@@ -1,7 +1,16 @@
-use std::{collections::HashMap, io::Read, path::PathBuf};
+use std::{
+    collections::HashMap,
+    io::Read,
+    path::{Path, PathBuf},
+    sync::{Arc, RwLock},
+};
 
 use pixlib_parser::{
-    classes::{CnvObject, CnvObjectBuilder}, common::{Issue, IssueHandler, IssueManager}, declarative_parser::{CnvDeclaration, DeclarativeParser, ParserIssue}, runner::FileSystem, scanner::{CnvDecoder, CnvHeader, CnvScanner, CodepageDecoder, CP1250_LUT}
+    classes::{CnvObject, CnvObjectBuilder},
+    common::{Issue, IssueHandler, IssueManager},
+    declarative_parser::{CnvDeclaration, DeclarativeParser, ParserIssue},
+    runner::{CnvRunner, CnvScript, DummyFileSystem, FileSystem},
+    scanner::{CnvDecoder, CnvHeader, CnvScanner, CodepageDecoder, CP1250_LUT},
 };
 
 #[derive(Debug)]
@@ -75,7 +84,24 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
         match dec {
             CnvDeclaration::ObjectInitialization(name) => {
                 objects
-                    .insert(name.clone(), CnvObjectBuilder::new(filename.clone().into(), name, counter))
+                    .insert(
+                        name.clone(),
+                        CnvObjectBuilder::new(
+                            Arc::new(RwLock::new(CnvScript {
+                                source_kind: pixlib_parser::runner::ScriptSource::Scene,
+                                path: Path::new("").into(),
+                                parent_path: None,
+                                objects: Vec::new(),
+                                runner: Arc::new(RwLock::new(CnvRunner {
+                                    scripts: HashMap::new(),
+                                    filesystem: Arc::new(RwLock::new(DummyFileSystem {})),
+                                })),
+                            })),
+                            filename.clone().into(),
+                            name,
+                            counter,
+                        ),
+                    )
                     .and_panic();
                 counter += 1;
             }
@@ -100,13 +126,13 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
     }
     println!("Parsing ended. Building objects.");
     let filesystem = PlainFileSystem;
-    let objects: HashMap<String, CnvObject> = objects
+    let objects: HashMap<String, Arc<RwLock<CnvObject>>> = objects
         .into_iter()
-        .map(|(name, builder)| (name, builder.build(&filesystem).unwrap()))
+        .map(|(name, builder)| (name, builder.build().unwrap()))
         .collect();
     println!("Built objects:");
     for obj in objects {
-        println!("{:#?}", obj.1.name);
+        println!("{:#?}", obj.1.read().unwrap().name);
     }
     Ok(())
 }

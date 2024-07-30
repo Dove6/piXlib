@@ -4,7 +4,7 @@ use std::{
     io::Read,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, RwLock},
 };
 
 use bevy::{
@@ -77,19 +77,13 @@ impl DerefMut for ObjectBuilderIssueManager {
 }
 
 #[derive(Resource, Debug, Clone)]
-pub struct ScriptRunner(pub CnvRunner);
+pub struct ScriptRunner(pub Arc<RwLock<CnvRunner>>);
 
 impl Deref for ScriptRunner {
-    type Target = CnvRunner;
+    type Target = RwLock<CnvRunner>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-impl DerefMut for ScriptRunner {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
     }
 }
 

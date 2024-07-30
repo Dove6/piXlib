@@ -29,21 +29,22 @@ pub fn animate_sprite(
         let Some(ident) = &ident.0 else {
             continue;
         };
-        let Some(animation_obj_whole) = script_runner.get_object(&ident) else {
+        let Some(animation_obj_whole) = script_runner.read().unwrap().get_object(&ident) else {
             warn!(
                 "Animation has no associated object in script runner: {:?}",
                 ident
             );
             continue;
         };
-        let mut animation_obj_guard = animation_obj_whole.content.write().unwrap();
+        let animation_obj_whole_guard = animation_obj_whole.read().unwrap();
+        let mut animation_obj_guard = animation_obj_whole_guard.content.write().unwrap();
         let animation_obj = animation_obj_guard
             .as_any_mut()
             .downcast_mut::<Animation>()
             .unwrap();
         animation_obj.tick(
             &mut pixlib_parser::runner::RunnerContext {
-                runner: &mut script_runner,
+                runner: &mut *script_runner.write().unwrap(),
                 self_object: ident.clone(),
                 current_object: ident.clone(),
             },

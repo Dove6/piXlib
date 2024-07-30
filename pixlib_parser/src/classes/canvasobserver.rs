@@ -18,12 +18,19 @@ pub struct CanvasObserverInit {
 
 #[derive(Debug, Clone)]
 pub struct CanvasObserver {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: CanvasObserverInit,
 }
 
 impl CanvasObserver {
-    pub fn from_initial_properties(initial_properties: CanvasObserverInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: CanvasObserverInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 
     pub fn add() {
@@ -153,7 +160,10 @@ impl CnvType for CanvasObserver {
         }
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
@@ -199,16 +209,19 @@ impl CnvType for CanvasObserver {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(CanvasObserverInit {
-            on_done,
-            on_init,
-            on_initial_update,
-            on_initial_updated,
-            on_signal,
-            on_update,
-            on_updated,
-            on_window_focus_off,
-            on_window_focus_on,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            CanvasObserverInit {
+                on_done,
+                on_init,
+                on_initial_update,
+                on_initial_updated,
+                on_signal,
+                on_update,
+                on_updated,
+                on_window_focus_off,
+                on_window_focus_on,
+            },
+        ))
     }
 }

@@ -20,14 +20,19 @@ pub struct IntInit {
 
 #[derive(Debug, Clone)]
 pub struct Int {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: IntInit,
     value: i32,
 }
 
 impl Int {
-    pub fn from_initial_properties(initial_properties: IntInit) -> Self {
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: IntInit,
+    ) -> Self {
         let value = initial_properties.value.unwrap_or(0);
         Self {
+            parent,
             value,
             initial_properties,
         }
@@ -190,7 +195,10 @@ impl CnvType for Int {
         todo!()
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let default = properties
             .remove("DEFAULT")
             .and_then(discard_if_empty)
@@ -241,17 +249,20 @@ impl CnvType for Int {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(IntInit {
-            default,
-            net_notify,
-            to_ini,
-            value,
-            on_brutal_changed,
-            on_changed,
-            on_done,
-            on_init,
-            on_net_changed,
-            on_signal,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            IntInit {
+                default,
+                net_notify,
+                to_ini,
+                value,
+                on_brutal_changed,
+                on_changed,
+                on_done,
+                on_init,
+                on_net_changed,
+                on_signal,
+            },
+        ))
     }
 }

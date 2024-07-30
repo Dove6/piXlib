@@ -10,12 +10,19 @@ pub struct MusicInit {
 
 #[derive(Debug, Clone)]
 pub struct Music {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: MusicInit,
 }
 
 impl Music {
-    pub fn from_initial_properties(initial_properties: MusicInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: MusicInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 }
 
@@ -57,8 +64,14 @@ impl CnvType for Music {
         todo!()
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let filename = properties.remove("FILENAME").and_then(discard_if_empty);
-        Ok(Self::from_initial_properties(MusicInit { filename }))
+        Ok(Self::from_initial_properties(
+            parent,
+            MusicInit { filename },
+        ))
     }
 }

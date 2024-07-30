@@ -8,7 +8,7 @@ pub struct StrInit {
     pub default: Option<String>,  // DEFAULT
     pub net_notify: Option<bool>, // NETNOTIFY
     pub to_ini: Option<bool>,     // TOINI
-    pub value: Option<String>,            // VALUE
+    pub value: Option<String>,    // VALUE
 
     pub on_brutal_changed: Option<Arc<IgnorableProgram>>, // ONBRUTALCHANGED signal
     pub on_changed: Option<Arc<IgnorableProgram>>,        // ONCHANGED signal
@@ -20,14 +20,19 @@ pub struct StrInit {
 
 #[derive(Debug, Clone)]
 pub struct Str {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: StrInit,
     value: String,
 }
 
 impl Str {
-    pub fn from_initial_properties(initial_properties: StrInit) -> Self {
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: StrInit,
+    ) -> Self {
         let value = initial_properties.value.clone().unwrap_or(String::new());
         Self {
+            parent,
             value,
             initial_properties,
         }
@@ -180,7 +185,10 @@ impl CnvType for Str {
         todo!()
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let default = properties.remove("DEFAULT").and_then(discard_if_empty);
         let net_notify = properties
             .remove("NETNOTIFY")
@@ -223,17 +231,20 @@ impl CnvType for Str {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(StrInit {
-            default,
-            net_notify,
-            to_ini,
-            value,
-            on_brutal_changed,
-            on_changed,
-            on_done,
-            on_init,
-            on_net_changed,
-            on_signal,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            StrInit {
+                default,
+                net_notify,
+                to_ini,
+                value,
+                on_brutal_changed,
+                on_changed,
+                on_done,
+                on_init,
+                on_net_changed,
+                on_signal,
+            },
+        ))
     }
 }

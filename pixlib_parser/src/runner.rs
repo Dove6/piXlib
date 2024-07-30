@@ -42,7 +42,7 @@ where
 
 #[derive(Debug, Clone)]
 pub struct CnvRunner {
-    pub scripts: HashMap<Arc<Path>, CnvScript>,
+    pub scripts: HashMap<Arc<Path>, Arc<RwLock<CnvScript>>>,
     pub filesystem: Arc<RwLock<dyn FileSystem>>,
 }
 
@@ -61,11 +61,11 @@ pub trait FileSystem: std::fmt::Debug + Send + Sync {
 pub struct DummyFileSystem;
 
 impl FileSystem for DummyFileSystem {
-    fn read_file(&self, filename: &str) -> std::io::Result<Vec<u8>> {
+    fn read_file(&self, _: &str) -> std::io::Result<Vec<u8>> {
         Ok(Vec::new())
     }
 
-    fn write_file(&mut self, filename: &str, data: &[u8]) -> std::io::Result<()> {
+    fn write_file(&mut self, _: &str, _: &[u8]) -> std::io::Result<()> {
         Ok(())
     }
 }
@@ -74,7 +74,7 @@ impl CnvRunner {
     // pub fn step(&mut self, )
 
     pub fn load_script(
-        &mut self,
+        self_ptr: &Arc<RwLock<CnvRunner>>,
         path: Arc<Path>,
         contents: impl Iterator<Item = ParserInput>,
         parent_path: Option<Arc<Path>>,
@@ -87,10 +87,18 @@ impl CnvRunner {
             DeclarativeParser::new(contents, Default::default(), parser_issue_manager).peekable();
         let mut objects: Vec<CnvObjectBuilder> = Vec::new();
         let mut name_to_object: HashMap<String, usize> = HashMap::new();
+        let script = Arc::new(RwLock::new(CnvScript {
+            source_kind,
+            path: Arc::clone(&path),
+            parent_path,
+            objects: Vec::new(),
+            runner: Arc::clone(self_ptr),
+        }));
         while let Some(Ok((_pos, dec, _))) = dec_parser.next_if(|result| result.is_ok()) {
             match dec {
                 CnvDeclaration::ObjectInitialization(name) => {
                     objects.push(CnvObjectBuilder::new(
+                        Arc::clone(&script),
                         Arc::clone(&path),
                         name.trim().to_owned(),
                         objects.len(),
@@ -121,41 +129,35 @@ impl CnvRunner {
         if let Some(Err(err)) = dec_parser.next_if(|result| result.is_err()) {
             return Err(err);
         }
-        let objects: Vec<Arc<CnvObject>> = objects
+        let objects: Vec<Arc<RwLock<CnvObject>>> = objects
             .into_iter()
-            .filter_map(|builder| match builder.build(&*self.filesystem.read().unwrap()) {
-                Ok(built_object) => Some(Arc::new(built_object)),
+            .filter_map(|builder| match builder.build() {
+                Ok(built_object) => Some(built_object),
                 Err(e) => {
                     issue_manager.emit_issue(e);
                     None
                 }
             })
             .collect();
+        script.write().unwrap().objects = objects;
 
-        self.scripts.insert(
-            Arc::clone(&path),
-            CnvScript {
-                source_kind,
-                path,
-                parent_path,
-                objects,
-            },
-        ); // TODO: err if present
+        self_ptr
+            .write()
+            .unwrap()
+            .scripts
+            .insert(Arc::clone(&path), script); // TODO: err if present
         Ok(())
     }
 
-    pub fn get_script(&self, path: &Path) -> Option<&CnvScript> {
-        self.scripts.get(path)
+    pub fn get_script(&self, path: &Path) -> Option<Arc<RwLock<CnvScript>>> {
+        self.scripts.get(path).map(|s| Arc::clone(s))
     }
 
-    pub fn get_script_mut(&mut self, path: &Path) -> Option<&mut CnvScript> {
-        self.scripts.get_mut(path)
-    }
-
-    pub fn get_root_script(&self) -> Option<&CnvScript> {
+    pub fn get_root_script(&self) -> Option<Arc<RwLock<CnvScript>>> {
         self.scripts
             .values()
-            .find(|s| s.source_kind == ScriptSource::Root)
+            .find(|s| s.read().unwrap().source_kind == ScriptSource::Root)
+            .map(|s| Arc::clone(s))
     }
 
     pub fn find_scripts(
@@ -165,7 +167,7 @@ impl CnvRunner {
     ) {
         buffer.clear();
         for (path, script) in self.scripts.iter() {
-            if predicate(script) {
+            if predicate(&*script.read().unwrap()) {
                 buffer.push(Arc::clone(path));
             }
         }
@@ -183,6 +185,8 @@ impl CnvRunner {
             unloading_queue.push(current.into());
             for (key, value) in self.scripts.iter() {
                 if value
+                    .read()
+                    .unwrap()
                     .parent_path
                     .as_ref()
                     .is_some_and(|p| current == p.as_ref())
@@ -196,11 +200,11 @@ impl CnvRunner {
         }
     }
 
-    pub fn get_object(&self, name: &str) -> Option<Arc<CnvObject>> {
+    pub fn get_object(&self, name: &str) -> Option<Arc<RwLock<CnvObject>>> {
         // println!("Getting object: {:?}", name);
         for script in self.scripts.values() {
-            for object in script.objects.iter() {
-                if object.name == name {
+            for object in script.read().unwrap().objects.iter() {
+                if object.read().unwrap().name == name {
                     return Some(Arc::clone(object));
                 }
             }
@@ -211,12 +215,12 @@ impl CnvRunner {
     pub fn find_objects(
         &self,
         predicate: impl Fn(&CnvObject) -> bool,
-        buffer: &mut Vec<Arc<CnvObject>>,
+        buffer: &mut Vec<Arc<RwLock<CnvObject>>>,
     ) {
         buffer.clear();
         for script in self.scripts.values() {
-            for object in script.objects.iter() {
-                if predicate(object) {
+            for object in script.read().unwrap().objects.iter() {
+                if predicate(&*object.read().unwrap()) {
                     buffer.push(Arc::clone(object));
                 }
             }
@@ -228,21 +232,33 @@ impl CnvRunner {
         script_name: Arc<Path>,
         name: &str,
     ) -> Result<Option<CnvValue>, BehaviorRunningError> {
-        let Some(script) = self.get_script_mut(&script_name) else {
+        let Some(script) = self.get_script(&script_name) else {
             return Err(BehaviorRunningError::ScriptNotFound);
         };
-        let Some(init_beh_obj) = script.get_object(name) else {
+        let Some(init_beh_obj) = script.read().unwrap().get_object(name) else {
             return Err(BehaviorRunningError::ObjectNotFound);
         };
-        if init_beh_obj.content.read().unwrap().get_type_id() != "BEHAVIOUR" {
+        if init_beh_obj
+            .read()
+            .unwrap()
+            .content
+            .read()
+            .unwrap()
+            .get_type_id()
+            != "BEHAVIOUR"
+        {
             return Err(BehaviorRunningError::InvalidType);
         };
         let mut context = RunnerContext {
             runner: self,
-            self_object: init_beh_obj.name.clone(),
-            current_object: init_beh_obj.name.clone(),
+            self_object: init_beh_obj.read().unwrap().name.clone(),
+            current_object: init_beh_obj.read().unwrap().name.clone(),
         };
-        init_beh_obj.call_method(CallableIdentifier::Method("RUN"), &Vec::new(), &mut context);
+        init_beh_obj.write().unwrap().call_method(
+            CallableIdentifier::Method("RUN"),
+            &Vec::new(),
+            &mut context,
+        );
         Ok(None)
     }
 
@@ -262,13 +278,14 @@ pub struct CnvScript {
     pub source_kind: ScriptSource,
     pub path: Arc<Path>,
     pub parent_path: Option<Arc<Path>>,
-    pub objects: Vec<Arc<CnvObject>>,
+    pub objects: Vec<Arc<RwLock<CnvObject>>>,
+    pub runner: Arc<RwLock<CnvRunner>>,
 }
 
 impl CnvScript {
-    pub fn get_object(&self, name: &str) -> Option<Arc<CnvObject>> {
+    pub fn get_object(&self, name: &str) -> Option<Arc<RwLock<CnvObject>>> {
         for object in self.objects.iter() {
-            if object.name == name {
+            if object.read().unwrap().name == name {
                 return Some(Arc::clone(object));
             }
         }
@@ -278,11 +295,11 @@ impl CnvScript {
     pub fn find_objects(
         &self,
         predicate: impl Fn(&CnvObject) -> bool,
-        buffer: &mut Vec<Arc<CnvObject>>,
+        buffer: &mut Vec<Arc<RwLock<CnvObject>>>,
     ) {
         buffer.clear();
         for object in self.objects.iter() {
-            if predicate(object) {
+            if predicate(&*object.read().unwrap()) {
                 buffer.push(Arc::clone(object));
             }
         }
@@ -336,7 +353,7 @@ pub enum CnvValue {
     Double(f64),
     Boolean(bool),
     String(String),
-    Reference(Arc<CnvObject>),
+    Reference(Arc<RwLock<CnvObject>>),
 }
 
 impl CnvValue {
@@ -389,7 +406,7 @@ impl CnvValue {
             CnvValue::Double(d) => d.to_string(), // TODO: check
             CnvValue::Boolean(b) => b.to_string(), //TODO: check
             CnvValue::String(s) => s.clone(),
-            CnvValue::Reference(r) => r.name.clone(), // TODO: not always
+            CnvValue::Reference(r) => r.read().unwrap().name.clone(), // TODO: not always
         }
     }
 }
@@ -504,9 +521,11 @@ impl CnvExpression for Invocation {
             let arguments: Vec<_> = arguments.into_iter().map(|e| e.unwrap()).collect();
             // println!("Calling method: {:?} of: {:?}", self.name, self.parent);
             match parent {
-                CnvValue::Reference(obj) => {
-                    obj.call_method(CallableIdentifier::Method(&self.name), &arguments, context)
-                }
+                CnvValue::Reference(obj) => obj.write().unwrap().call_method(
+                    CallableIdentifier::Method(&self.name),
+                    &arguments,
+                    context,
+                ),
                 _ => panic!(
                     "Expected invocation parent to be an object, got {:?}",
                     parent
@@ -582,7 +601,11 @@ impl CnvStatement for Program {
                     .runner
                     .get_object(identifier)
                     .unwrap_or_else(|| panic!("Expected existing object named {}", &identifier));
-                obj.call_method(CallableIdentifier::Method("RUN"), &Vec::new(), context);
+                obj.write().unwrap().call_method(
+                    CallableIdentifier::Method("RUN"),
+                    &Vec::new(),
+                    context,
+                );
             }
             Program::Block(ignorable_statements) => {
                 for ignorable_statement in ignorable_statements {

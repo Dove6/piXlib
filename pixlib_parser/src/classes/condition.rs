@@ -16,12 +16,19 @@ pub struct ConditionInit {
 #[derive(Debug, Clone)]
 pub struct Condition {
     // CONDITION
+    pub parent: Arc<RwLock<CnvObject>>,
     pub initial_properties: ConditionInit,
 }
 
 impl Condition {
-    pub fn from_initial_properties(initial_properties: ConditionInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: ConditionInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 
     pub fn break_running(&self) {
@@ -38,14 +45,26 @@ impl Condition {
         let left = context
             .runner
             .get_object(left)
-            .map(|o| o.call_method(CallableIdentifier::Method("GET"), &Vec::new(), context))
+            .map(|o| {
+                o.write().unwrap().call_method(
+                    CallableIdentifier::Method("GET"),
+                    &Vec::new(),
+                    context,
+                )
+            })
             .transpose()?
             .unwrap()
             .unwrap_or_else(|| CnvValue::String(left.clone()));
         let right = context
             .runner
             .get_object(right)
-            .map(|o| o.call_method(CallableIdentifier::Method("GET"), &Vec::new(), context))
+            .map(|o| {
+                o.write().unwrap().call_method(
+                    CallableIdentifier::Method("GET"),
+                    &Vec::new(),
+                    context,
+                )
+            })
             .transpose()?
             .unwrap()
             .unwrap_or_else(|| CnvValue::String(right.clone()));
@@ -148,7 +167,10 @@ impl CnvType for Condition {
         }
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);
         let operand2 = properties.remove("OPERAND2").and_then(discard_if_empty);
         let operator = properties
@@ -166,12 +188,15 @@ impl CnvType for Condition {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Condition::from_initial_properties(ConditionInit {
-            operand1,
-            operand2,
-            operator,
-            on_runtime_failed,
-            on_runtime_success,
-        }))
+        Ok(Condition::from_initial_properties(
+            parent,
+            ConditionInit {
+                operand1,
+                operand2,
+                operator,
+                on_runtime_failed,
+                on_runtime_success,
+            },
+        ))
     }
 }

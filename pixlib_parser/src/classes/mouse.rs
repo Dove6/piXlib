@@ -19,12 +19,19 @@ pub struct MouseInit {
 
 #[derive(Debug, Clone)]
 pub struct Mouse {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: MouseInit,
 }
 
 impl Mouse {
-    pub fn from_initial_properties(initial_properties: MouseInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: MouseInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 
     pub fn click() {
@@ -181,7 +188,10 @@ impl CnvType for Mouse {
         }
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let mouse = properties.remove("MOUSE").and_then(discard_if_empty);
         let raw = properties
             .remove("RAW")
@@ -223,16 +233,19 @@ impl CnvType for Mouse {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(MouseInit {
-            mouse,
-            raw,
-            on_click,
-            on_dbl_click,
-            on_done,
-            on_init,
-            on_move,
-            on_release,
-            on_signal,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            MouseInit {
+                mouse,
+                raw,
+                on_click,
+                on_dbl_click,
+                on_done,
+                on_init,
+                on_move,
+                on_release,
+                on_signal,
+            },
+        ))
     }
 }

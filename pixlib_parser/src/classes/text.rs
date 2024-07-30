@@ -26,12 +26,19 @@ pub struct TextInit {
 
 #[derive(Debug, Clone)]
 pub struct Text {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: TextInit,
 }
 
 impl Text {
-    pub fn from_initial_properties(initial_properties: TextInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: TextInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 
     pub fn clear_clipping() {
@@ -223,7 +230,10 @@ impl CnvType for Text {
         todo!()
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let font = properties.remove("FONT").and_then(discard_if_empty);
         let horizontal_justify = properties
             .remove("HJUSTIFY")
@@ -296,23 +306,26 @@ impl CnvType for Text {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(TextInit {
-            font,
-            horizontal_justify,
-            hypertext,
-            monitor_collision,
-            monitor_collision_alpha,
-            priority,
-            rect,
-            text,
-            to_canvas,
-            visible,
-            vertical_justify,
-            on_collision,
-            on_collision_finished,
-            on_done,
-            on_init,
-            on_signal,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            TextInit {
+                font,
+                horizontal_justify,
+                hypertext,
+                monitor_collision,
+                monitor_collision_alpha,
+                priority,
+                rect,
+                text,
+                to_canvas,
+                visible,
+                vertical_justify,
+                on_collision,
+                on_collision_finished,
+                on_done,
+                on_init,
+                on_signal,
+            },
+        ))
     }
 }

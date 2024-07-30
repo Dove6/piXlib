@@ -5,27 +5,27 @@ use super::*;
 #[derive(Debug, Clone)]
 pub struct ButtonInit {
     // BUTTON
-    pub accent: Option<bool>,                       // ACCENT
-    pub drag: Option<bool>,                         // DRAG
-    pub draggable: Option<bool>,                    // DRAGGABLE
-    pub enable: Option<bool>,                       // ENABLE
-    pub gfx_on_click: Option<ImageName>,            // GFXONCLICK
-    pub gfx_on_move: Option<ImageName>,             // GFXONMOVE
-    pub gfx_standard: Option<ImageName>,            // GFXSTANDARD
-    pub priority: Option<i32>,                      // PRIORITY
-    pub rect: Option<Rect>,                         // RECT
-    pub snd_on_click: Option<SoundName>,            // SNDONCLICK
-    pub snd_on_move: Option<SoundName>,             // SNDONMOVE
-    pub snd_standard: Option<SoundName>,            // SNDSTANDARD
+    pub accent: Option<bool>,            // ACCENT
+    pub drag: Option<bool>,              // DRAG
+    pub draggable: Option<bool>,         // DRAGGABLE
+    pub enable: Option<bool>,            // ENABLE
+    pub gfx_on_click: Option<ImageName>, // GFXONCLICK
+    pub gfx_on_move: Option<ImageName>,  // GFXONMOVE
+    pub gfx_standard: Option<ImageName>, // GFXSTANDARD
+    pub priority: Option<i32>,           // PRIORITY
+    pub rect: Option<Rect>,              // RECT
+    pub snd_on_click: Option<SoundName>, // SNDONCLICK
+    pub snd_on_move: Option<SoundName>,  // SNDONMOVE
+    pub snd_standard: Option<SoundName>, // SNDSTANDARD
 
     pub on_action: Option<Arc<IgnorableProgram>>, // ONACTION signal
     pub on_clicked: Option<Arc<IgnorableProgram>>, // ONCLICKED signal
-    pub on_done: Option<Arc<IgnorableProgram>>, // ONDONE signal
+    pub on_done: Option<Arc<IgnorableProgram>>,   // ONDONE signal
     pub on_dragging: Option<Arc<IgnorableProgram>>, // ONDRAGGING signal
     pub on_end_dragging: Option<Arc<IgnorableProgram>>, // ONENDDRAGGING signal
     pub on_focus_off: Option<Arc<IgnorableProgram>>, // ONFOCUSOFF signal
     pub on_focus_on: Option<Arc<IgnorableProgram>>, // ONFOCUSON signal
-    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
+    pub on_init: Option<Arc<IgnorableProgram>>,   // ONINIT signal
     pub on_paused: Option<Arc<IgnorableProgram>>, // ONPAUSED signal
     pub on_released: Option<Arc<IgnorableProgram>>, // ONRELEASED signal
     pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
@@ -34,12 +34,17 @@ pub struct ButtonInit {
 
 #[derive(Debug, Clone)]
 pub struct Button {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: ButtonInit,
 }
 
 impl Button {
-    pub fn from_initial_properties(initial_properties: ButtonInit) -> Self {
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: ButtonInit,
+    ) -> Self {
         Self {
+            parent,
             initial_properties,
         }
     }
@@ -173,7 +178,10 @@ impl CnvType for Button {
         }
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let accent = properties
             .remove("ACCENT")
             .and_then(discard_if_empty)
@@ -270,31 +278,34 @@ impl CnvType for Button {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Button::from_initial_properties(ButtonInit {
-            accent,
-            drag,
-            draggable,
-            enable,
-            gfx_on_click,
-            gfx_on_move,
-            gfx_standard,
-            priority,
-            rect,
-            snd_on_click,
-            snd_on_move,
-            snd_standard,
-            on_action,
-            on_clicked,
-            on_done,
-            on_dragging,
-            on_end_dragging,
-            on_focus_off,
-            on_focus_on,
-            on_init,
-            on_paused,
-            on_released,
-            on_signal,
-            on_start_dragging,
-        }))
+        Ok(Button::from_initial_properties(
+            parent,
+            ButtonInit {
+                accent,
+                drag,
+                draggable,
+                enable,
+                gfx_on_click,
+                gfx_on_move,
+                gfx_standard,
+                priority,
+                rect,
+                snd_on_click,
+                snd_on_move,
+                snd_standard,
+                on_action,
+                on_clicked,
+                on_done,
+                on_dragging,
+                on_end_dragging,
+                on_focus_off,
+                on_focus_on,
+                on_init,
+                on_paused,
+                on_released,
+                on_signal,
+                on_start_dragging,
+            },
+        ))
     }
 }

@@ -19,12 +19,19 @@ pub struct SoundInit {
 
 #[derive(Debug, Clone)]
 pub struct Sound {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: SoundInit,
 }
 
 impl Sound {
-    pub fn from_initial_properties(initial_properties: SoundInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: SoundInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 
     pub fn is_playing() {
@@ -131,7 +138,10 @@ impl CnvType for Sound {
         }
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let filename = properties.remove("FILENAME").and_then(discard_if_empty);
         let flush_after_played = properties
             .remove("FLUSHAFTERPLAYED")
@@ -173,16 +183,19 @@ impl CnvType for Sound {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(SoundInit {
-            filename,
-            flush_after_played,
-            preload,
-            on_done,
-            on_finished,
-            on_init,
-            on_resumed,
-            on_signal,
-            on_started,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            SoundInit {
+                filename,
+                flush_after_played,
+                preload,
+                on_done,
+                on_finished,
+                on_init,
+                on_resumed,
+                on_signal,
+                on_started,
+            },
+        ))
     }
 }

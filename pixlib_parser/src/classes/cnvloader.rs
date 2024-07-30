@@ -10,12 +10,19 @@ pub struct CnvLoaderInit {
 
 #[derive(Debug, Clone)]
 pub struct CnvLoader {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: CnvLoaderInit,
 }
 
 impl CnvLoader {
-    pub fn from_initial_properties(initial_properties: CnvLoaderInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: CnvLoaderInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 
     pub fn load() {
@@ -67,8 +74,14 @@ impl CnvType for CnvLoader {
         todo!()
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let cnv_loader = properties.remove("CNVLOADER").and_then(discard_if_empty);
-        Ok(Self::from_initial_properties(CnvLoaderInit { cnv_loader }))
+        Ok(Self::from_initial_properties(
+            parent,
+            CnvLoaderInit { cnv_loader },
+        ))
     }
 }

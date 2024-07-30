@@ -86,10 +86,10 @@ fn main() {
         })
         .insert_resource(InsertedDisk::try_from(env::args()).expect("Usage: pixlib path_to_iso"))
         .insert_resource(ChosenScene::default())
-        .insert_resource(ScriptRunner(CnvRunner {
+        .insert_resource(ScriptRunner(Arc::new(RwLock::new(CnvRunner {
             scripts: Default::default(),
             filesystem: Arc::new(RwLock::new(InsertedDisk::try_from(env::args()).unwrap())),
-        }))
+        }))))
         .insert_resource(ObjectBuilderIssueManager(issue_manager))
         .init_state::<AppState>()
         .add_systems(Startup, setup)
@@ -123,7 +123,7 @@ pub fn show_hide_graphics(
         let Some(ident) = &ident.0 else {
             continue;
         };
-        let Some(animation_obj_whole) = script_runner.get_object(ident) else {
+        let Some(animation_obj_whole) = script_runner.read().unwrap().get_object(ident) else {
             warn!(
                 "Animation has no associated object in script runner: {}",
                 ident
@@ -132,7 +132,8 @@ pub fn show_hide_graphics(
             continue;
         };
         // info!("Object {ident}: {:?}", animation_obj_whole.content);
-        let mut animation_obj_guard = animation_obj_whole.content.write().unwrap();
+        let animation_obj_tmp = animation_obj_whole.read().unwrap();
+        let mut animation_obj_guard = animation_obj_tmp.content.write().unwrap();
         let is_visible = if let Some(animation_obj) =
             animation_obj_guard.as_any_mut().downcast_mut::<Animation>()
         {
@@ -178,28 +179,33 @@ fn reload_main_script(
     if !inserted_disk.is_changed() {
         return;
     }
-    script_runner.unload_all_scripts();
+    script_runner.write().unwrap().unload_all_scripts();
     let Some(iso) = inserted_disk.get() else {
         return;
     };
     let root_script_path =
         read_game_definition(iso, &game_paths, &mut script_runner, &mut issue_manager);
     let mut vec = Vec::new();
-    script_runner.0.find_objects(
+    script_runner.0.read().unwrap().find_objects(
         |o| matches!(o.content.read().unwrap().get_type_id(), "APPLICATION"),
         &mut vec,
     );
     if vec.len() != 1 {
         error!(
             "Incorrect number of APPLICATION objects (should be 1): {:?}",
-            vec.iter().map(|o| &o.name)
+            vec.iter().map(|o| o.read().unwrap().name.clone())
         );
         return;
     }
     let application = vec.into_iter().next().unwrap();
-    let application_name = application.name.clone();
-    if let Some(PropertyValue::String(ref application_path)) =
-        application.content.read().unwrap().get_property("PATH")
+    let application_name = application.read().unwrap().name.clone();
+    if let Some(PropertyValue::String(ref application_path)) = application
+        .read()
+        .unwrap()
+        .content
+        .read()
+        .unwrap()
+        .get_property("PATH")
     {
         read_script(
             iso,
@@ -212,8 +218,13 @@ fn reload_main_script(
             &mut issue_manager,
         );
     }
-    let Some(PropertyValue::List(episode_list)) =
-        application.content.read().unwrap().get_property("EPISODES")
+    let Some(PropertyValue::List(episode_list)) = application
+        .read()
+        .unwrap()
+        .content
+        .read()
+        .unwrap()
+        .get_property("EPISODES")
     else {
         panic!();
     };
@@ -227,10 +238,19 @@ fn reload_main_script(
         return;
     };
     let episode_object_name = episode_object_name.clone();
-    if let Some(episode_object) = script_runner.get_object(&episode_object_name) {
-        let episode_name = episode_object.name.clone();
-        if let Some(PropertyValue::String(ref episode_path)) =
-            episode_object.content.read().unwrap().get_property("PATH")
+    if let Some(episode_object) = script_runner
+        .read()
+        .unwrap()
+        .get_object(&episode_object_name)
+    {
+        let episode_name = episode_object.read().unwrap().name.clone();
+        if let Some(PropertyValue::String(ref episode_path)) = episode_object
+            .read()
+            .unwrap()
+            .content
+            .read()
+            .unwrap()
+            .get_property("PATH")
         {
             read_script(
                 iso,
@@ -239,13 +259,15 @@ fn reload_main_script(
                 &game_paths,
                 Some(Arc::clone(&root_script_path)),
                 ScriptSource::Episode,
-                &mut script_runner,
+                &script_runner,
                 &mut issue_manager,
             );
         }
         chosen_scene.list.clear();
         chosen_scene.index = 0;
         let Some(PropertyValue::List(scene_list)) = episode_object
+            .read()
+            .unwrap()
             .content
             .read()
             .unwrap()
@@ -254,12 +276,25 @@ fn reload_main_script(
             panic!();
         };
         for scene_name in scene_list.iter() {
-            if let Some(scene_object) = script_runner.get_object(scene_name) {
-                if scene_object.content.read().unwrap().get_type_id() != "SCENE" {
+            if let Some(scene_object) = script_runner.read().unwrap().get_object(scene_name) {
+                if scene_object
+                    .read()
+                    .unwrap()
+                    .content
+                    .read()
+                    .unwrap()
+                    .get_type_id()
+                    != "SCENE"
+                {
                     panic!();
                 };
-                let Some(PropertyValue::String(scene_script_path)) =
-                    scene_object.content.read().unwrap().get_property("PATH")
+                let Some(PropertyValue::String(scene_script_path)) = scene_object
+                    .read()
+                    .unwrap()
+                    .content
+                    .read()
+                    .unwrap()
+                    .get_property("PATH")
                 else {
                     error!("Scene {} has no path", scene_name);
                     continue;
@@ -268,6 +303,8 @@ fn reload_main_script(
                     name: scene_name.to_string(),
                     path: PathBuf::from(scene_script_path),
                     background: scene_object
+                        .read()
+                        .unwrap()
                         .content
                         .read()
                         .unwrap()

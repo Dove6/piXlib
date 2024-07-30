@@ -15,12 +15,19 @@ pub struct ArrayInit {
 
 #[derive(Debug, Clone)]
 pub struct Array {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: ArrayInit,
 }
 
 impl Array {
-    pub fn from_initial_properties(initial_properties: ArrayInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: ArrayInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 
     pub fn add() {
@@ -332,7 +339,10 @@ impl CnvType for Array {
         todo!()
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let send_on_change = properties
             .remove("SENDONCHANGE")
             .and_then(discard_if_empty)
@@ -359,12 +369,15 @@ impl CnvType for Array {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(ArrayInit {
-            send_on_change,
-            on_change,
-            on_done,
-            on_init,
-            on_signal,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            ArrayInit {
+                send_on_change,
+                on_change,
+                on_done,
+                on_init,
+                on_signal,
+            },
+        ))
     }
 }

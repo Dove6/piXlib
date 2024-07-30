@@ -162,26 +162,39 @@ pub fn update_scene_list(
     if let Some(iso) = inserted_disk.get() {
         let game_definition_path =
             read_game_definition(iso, game_paths, script_runner, issue_manager);
-        let game_definition = script_runner.0.get_script(&game_definition_path).unwrap();
+        let game_definition = script_runner
+            .0
+            .read()
+            .unwrap()
+            .get_script(&game_definition_path)
+            .unwrap();
         info!("game_definition: {:?}", game_definition);
-        for (name, path, background) in game_definition.objects.iter().filter_map(|o| {
-            let content = o.content.read().unwrap();
-            if content.get_type_id() == "SCENE" {
-                Some((
-                    o.name.clone(),
-                    content.get_property("PATH").and_then(|v| match v {
-                        PropertyValue::String(s) => Some(s),
-                        _ => None,
-                    }),
-                    content.get_property("BACKGROUND").and_then(|v| match v {
-                        PropertyValue::String(s) => Some(s),
-                        _ => None,
-                    }),
-                ))
-            } else {
-                None
-            }
-        }) {
+        for (name, path, background) in
+            game_definition
+                .read()
+                .unwrap()
+                .objects
+                .iter()
+                .filter_map(|o| {
+                    let o_guard = o.read().unwrap();
+                    let content = o_guard.content.read().unwrap();
+                    if content.get_type_id() == "SCENE" {
+                        Some((
+                            o.read().unwrap().name.clone(),
+                            content.get_property("PATH").and_then(|v| match v {
+                                PropertyValue::String(s) => Some(s),
+                                _ => None,
+                            }),
+                            content.get_property("BACKGROUND").and_then(|v| match v {
+                                PropertyValue::String(s) => Some(s),
+                                _ => None,
+                            }),
+                        ))
+                    } else {
+                        None
+                    }
+                })
+        {
             scene_list.scenes.push(SceneDefinition {
                 name,
                 path: PathBuf::from(path.unwrap()),

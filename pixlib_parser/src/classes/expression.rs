@@ -12,12 +12,19 @@ pub struct ExpressionInit {
 
 #[derive(Debug, Clone)]
 pub struct Expression {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: ExpressionInit,
 }
 
 impl Expression {
-    pub fn from_initial_properties(initial_properties: ExpressionInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: ExpressionInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 }
 
@@ -59,7 +66,10 @@ impl CnvType for Expression {
         todo!()
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);
         let operand2 = properties.remove("OPERAND2").and_then(discard_if_empty);
         let operator = properties
@@ -67,10 +77,13 @@ impl CnvType for Expression {
             .and_then(discard_if_empty)
             .map(ExpressionOperator::parse)
             .transpose()?;
-        Ok(Self::from_initial_properties(ExpressionInit {
-            operand1,
-            operand2,
-            operator,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            ExpressionInit {
+                operand1,
+                operand2,
+                operator,
+            },
+        ))
     }
 }

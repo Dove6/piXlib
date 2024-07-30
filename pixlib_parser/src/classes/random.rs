@@ -9,12 +9,19 @@ pub struct RandomInit {
 
 #[derive(Debug, Clone)]
 pub struct Random {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: RandomInit,
 }
 
 impl Random {
-    pub fn from_initial_properties(initial_properties: RandomInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: RandomInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 
     pub fn get() {
@@ -66,7 +73,10 @@ impl CnvType for Random {
         todo!()
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
-        Ok(Self::from_initial_properties(RandomInit {}))
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
+        Ok(Self::from_initial_properties(parent, RandomInit {}))
     }
 }

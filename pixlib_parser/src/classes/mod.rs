@@ -82,7 +82,7 @@ use crate::{
     common::{Issue, IssueHandler, IssueManager, Position},
     lexer::{CnvLexer, CnvToken},
     parser::CodeParser,
-    runner::{CnvStatement, CnvValue, FileSystem, RunnerContext},
+    runner::{CnvScript, CnvStatement, CnvValue, FileSystem, RunnerContext},
     scanner::CnvScanner,
 };
 
@@ -97,6 +97,7 @@ pub type FontName = String;
 
 #[derive(Debug, Clone)]
 pub struct CnvObjectBuilder {
+    parent: Arc<RwLock<CnvScript>>,
     path: Arc<Path>,
     name: String,
     index: usize,
@@ -104,8 +105,14 @@ pub struct CnvObjectBuilder {
 }
 
 impl CnvObjectBuilder {
-    pub fn new(path: Arc<Path>, name: String, index: usize) -> Self {
+    pub fn new(
+        parent: Arc<RwLock<CnvScript>>,
+        path: Arc<Path>,
+        name: String,
+        index: usize,
+    ) -> Self {
         Self {
+            parent,
             path,
             name,
             index,
@@ -117,7 +124,7 @@ impl CnvObjectBuilder {
         self.properties.insert(property, value); // TODO: report duplicates
     }
 
-    pub fn build(self, filesystem: &dyn FileSystem) -> Result<CnvObject, ObjectBuilderError> {
+    pub fn build(self) -> Result<Arc<RwLock<CnvObject>>, ObjectBuilderError> {
         let mut properties = self.properties;
         let Some(type_name) = properties.remove("TYPE").and_then(discard_if_empty) else {
             return Err(ObjectBuilderError::new(
@@ -125,14 +132,18 @@ impl CnvObjectBuilder {
                 ObjectBuildErrorKind::MissingType,
             )); // TODO: readable errors
         };
-        let content = CnvTypeFactory::create(self.path, type_name, properties, filesystem).map_err(|e| {
-            ObjectBuilderError::new(self.name.clone(), ObjectBuildErrorKind::ParsingError(e))
-        })?;
-        Ok(CnvObject {
-            name: self.name,
+        let object = Arc::new(RwLock::new(CnvObject {
+            parent: self.parent,
+            name: self.name.clone(),
             index: self.index,
-            content: RwLock::new(content),
-        })
+            content: RwLock::new(Box::new(DummyCnvType {})),
+        }));
+        let content =
+            CnvTypeFactory::create(Arc::clone(&object), type_name, properties).map_err(|e| {
+                ObjectBuilderError::new(self.name, ObjectBuildErrorKind::ParsingError(e))
+            })?;
+        object.write().unwrap().content = RwLock::new(content);
+        Ok(object)
     }
 }
 
@@ -175,6 +186,7 @@ pub enum ObjectBuildErrorKind {
 
 #[derive(Debug)]
 pub struct CnvObject {
+    pub parent: Arc<RwLock<CnvScript>>,
     pub name: String,
     pub index: usize,
     pub content: RwLock<Box<dyn CnvType>>,
@@ -233,7 +245,7 @@ pub enum RunnerError {
     MissingOperator,
     ObjectNotFound { name: String },
     NoDataLoaded,
-    SequenceNameNotFound {name: String},
+    SequenceNameNotFound { name: String },
     IoError { source: std::io::Error },
 }
 
@@ -256,60 +268,130 @@ pub trait CnvType: Send + Sync + std::fmt::Debug {
         context: &mut RunnerContext,
     ) -> RunnerResult<Option<CnvValue>>;
 
-    fn new(path: Arc<Path>, properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError>
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError>
     where
         Self: Sized;
 }
 
 impl dyn CnvType {}
 
+#[derive(Debug)]
+pub struct DummyCnvType {}
+
+impl CnvType for DummyCnvType {
+    fn get_type_id(&self) -> &'static str {
+        "DUMMY"
+    }
+
+    fn has_event(&self, name: &str) -> bool {
+        false
+    }
+
+    fn has_property(&self, name: &str) -> bool {
+        false
+    }
+
+    fn has_method(&self, name: &str) -> bool {
+        false
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self as &mut dyn Any
+    }
+
+    fn get_property(&self, name: &str) -> Option<PropertyValue> {
+        None
+    }
+
+    fn call_method(
+        &mut self,
+        identifier: CallableIdentifier,
+        arguments: &[CnvValue],
+        context: &mut RunnerContext,
+    ) -> RunnerResult<Option<CnvValue>> {
+        Ok(None)
+    }
+
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {})
+    }
+}
+
 pub struct CnvTypeFactory;
 
 impl CnvTypeFactory {
     pub fn create(
-        path: Arc<Path>,
+        parent: Arc<RwLock<CnvObject>>,
         type_name: String,
         properties: HashMap<String, String>,
-        filesystem: &dyn FileSystem,
     ) -> Result<Box<dyn CnvType>, TypeParsingError> {
         match type_name.as_ref() {
-            "ANIMO" => Animation::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "APPLICATION" => Application::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "ARRAY" => Array::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "BEHAVIOUR" => Behavior::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "BOOL" => Bool::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "BUTTON" => Button::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "ANIMO" => Animation::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "APPLICATION" => {
+                Application::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
+            }
+            "ARRAY" => Array::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "BEHAVIOUR" => {
+                Behavior::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
+            }
+            "BOOL" => Bool::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "BUTTON" => Button::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
             "CANVAS_OBSERVER" => {
-                CanvasObserver::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>)
+                CanvasObserver::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
             }
             "CANVASOBSERVER" => {
-                CanvasObserver::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>)
+                CanvasObserver::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
             }
-            "CNVLOADER" => CnvLoader::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "CONDITION" => Condition::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "CNVLOADER" => {
+                CnvLoader::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
+            }
+            "CONDITION" => {
+                Condition::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
+            }
             "COMPLEXCONDITION" => {
-                ComplexCondition::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>)
+                ComplexCondition::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
             }
-            "DOUBLE" => Dbl::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "EPISODE" => Episode::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "EXPRESSION" => Expression::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "FONT" => Font::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "GROUP" => Group::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "IMAGE" => Image::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "INTEGER" => Int::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "KEYBOARD" => Keyboard::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "MOUSE" => Mouse::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "MULTIARRAY" => MultiArray::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "MUSIC" => Music::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "RANDOM" => Random::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "SCENE" => Scene::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "SEQUENCE" => Sequence::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "SOUND" => Sound::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "STRING" => Str::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "STRUCT" => Struct::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "SYSTEM" => System::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "TEXT" => Text::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "TIMER" => Timer::new(path, properties, filesystem).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "DOUBLE" => Dbl::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "EPISODE" => Episode::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "EXPRESSION" => {
+                Expression::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
+            }
+            "FONT" => Font::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "GROUP" => Group::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "IMAGE" => Image::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "INTEGER" => Int::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "KEYBOARD" => {
+                Keyboard::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
+            }
+            "MOUSE" => Mouse::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "MULTIARRAY" => {
+                MultiArray::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
+            }
+            "MUSIC" => Music::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "RANDOM" => Random::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "SCENE" => Scene::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "SEQUENCE" => {
+                Sequence::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
+            }
+            "SOUND" => Sound::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "STRING" => Str::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "STRUCT" => Struct::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "SYSTEM" => System::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "TEXT" => Text::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "TIMER" => Timer::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
             _ => Err(TypeParsingError::UnknownType(type_name)),
         }
     }

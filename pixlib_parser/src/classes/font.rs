@@ -14,12 +14,19 @@ pub struct FontInit {
 
 #[derive(Debug, Clone)]
 pub struct Font {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: FontInit,
 }
 
 impl Font {
-    pub fn from_initial_properties(initial_properties: FontInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: FontInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 
     pub fn get_height() {
@@ -90,7 +97,10 @@ impl CnvType for Font {
         todo!()
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
@@ -121,11 +131,14 @@ impl CnvType for Font {
                 })
             })
             .collect();
-        Ok(Self::from_initial_properties(FontInit {
-            defs,
-            on_done,
-            on_init,
-            on_signal,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            FontInit {
+                defs,
+                on_done,
+                on_init,
+                on_signal,
+            },
+        ))
     }
 }

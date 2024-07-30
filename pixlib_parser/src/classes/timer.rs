@@ -17,12 +17,19 @@ pub struct TimerInit {
 
 #[derive(Debug, Clone)]
 pub struct Timer {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: TimerInit,
 }
 
 impl Timer {
-    pub fn from_initial_properties(initial_properties: TimerInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: TimerInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 
     pub fn disable() {
@@ -113,7 +120,10 @@ impl CnvType for Timer {
         todo!()
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let elapse = properties
             .remove("ELAPSE")
             .and_then(discard_if_empty)
@@ -149,14 +159,17 @@ impl CnvType for Timer {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(TimerInit {
-            elapse,
-            enabled,
-            ticks,
-            on_done,
-            on_init,
-            on_signal,
-            on_tick,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            TimerInit {
+                elapse,
+                enabled,
+                ticks,
+                on_done,
+                on_init,
+                on_signal,
+                on_tick,
+            },
+        ))
     }
 }

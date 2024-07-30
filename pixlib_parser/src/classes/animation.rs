@@ -81,6 +81,7 @@ pub struct FrameIdentifier {
 #[derive(Debug, Clone)]
 pub struct Animation {
     // ANIMO
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: AnimationInit,
 
     is_reversed: bool,
@@ -105,7 +106,10 @@ pub struct Animation {
 }
 
 impl Animation {
-    pub fn from_initial_properties(initial_properties: AnimationInit, filesystem: &dyn FileSystem, path: Arc<Path>) -> Self {
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: AnimationInit,
+    ) -> Self {
         let preload = initial_properties.preload.is_some_and(|v| v);
         let filename = initial_properties.filename.clone().unwrap_or_default();
         let is_visible = initial_properties.visible.unwrap_or(true);
@@ -113,6 +117,7 @@ impl Animation {
         let fps = initial_properties.fps.unwrap_or(16) as usize;
         let priority = initial_properties.priority.unwrap_or(0);
         let mut animation = Self {
+            parent: Arc::clone(&parent),
             initial_properties,
             is_reversed: false,
             is_playing: false,
@@ -133,7 +138,14 @@ impl Animation {
             current_frame_duration: 0f64,
         };
         if preload {
-            animation.load(filesystem, path.with_file_name(&filename).to_str().unwrap());
+            let parent = parent.read().unwrap();
+            let script = parent.parent.read().unwrap();
+            let filesystem = Arc::clone(&script.runner.read().unwrap().filesystem);
+            let path = Arc::clone(&script.path);
+            animation.load(
+                &*filesystem.read().unwrap(),
+                path.with_file_name(&filename).to_str().unwrap(),
+            );
         }
         animation
     }
@@ -624,7 +636,9 @@ impl Animation {
         Ok(())
     }
 
-    pub fn get_frame_to_show(&self) -> RunnerResult<Option<(&FrameDefinition, &SpriteDefinition, &SpriteData)>> {
+    pub fn get_frame_to_show(
+        &self,
+    ) -> RunnerResult<Option<(&FrameDefinition, &SpriteDefinition, &SpriteData)>> {
         if !self.is_visible {
             return Ok(None);
         }
@@ -1095,7 +1109,10 @@ impl CnvType for Animation {
         }
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let as_button = properties
             .remove("ASBUTTON")
             .and_then(discard_if_empty)
@@ -1222,33 +1239,36 @@ impl CnvType for Animation {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Animation::from_initial_properties(AnimationInit {
-            as_button,
-            filename,
-            flush_after_played,
-            fps,
-            monitor_collision,
-            monitor_collision_alpha,
-            preload,
-            priority,
-            release,
-            to_canvas,
-            visible,
-            on_click,
-            on_collision,
-            on_collision_finished,
-            on_done,
-            on_finished,
-            on_first_frame,
-            on_focus_off,
-            on_focus_on,
-            on_frame_changed,
-            on_init,
-            on_paused,
-            on_release,
-            on_resumed,
-            on_signal,
-            on_started,
-        }, filesystem, path))
+        Ok(Animation::from_initial_properties(
+            parent,
+            AnimationInit {
+                as_button,
+                filename,
+                flush_after_played,
+                fps,
+                monitor_collision,
+                monitor_collision_alpha,
+                preload,
+                priority,
+                release,
+                to_canvas,
+                visible,
+                on_click,
+                on_collision,
+                on_collision_finished,
+                on_done,
+                on_finished,
+                on_first_frame,
+                on_focus_off,
+                on_focus_on,
+                on_frame_changed,
+                on_init,
+                on_paused,
+                on_release,
+                on_resumed,
+                on_signal,
+                on_started,
+            },
+        ))
     }
 }

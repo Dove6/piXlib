@@ -20,131 +20,163 @@ pub struct SceneInit {
     pub on_activate: Option<Arc<IgnorableProgram>>, // ONACTIVATE signal
     pub on_deactivate: Option<Arc<IgnorableProgram>>, // ONDEACTIVATE signal
     pub on_do_modal: Option<Arc<IgnorableProgram>>, // ONDOMODAL signal
-    pub on_done: Option<Arc<IgnorableProgram>>, // ONDONE signal
-    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
+    pub on_done: Option<Arc<IgnorableProgram>>,     // ONDONE signal
+    pub on_init: Option<Arc<IgnorableProgram>>,     // ONINIT signal
     pub on_music_looped: Option<Arc<IgnorableProgram>>, // ONMUSICLOOPED signal
-    pub on_restart: Option<Arc<IgnorableProgram>>, // ONRESTART signal
-    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
+    pub on_restart: Option<Arc<IgnorableProgram>>,  // ONRESTART signal
+    pub on_signal: Option<Arc<IgnorableProgram>>,   // ONSIGNAL signal
 }
 
 #[derive(Debug, Clone)]
 pub struct Scene {
     // SCENE
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: SceneInit,
 }
 
 impl Scene {
-    pub fn from_initial_properties(initial_properties: SceneInit) -> Self {
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: SceneInit,
+    ) -> Self {
         Self {
+            parent,
             initial_properties,
         }
     }
 
-    pub fn create_object() { // CREATEOBJECT
+    pub fn create_object() {
+        // CREATEOBJECT
         todo!()
     }
 
-    pub fn get_dragged_name() { // GETDRAGGEDNAME
+    pub fn get_dragged_name() {
+        // GETDRAGGEDNAME
         todo!()
     }
 
-    pub fn get_elements_no() { // GETELEMENTSNO
+    pub fn get_elements_no() {
+        // GETELEMENTSNO
         todo!()
     }
 
-    pub fn get_max_hs_priority() { // GETMAXHSPRIORITY
+    pub fn get_max_hs_priority() {
+        // GETMAXHSPRIORITY
         todo!()
     }
 
-    pub fn get_min_hs_priority() { // GETMINHSPRIORITY
+    pub fn get_min_hs_priority() {
+        // GETMINHSPRIORITY
         todo!()
     }
 
-    pub fn get_music_volume() { // GETMUSICVOLUME
+    pub fn get_music_volume() {
+        // GETMUSICVOLUME
         todo!()
     }
 
-    pub fn get_objects() { // GETOBJECTS
+    pub fn get_objects() {
+        // GETOBJECTS
         todo!()
     }
 
-    pub fn get_playing_animo() { // GETPLAYINGANIMO
+    pub fn get_playing_animo() {
+        // GETPLAYINGANIMO
         todo!()
     }
 
-    pub fn get_playing_seq() { // GETPLAYINGSEQ
+    pub fn get_playing_seq() {
+        // GETPLAYINGSEQ
         todo!()
     }
 
-    pub fn get_running_timer() { // GETRUNNINGTIMER
+    pub fn get_running_timer() {
+        // GETRUNNINGTIMER
         todo!()
     }
 
-    pub fn is_paused() { // ISPAUSED
+    pub fn is_paused() {
+        // ISPAUSED
         todo!()
     }
 
-    pub fn pause() { // PAUSE
+    pub fn pause() {
+        // PAUSE
         todo!()
     }
 
-    pub fn remove() { // REMOVE
+    pub fn remove() {
+        // REMOVE
         todo!()
     }
 
-    pub fn remove_clones() { // REMOVECLONES
+    pub fn remove_clones() {
+        // REMOVECLONES
         todo!()
     }
 
-    pub fn resume() { // RESUME
+    pub fn resume() {
+        // RESUME
         todo!()
     }
 
-    pub fn resume_only() { // RESUMEONLY
+    pub fn resume_only() {
+        // RESUMEONLY
         todo!()
     }
 
-    pub fn resume_seq_only() { // RESUMESEQONLY
+    pub fn resume_seq_only() {
+        // RESUMESEQONLY
         todo!()
     }
 
-    pub fn run() { // RUN
+    pub fn run() {
+        // RUN
         todo!()
     }
 
-    pub fn run_clones() { // RUNCLONES
+    pub fn run_clones() {
+        // RUNCLONES
         todo!()
     }
 
-    pub fn set_max_hs_priority() { // SETMAXHSPRIORITY
+    pub fn set_max_hs_priority() {
+        // SETMAXHSPRIORITY
         todo!()
     }
 
-    pub fn set_min_hs_priority() { // SETMINHSPRIORITY
+    pub fn set_min_hs_priority() {
+        // SETMINHSPRIORITY
         todo!()
     }
 
-    pub fn set_music_freq() { // SETMUSICFREQ
+    pub fn set_music_freq() {
+        // SETMUSICFREQ
         todo!()
     }
 
-    pub fn set_music_pan() { // SETMUSICPAN
+    pub fn set_music_pan() {
+        // SETMUSICPAN
         todo!()
     }
 
-    pub fn set_music_volume() { // SETMUSICVOLUME
+    pub fn set_music_volume() {
+        // SETMUSICVOLUME
         todo!()
     }
 
-    pub fn start_music() { // STARTMUSIC
+    pub fn start_music() {
+        // STARTMUSIC
         todo!()
     }
 
-    pub fn stop_music() { // STOPMUSIC
+    pub fn stop_music() {
+        // STOPMUSIC
         todo!()
     }
 
-    pub fn to_time() { // TOTIME
+    pub fn to_time() {
+        // TOTIME
         todo!()
     }
 }
@@ -191,7 +223,10 @@ impl CnvType for Scene {
         }
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);
         let background = properties
             .remove("BACKGROUND")
@@ -262,26 +297,29 @@ impl CnvType for Scene {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(SceneInit {
-            author,
-            background,
-            coauthors,
-            creation_time,
-            deamon,
-            description,
-            dlls,
-            last_modify_time,
-            music,
-            path,
-            version,
-            on_activate,
-            on_deactivate,
-            on_do_modal,
-            on_done,
-            on_init,
-            on_music_looped,
-            on_restart,
-            on_signal,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            SceneInit {
+                author,
+                background,
+                coauthors,
+                creation_time,
+                deamon,
+                description,
+                dlls,
+                last_modify_time,
+                music,
+                path,
+                version,
+                on_activate,
+                on_deactivate,
+                on_do_modal,
+                on_done,
+                on_init,
+                on_music_looped,
+                on_restart,
+                on_signal,
+            },
+        ))
     }
 }

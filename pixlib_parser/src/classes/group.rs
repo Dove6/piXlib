@@ -12,71 +12,93 @@ pub struct GroupInit {
 
 #[derive(Debug, Clone)]
 pub struct Group {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: GroupInit,
 }
 
 impl Group {
-    pub fn from_initial_properties(initial_properties: GroupInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: GroupInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 
-    pub fn add() { // ADD
+    pub fn add() {
+        // ADD
         todo!()
     }
 
-    pub fn add_clones() { // ADDCLONES
+    pub fn add_clones() {
+        // ADDCLONES
         todo!()
     }
 
-    pub fn clone() { // CLONE
+    pub fn clone() {
+        // CLONE
         todo!()
     }
 
-    pub fn contains() { // CONTAINS
+    pub fn contains() {
+        // CONTAINS
         todo!()
     }
 
-    pub fn get_clone_index() { // GETCLONEINDEX
+    pub fn get_clone_index() {
+        // GETCLONEINDEX
         todo!()
     }
 
-    pub fn get_marker_pos() { // GETMARKERPOS
+    pub fn get_marker_pos() {
+        // GETMARKERPOS
         todo!()
     }
 
-    pub fn get_name() { // GETNAME
+    pub fn get_name() {
+        // GETNAME
         todo!()
     }
 
-    pub fn get_name_at_marker() { // GETNAMEATMARKER
+    pub fn get_name_at_marker() {
+        // GETNAMEATMARKER
         todo!()
     }
 
-    pub fn get_size() { // GETSIZE
+    pub fn get_size() {
+        // GETSIZE
         todo!()
     }
 
-    pub fn next() { // NEXT
+    pub fn next() {
+        // NEXT
         todo!()
     }
 
-    pub fn prev() { // PREV
+    pub fn prev() {
+        // PREV
         todo!()
     }
 
-    pub fn remove() { // REMOVE
+    pub fn remove() {
+        // REMOVE
         todo!()
     }
 
-    pub fn remove_all() { // REMOVEALL
+    pub fn remove_all() {
+        // REMOVEALL
         todo!()
     }
 
-    pub fn reset_marker() { // RESETMARKER
+    pub fn reset_marker() {
+        // RESETMARKER
         todo!()
     }
 
-    pub fn set_marker_pos() { // SETMARKERPOS
+    pub fn set_marker_pos() {
+        // SETMARKERPOS
         todo!()
     }
 }
@@ -120,7 +142,10 @@ impl CnvType for Group {
         todo!()
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
@@ -136,10 +161,13 @@ impl CnvType for Group {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(GroupInit {
-            on_done,
-            on_init,
-            on_signal,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            GroupInit {
+                on_done,
+                on_init,
+                on_signal,
+            },
+        ))
     }
 }

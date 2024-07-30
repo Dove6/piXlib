@@ -15,12 +15,19 @@ pub struct ComplexConditionInit {
 
 #[derive(Debug, Clone)]
 pub struct ComplexCondition {
+    pub parent: Arc<RwLock<CnvObject>>,
     pub initial_properties: ComplexConditionInit,
 }
 
 impl ComplexCondition {
-    pub fn from_initial_properties(initial_properties: ComplexConditionInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: ComplexConditionInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 
     pub fn break_running() {
@@ -77,7 +84,10 @@ impl CnvType for ComplexCondition {
         todo!()
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);
         let operand2 = properties.remove("OPERAND2").and_then(discard_if_empty);
         let operator = properties
@@ -95,12 +105,15 @@ impl CnvType for ComplexCondition {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(ComplexConditionInit {
-            operand1,
-            operand2,
-            operator,
-            on_runtime_failed,
-            on_runtime_success,
-        }))
+        Ok(Self::from_initial_properties(
+            parent,
+            ComplexConditionInit {
+                operand1,
+                operand2,
+                operator,
+                on_runtime_failed,
+                on_runtime_success,
+            },
+        ))
     }
 }

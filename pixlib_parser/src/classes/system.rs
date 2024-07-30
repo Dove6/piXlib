@@ -10,12 +10,19 @@ pub struct SystemInit {
 
 #[derive(Debug, Clone)]
 pub struct System {
+    parent: Arc<RwLock<CnvObject>>,
     initial_properties: SystemInit,
 }
 
 impl System {
-    pub fn from_initial_properties(initial_properties: SystemInit) -> Self {
-        Self { initial_properties }
+    pub fn from_initial_properties(
+        parent: Arc<RwLock<CnvObject>>,
+        initial_properties: SystemInit,
+    ) -> Self {
+        Self {
+            parent,
+            initial_properties,
+        }
     }
 
     pub fn copy_file() {
@@ -187,8 +194,11 @@ impl CnvType for System {
         todo!()
     }
 
-    fn new(path: Arc<Path>, mut properties: HashMap<String, String>, filesystem: &dyn FileSystem) -> Result<Self, TypeParsingError> {
+    fn new(
+        parent: Arc<RwLock<CnvObject>>,
+        mut properties: HashMap<String, String>,
+    ) -> Result<Self, TypeParsingError> {
         let system = properties.remove("SYSTEM").and_then(discard_if_empty);
-        Ok(Self::from_initial_properties(SystemInit { system }))
+        Ok(Self::from_initial_properties(parent, SystemInit { system }))
     }
 }
