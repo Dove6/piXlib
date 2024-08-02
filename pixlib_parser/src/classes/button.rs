@@ -34,13 +34,13 @@ pub struct ButtonInit {
 
 #[derive(Debug, Clone)]
 pub struct Button {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: ButtonInit,
 }
 
 impl Button {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: ButtonInit,
     ) -> Self {
         Self {
@@ -179,7 +179,7 @@ impl CnvType for Button {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let accent = properties

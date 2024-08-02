@@ -10,13 +10,13 @@ pub struct SystemInit {
 
 #[derive(Debug, Clone)]
 pub struct System {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: SystemInit,
 }
 
 impl System {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: SystemInit,
     ) -> Self {
         Self {
@@ -195,7 +195,7 @@ impl CnvType for System {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let system = properties.remove("SYSTEM").and_then(discard_if_empty);

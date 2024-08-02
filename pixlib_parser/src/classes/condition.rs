@@ -16,13 +16,13 @@ pub struct ConditionInit {
 #[derive(Debug, Clone)]
 pub struct Condition {
     // CONDITION
-    pub parent: Arc<RwLock<CnvObject>>,
+    pub parent: Arc<CnvObject>,
     pub initial_properties: ConditionInit,
 }
 
 impl Condition {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: ConditionInit,
     ) -> Self {
         Self {
@@ -46,7 +46,7 @@ impl Condition {
             .runner
             .get_object(left)
             .map(|o| {
-                o.write().unwrap().call_method(
+                o.call_method(
                     CallableIdentifier::Method("GET"),
                     &Vec::new(),
                     context,
@@ -59,7 +59,7 @@ impl Condition {
             .runner
             .get_object(right)
             .map(|o| {
-                o.write().unwrap().call_method(
+                o.call_method(
                     CallableIdentifier::Method("GET"),
                     &Vec::new(),
                     context,
@@ -168,7 +168,7 @@ impl CnvType for Condition {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);

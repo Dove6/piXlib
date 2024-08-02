@@ -59,7 +59,7 @@ impl CnvType for Application {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);

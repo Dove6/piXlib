@@ -17,13 +17,13 @@ pub struct KeyboardInit {
 
 #[derive(Debug, Clone)]
 pub struct Keyboard {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: KeyboardInit,
 }
 
 impl Keyboard {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: KeyboardInit,
     ) -> Self {
         Self {
@@ -121,7 +121,7 @@ impl CnvType for Keyboard {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let keyboard = properties.remove("KEYBOARD").and_then(discard_if_empty);

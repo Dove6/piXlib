@@ -132,13 +132,12 @@ pub fn show_hide_graphics(
             continue;
         };
         // info!("Object {ident}: {:?}", animation_obj_whole.content);
-        let animation_obj_tmp = animation_obj_whole.read().unwrap();
-        let mut animation_obj_guard = animation_obj_tmp.content.write().unwrap();
+        let mut animation_obj_guard = animation_obj_whole.content.write().unwrap();
         let is_visible = if let Some(animation_obj) =
-            animation_obj_guard.as_any_mut().downcast_mut::<Animation>()
+            animation_obj_guard.as_mut().unwrap().as_any_mut().downcast_mut::<Animation>()
         {
             animation_obj.is_visible()
-        } else if let Some(image_obj) = animation_obj_guard.as_any_mut().downcast_mut::<Image>() {
+        } else if let Some(image_obj) = animation_obj_guard.as_mut().unwrap().as_any_mut().downcast_mut::<Image>() {
             image_obj.is_visible()
         } else {
             false
@@ -187,23 +186,23 @@ fn reload_main_script(
         read_game_definition(iso, &game_paths, &mut script_runner, &mut issue_manager);
     let mut vec = Vec::new();
     script_runner.0.read().unwrap().find_objects(
-        |o| matches!(o.content.read().unwrap().get_type_id(), "APPLICATION"),
+        |o| matches!(o.content.read().unwrap().as_ref().unwrap().get_type_id(), "APPLICATION"),
         &mut vec,
     );
     if vec.len() != 1 {
         error!(
             "Incorrect number of APPLICATION objects (should be 1): {:?}",
-            vec.iter().map(|o| o.read().unwrap().name.clone())
+            vec.iter().map(|o| o.name.clone())
         );
         return;
     }
     let application = vec.into_iter().next().unwrap();
-    let application_name = application.read().unwrap().name.clone();
+    let application_name = application.name.clone();
     if let Some(PropertyValue::String(ref application_path)) = application
-        .read()
-        .unwrap()
         .content
         .read()
+        .unwrap()
+        .as_ref()
         .unwrap()
         .get_property("PATH")
     {
@@ -219,10 +218,10 @@ fn reload_main_script(
         );
     }
     let Some(PropertyValue::List(episode_list)) = application
-        .read()
-        .unwrap()
         .content
         .read()
+        .unwrap()
+        .as_ref()
         .unwrap()
         .get_property("EPISODES")
     else {
@@ -243,12 +242,12 @@ fn reload_main_script(
         .unwrap()
         .get_object(&episode_object_name)
     {
-        let episode_name = episode_object.read().unwrap().name.clone();
+        let episode_name = episode_object.name.clone();
         if let Some(PropertyValue::String(ref episode_path)) = episode_object
-            .read()
-            .unwrap()
             .content
             .read()
+            .unwrap()
+            .as_ref()
             .unwrap()
             .get_property("PATH")
         {
@@ -266,10 +265,10 @@ fn reload_main_script(
         chosen_scene.list.clear();
         chosen_scene.index = 0;
         let Some(PropertyValue::List(scene_list)) = episode_object
-            .read()
-            .unwrap()
             .content
             .read()
+            .unwrap()
+            .as_ref()
             .unwrap()
             .get_property("SCENES")
         else {
@@ -278,10 +277,10 @@ fn reload_main_script(
         for scene_name in scene_list.iter() {
             if let Some(scene_object) = script_runner.read().unwrap().get_object(scene_name) {
                 if scene_object
-                    .read()
-                    .unwrap()
                     .content
                     .read()
+                    .unwrap()
+                    .as_ref()
                     .unwrap()
                     .get_type_id()
                     != "SCENE"
@@ -289,10 +288,10 @@ fn reload_main_script(
                     panic!();
                 };
                 let Some(PropertyValue::String(scene_script_path)) = scene_object
-                    .read()
-                    .unwrap()
                     .content
                     .read()
+                    .unwrap()
+                    .as_ref()
                     .unwrap()
                     .get_property("PATH")
                 else {
@@ -303,10 +302,10 @@ fn reload_main_script(
                     name: scene_name.to_string(),
                     path: PathBuf::from(scene_script_path),
                     background: scene_object
-                        .read()
-                        .unwrap()
                         .content
                         .read()
+                        .unwrap()
+                        .as_ref()
                         .unwrap()
                         .get_property("BACKGROUND")
                         .and_then(|v| match v {

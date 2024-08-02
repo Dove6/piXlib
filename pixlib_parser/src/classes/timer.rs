@@ -17,13 +17,13 @@ pub struct TimerInit {
 
 #[derive(Debug, Clone)]
 pub struct Timer {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: TimerInit,
 }
 
 impl Timer {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: TimerInit,
     ) -> Self {
         Self {
@@ -121,7 +121,7 @@ impl CnvType for Timer {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let elapse = properties

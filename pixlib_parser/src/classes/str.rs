@@ -20,14 +20,14 @@ pub struct StrInit {
 
 #[derive(Debug, Clone)]
 pub struct Str {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: StrInit,
     value: String,
 }
 
 impl Str {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: StrInit,
     ) -> Self {
         let value = initial_properties.value.clone().unwrap_or(String::new());
@@ -186,7 +186,7 @@ impl CnvType for Str {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let default = properties.remove("DEFAULT").and_then(discard_if_empty);

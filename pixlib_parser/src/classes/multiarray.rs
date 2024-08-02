@@ -10,13 +10,13 @@ pub struct MultiArrayInit {
 
 #[derive(Debug, Clone)]
 pub struct MultiArray {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: MultiArrayInit,
 }
 
 impl MultiArray {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: MultiArrayInit,
     ) -> Self {
         Self {
@@ -100,7 +100,7 @@ impl CnvType for MultiArray {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let dimensions = properties

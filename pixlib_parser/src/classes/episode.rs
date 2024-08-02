@@ -17,13 +17,13 @@ pub struct EpisodeInit {
 #[derive(Debug, Clone)]
 pub struct Episode {
     // EPISODE
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: EpisodeInit,
 }
 
 impl Episode {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: EpisodeInit,
     ) -> Self {
         Self {
@@ -111,7 +111,7 @@ impl CnvType for Episode {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);

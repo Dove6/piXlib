@@ -20,14 +20,14 @@ pub struct DblInit {
 
 #[derive(Debug, Clone)]
 pub struct Dbl {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: DblInit,
     value: f64,
 }
 
 impl Dbl {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: DblInit,
     ) -> Self {
         let value = initial_properties.value.unwrap_or(0f64);
@@ -218,7 +218,7 @@ impl CnvType for Dbl {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let default = properties

@@ -63,6 +63,7 @@ pub use timer::Timer;
 
 use std::{
     any::Any,
+    borrow::Borrow,
     collections::HashMap,
     fmt::Display,
     num::{ParseFloatError, ParseIntError},
@@ -124,7 +125,7 @@ impl CnvObjectBuilder {
         self.properties.insert(property, value); // TODO: report duplicates
     }
 
-    pub fn build(self) -> Result<Arc<RwLock<CnvObject>>, ObjectBuilderError> {
+    pub fn build(self) -> Result<Arc<CnvObject>, ObjectBuilderError> {
         let mut properties = self.properties;
         let Some(type_name) = properties.remove("TYPE").and_then(discard_if_empty) else {
             return Err(ObjectBuilderError::new(
@@ -132,17 +133,17 @@ impl CnvObjectBuilder {
                 ObjectBuildErrorKind::MissingType,
             )); // TODO: readable errors
         };
-        let object = Arc::new(RwLock::new(CnvObject {
+        let object = Arc::new(CnvObject {
             parent: self.parent,
             name: self.name.clone(),
             index: self.index,
-            content: RwLock::new(Box::new(DummyCnvType {})),
-        }));
+            content: RwLock::new(None),
+        });
         let content =
             CnvTypeFactory::create(Arc::clone(&object), type_name, properties).map_err(|e| {
                 ObjectBuilderError::new(self.name, ObjectBuildErrorKind::ParsingError(e))
             })?;
-        object.write().unwrap().content = RwLock::new(content);
+        object.content.write().unwrap().replace(content);
         Ok(object)
     }
 }
@@ -189,7 +190,7 @@ pub struct CnvObject {
     pub parent: Arc<RwLock<CnvScript>>,
     pub name: String,
     pub index: usize,
-    pub content: RwLock<Box<dyn CnvType>>,
+    pub content: RwLock<Option<Box<dyn CnvType>>>,
 }
 
 #[derive(Debug)]
@@ -209,12 +210,19 @@ impl CnvObject {
         self.content
             .write()
             .unwrap()
+            .as_mut()
+            .unwrap()
             .call_method(identifier, arguments, context)
     }
 
     pub fn get_property(&self, name: &str) -> Option<PropertyValue> {
         println!("Getting property: {:?} of: {:?}", name, self.name);
-        self.content.read().unwrap().get_property(name)
+        self.content
+            .read()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .get_property(name)
     }
 }
 
@@ -269,7 +277,7 @@ pub trait CnvType: Send + Sync + std::fmt::Debug {
     ) -> RunnerResult<Option<CnvValue>>;
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError>
     where
@@ -320,7 +328,7 @@ impl CnvType for DummyCnvType {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError>
     where
@@ -334,7 +342,7 @@ pub struct CnvTypeFactory;
 
 impl CnvTypeFactory {
     pub fn create(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         type_name: String,
         properties: HashMap<String, String>,
     ) -> Result<Box<dyn CnvType>, TypeParsingError> {

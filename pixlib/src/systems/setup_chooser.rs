@@ -176,11 +176,11 @@ pub fn update_scene_list(
                 .objects
                 .iter()
                 .filter_map(|o| {
-                    let o_guard = o.read().unwrap();
-                    let content = o_guard.content.read().unwrap();
+                    let content_guard = o.content.read().unwrap();
+                    let content = content_guard.as_ref().unwrap();
                     if content.get_type_id() == "SCENE" {
                         Some((
-                            o.read().unwrap().name.clone(),
+                            o.name.clone(),
                             content.get_property("PATH").and_then(|v| match v {
                                 PropertyValue::String(s) => Some(s),
                                 _ => None,

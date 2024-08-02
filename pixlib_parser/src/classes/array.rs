@@ -15,13 +15,13 @@ pub struct ArrayInit {
 
 #[derive(Debug, Clone)]
 pub struct Array {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: ArrayInit,
 }
 
 impl Array {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: ArrayInit,
     ) -> Self {
         Self {
@@ -340,7 +340,7 @@ impl CnvType for Array {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let send_on_change = properties

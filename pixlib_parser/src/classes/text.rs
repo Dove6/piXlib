@@ -26,13 +26,13 @@ pub struct TextInit {
 
 #[derive(Debug, Clone)]
 pub struct Text {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: TextInit,
 }
 
 impl Text {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: TextInit,
     ) -> Self {
         Self {
@@ -231,7 +231,7 @@ impl CnvType for Text {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let font = properties.remove("FONT").and_then(discard_if_empty);

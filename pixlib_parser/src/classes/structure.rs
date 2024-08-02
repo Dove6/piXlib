@@ -14,13 +14,13 @@ pub struct StructInit {
 
 #[derive(Debug, Clone)]
 pub struct Struct {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: StructInit,
 }
 
 impl Struct {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: StructInit,
     ) -> Self {
         Self {
@@ -84,7 +84,7 @@ impl CnvType for Struct {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let fields = properties

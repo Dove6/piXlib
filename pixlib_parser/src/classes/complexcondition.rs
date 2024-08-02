@@ -15,13 +15,13 @@ pub struct ComplexConditionInit {
 
 #[derive(Debug, Clone)]
 pub struct ComplexCondition {
-    pub parent: Arc<RwLock<CnvObject>>,
+    pub parent: Arc<CnvObject>,
     pub initial_properties: ComplexConditionInit,
 }
 
 impl ComplexCondition {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: ComplexConditionInit,
     ) -> Self {
         Self {
@@ -85,7 +85,7 @@ impl CnvType for ComplexCondition {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);

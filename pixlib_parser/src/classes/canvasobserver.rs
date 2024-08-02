@@ -18,13 +18,13 @@ pub struct CanvasObserverInit {
 
 #[derive(Debug, Clone)]
 pub struct CanvasObserver {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: CanvasObserverInit,
 }
 
 impl CanvasObserver {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: CanvasObserverInit,
     ) -> Self {
         Self {
@@ -161,7 +161,7 @@ impl CnvType for CanvasObserver {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let on_done = properties

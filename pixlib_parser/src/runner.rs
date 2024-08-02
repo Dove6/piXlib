@@ -129,7 +129,7 @@ impl CnvRunner {
         if let Some(Err(err)) = dec_parser.next_if(|result| result.is_err()) {
             return Err(err);
         }
-        let objects: Vec<Arc<RwLock<CnvObject>>> = objects
+        let objects: Vec<Arc<CnvObject>> = objects
             .into_iter()
             .filter_map(|builder| match builder.build() {
                 Ok(built_object) => Some(built_object),
@@ -200,11 +200,11 @@ impl CnvRunner {
         }
     }
 
-    pub fn get_object(&self, name: &str) -> Option<Arc<RwLock<CnvObject>>> {
+    pub fn get_object(&self, name: &str) -> Option<Arc<CnvObject>> {
         // println!("Getting object: {:?}", name);
         for script in self.scripts.values() {
             for object in script.read().unwrap().objects.iter() {
-                if object.read().unwrap().name == name {
+                if object.name == name {
                     return Some(Arc::clone(object));
                 }
             }
@@ -215,12 +215,12 @@ impl CnvRunner {
     pub fn find_objects(
         &self,
         predicate: impl Fn(&CnvObject) -> bool,
-        buffer: &mut Vec<Arc<RwLock<CnvObject>>>,
+        buffer: &mut Vec<Arc<CnvObject>>,
     ) {
         buffer.clear();
         for script in self.scripts.values() {
             for object in script.read().unwrap().objects.iter() {
-                if predicate(&*object.read().unwrap()) {
+                if predicate(&object) {
                     buffer.push(Arc::clone(object));
                 }
             }
@@ -239,10 +239,10 @@ impl CnvRunner {
             return Err(BehaviorRunningError::ObjectNotFound);
         };
         if init_beh_obj
-            .read()
-            .unwrap()
             .content
             .read()
+            .unwrap()
+            .as_ref()
             .unwrap()
             .get_type_id()
             != "BEHAVIOUR"
@@ -251,10 +251,10 @@ impl CnvRunner {
         };
         let mut context = RunnerContext {
             runner: self,
-            self_object: init_beh_obj.read().unwrap().name.clone(),
-            current_object: init_beh_obj.read().unwrap().name.clone(),
+            self_object: init_beh_obj.name.clone(),
+            current_object: init_beh_obj.name.clone(),
         };
-        init_beh_obj.write().unwrap().call_method(
+        init_beh_obj.call_method(
             CallableIdentifier::Method("RUN"),
             &Vec::new(),
             &mut context,
@@ -278,14 +278,14 @@ pub struct CnvScript {
     pub source_kind: ScriptSource,
     pub path: Arc<Path>,
     pub parent_path: Option<Arc<Path>>,
-    pub objects: Vec<Arc<RwLock<CnvObject>>>,
+    pub objects: Vec<Arc<CnvObject>>,
     pub runner: Arc<RwLock<CnvRunner>>,
 }
 
 impl CnvScript {
-    pub fn get_object(&self, name: &str) -> Option<Arc<RwLock<CnvObject>>> {
+    pub fn get_object(&self, name: &str) -> Option<Arc<CnvObject>> {
         for object in self.objects.iter() {
-            if object.read().unwrap().name == name {
+            if object.name == name {
                 return Some(Arc::clone(object));
             }
         }
@@ -295,11 +295,11 @@ impl CnvScript {
     pub fn find_objects(
         &self,
         predicate: impl Fn(&CnvObject) -> bool,
-        buffer: &mut Vec<Arc<RwLock<CnvObject>>>,
+        buffer: &mut Vec<Arc<CnvObject>>,
     ) {
         buffer.clear();
         for object in self.objects.iter() {
-            if predicate(&*object.read().unwrap()) {
+            if predicate(&object) {
                 buffer.push(Arc::clone(object));
             }
         }
@@ -353,7 +353,7 @@ pub enum CnvValue {
     Double(f64),
     Boolean(bool),
     String(String),
-    Reference(Arc<RwLock<CnvObject>>),
+    Reference(Arc<CnvObject>),
 }
 
 impl CnvValue {
@@ -406,7 +406,7 @@ impl CnvValue {
             CnvValue::Double(d) => d.to_string(), // TODO: check
             CnvValue::Boolean(b) => b.to_string(), //TODO: check
             CnvValue::String(s) => s.clone(),
-            CnvValue::Reference(r) => r.read().unwrap().name.clone(), // TODO: not always
+            CnvValue::Reference(r) => r.name.clone(), // TODO: not always
         }
     }
 }
@@ -521,7 +521,7 @@ impl CnvExpression for Invocation {
             let arguments: Vec<_> = arguments.into_iter().map(|e| e.unwrap()).collect();
             // println!("Calling method: {:?} of: {:?}", self.name, self.parent);
             match parent {
-                CnvValue::Reference(obj) => obj.write().unwrap().call_method(
+                CnvValue::Reference(obj) => obj.call_method(
                     CallableIdentifier::Method(&self.name),
                     &arguments,
                     context,
@@ -601,7 +601,7 @@ impl CnvStatement for Program {
                     .runner
                     .get_object(identifier)
                     .unwrap_or_else(|| panic!("Expected existing object named {}", &identifier));
-                obj.write().unwrap().call_method(
+                obj.call_method(
                     CallableIdentifier::Method("RUN"),
                     &Vec::new(),
                     context,

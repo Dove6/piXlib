@@ -20,14 +20,14 @@ pub struct IntInit {
 
 #[derive(Debug, Clone)]
 pub struct Int {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: IntInit,
     value: i32,
 }
 
 impl Int {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: IntInit,
     ) -> Self {
         let value = initial_properties.value.unwrap_or(0);
@@ -196,7 +196,7 @@ impl CnvType for Int {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let default = properties

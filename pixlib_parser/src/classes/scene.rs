@@ -30,13 +30,13 @@ pub struct SceneInit {
 #[derive(Debug, Clone)]
 pub struct Scene {
     // SCENE
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: SceneInit,
 }
 
 impl Scene {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: SceneInit,
     ) -> Self {
         Self {
@@ -224,7 +224,7 @@ impl CnvType for Scene {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);

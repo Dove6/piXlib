@@ -16,7 +16,7 @@ pub struct BehaviorInit {
 #[derive(Debug, Clone)]
 pub struct Behavior {
     // BEHAVIOUR
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: BehaviorInit,
 
     is_enabled: bool,
@@ -24,7 +24,7 @@ pub struct Behavior {
 
 impl Behavior {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: BehaviorInit,
     ) -> Self {
         Self {
@@ -45,13 +45,13 @@ impl Behavior {
     pub fn run(&self, context: &mut RunnerContext) -> RunnerResult<()> {
         if let Some(condition) = self.initial_properties.condition.as_ref() {
             let condition = context.runner.get_object(condition).unwrap();
-            match condition.write().unwrap().call_method(
+            match condition.call_method(
                 CallableIdentifier::Method("CHECK"),
                 &Vec::new(),
                 context,
             )? {
                 Some(CnvValue::Boolean(false)) => {
-                    condition.write().unwrap().call_method(
+                    condition.call_method(
                         CallableIdentifier::Event("ONRUNTIMEFAILED"),
                         &Vec::new(),
                         context,
@@ -59,7 +59,7 @@ impl Behavior {
                     return Ok(());
                 }
                 Some(CnvValue::Boolean(true)) => {
-                    condition.write().unwrap().call_method(
+                    condition.call_method(
                         CallableIdentifier::Event("ONRUNTIMESUCCESS"),
                         &Vec::new(),
                         context,
@@ -171,7 +171,7 @@ impl CnvType for Behavior {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let code = properties

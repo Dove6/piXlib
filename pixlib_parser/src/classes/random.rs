@@ -9,13 +9,13 @@ pub struct RandomInit {
 
 #[derive(Debug, Clone)]
 pub struct Random {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: RandomInit,
 }
 
 impl Random {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: RandomInit,
     ) -> Self {
         Self {
@@ -74,7 +74,7 @@ impl CnvType for Random {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         Ok(Self::from_initial_properties(parent, RandomInit {}))

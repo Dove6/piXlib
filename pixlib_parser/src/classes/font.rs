@@ -14,13 +14,13 @@ pub struct FontInit {
 
 #[derive(Debug, Clone)]
 pub struct Font {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: FontInit,
 }
 
 impl Font {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: FontInit,
     ) -> Self {
         Self {
@@ -98,7 +98,7 @@ impl CnvType for Font {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let on_done = properties

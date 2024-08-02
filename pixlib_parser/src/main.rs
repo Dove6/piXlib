@@ -126,13 +126,13 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
     }
     println!("Parsing ended. Building objects.");
     let filesystem = PlainFileSystem;
-    let objects: HashMap<String, Arc<RwLock<CnvObject>>> = objects
+    let objects: HashMap<String, Arc<CnvObject>> = objects
         .into_iter()
         .map(|(name, builder)| (name, builder.build().unwrap()))
         .collect();
     println!("Built objects:");
     for obj in objects {
-        println!("{:#?}", obj.1.read().unwrap().name);
+        println!("{:#?}", obj.1.name);
     }
     Ok(())
 }

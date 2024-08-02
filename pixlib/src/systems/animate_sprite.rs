@@ -36,9 +36,9 @@ pub fn animate_sprite(
             );
             continue;
         };
-        let animation_obj_whole_guard = animation_obj_whole.read().unwrap();
-        let mut animation_obj_guard = animation_obj_whole_guard.content.write().unwrap();
-        let animation_obj = animation_obj_guard
+        let mut animation_obj_guard = animation_obj_whole.content.write().unwrap();
+        let animation_content = animation_obj_guard.as_mut().unwrap();
+        let animation_obj = animation_content
             .as_any_mut()
             .downcast_mut::<Animation>()
             .unwrap();

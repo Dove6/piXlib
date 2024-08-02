@@ -12,13 +12,13 @@ pub struct ExpressionInit {
 
 #[derive(Debug, Clone)]
 pub struct Expression {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: ExpressionInit,
 }
 
 impl Expression {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: ExpressionInit,
     ) -> Self {
         Self {
@@ -67,7 +67,7 @@ impl CnvType for Expression {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);

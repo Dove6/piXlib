@@ -16,7 +16,7 @@ use pixlib_parser::classes::{CallableIdentifier, CnvObject, PropertyValue};
 use pixlib_parser::runner::{CnvStatement, RunnerContext, ScriptSource};
 
 use std::path::Path;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 struct OrderedGraphics {
@@ -68,10 +68,10 @@ pub fn setup_viewer(
         );
     };
     if scene_object
-        .read()
-        .unwrap()
         .content
         .read()
+        .unwrap()
+        .as_ref()
         .unwrap()
         .get_type_id()
         != "SCENE"
@@ -83,10 +83,10 @@ pub fn setup_viewer(
         );
     };
     let Some(PropertyValue::String(scene_path)) = scene_object
-        .read()
-        .unwrap()
         .content
         .read()
+        .unwrap()
+        .as_ref()
         .unwrap()
         .get_property("PATH")
     else {
@@ -104,10 +104,10 @@ pub fn setup_viewer(
         .with_children(|parent| {
             let mut initial_images = vec![];
             if let Some(PropertyValue::String(background_filename)) = scene_object
-                .read()
-                .unwrap()
                 .content
                 .read()
+                .unwrap()
+                .as_ref()
                 .unwrap()
                 .get_property("BACKGROUND")
             {
@@ -141,18 +141,18 @@ pub fn setup_viewer(
                     .filter(|cnv_object| {
                         matches!(
                             cnv_object
-                                .read()
-                                .unwrap()
                                 .content
                                 .read()
+                                .unwrap()
+                                .as_ref()
                                 .unwrap()
                                 .get_type_id(),
                             "IMAGE" | "ANIMO"
                         )
                     })
                     .map(|cnv_object| {
-                        let cnv_object_guard = cnv_object.read().unwrap();
-                        let content = cnv_object_guard.content.read().unwrap();
+                        let content_guard = cnv_object.content.read().unwrap();
+                        let content = content_guard.as_ref().unwrap();
                         let (filename, priority) = (
                             content
                                 .get_property("FILENAME")
@@ -170,13 +170,13 @@ pub fn setup_viewer(
                                 .unwrap_or_default(),
                         );
                         OrderedGraphics {
-                            identifier: Some(cnv_object_guard.name.clone()),
+                            identifier: Some(cnv_object.name.clone()),
                             file_path: get_path_to_scene_file(&game_paths, &scene_path, &filename)
                                 .to_str()
                                 .unwrap()
                                 .to_owned(),
                             script_index: 1,
-                            object_index: cnv_object_guard.index,
+                            object_index: cnv_object.index,
                             priority,
                         }
                     }),
@@ -206,10 +206,10 @@ pub fn setup_viewer(
 
     if let Some(init_beh_obj) = scene_script.read().unwrap().get_object("__INIT__") {
         if init_beh_obj
-            .read()
-            .unwrap()
             .content
             .read()
+            .unwrap()
+            .as_ref()
             .unwrap()
             .get_type_id()
             != "BEHAVIOUR"
@@ -217,10 +217,10 @@ pub fn setup_viewer(
             error!(
                 "Expected __INIT__ object to be a behavior, not: {:?}",
                 &init_beh_obj
-                    .read()
-                    .unwrap()
                     .content
                     .read()
+                    .unwrap()
+                    .as_ref()
                     .unwrap()
                     .get_type_id()
             );
@@ -229,14 +229,10 @@ pub fn setup_viewer(
         info!("Running __INIT__ behavior...");
         let mut context = RunnerContext {
             runner: &mut *script_runner.write().unwrap(),
-            self_object: init_beh_obj.read().unwrap().name.clone(),
-            current_object: init_beh_obj.read().unwrap().name.clone(),
+            self_object: init_beh_obj.name.clone(),
+            current_object: init_beh_obj.name.clone(),
         };
-        init_beh_obj.write().unwrap().call_method(
-            CallableIdentifier::Method("RUN"),
-            &Vec::new(),
-            &mut context,
-        );
+        init_beh_obj.call_method(CallableIdentifier::Method("RUN"), &Vec::new(), &mut context);
     }
 
     let scene_script = script_runner
@@ -251,32 +247,36 @@ pub fn setup_viewer(
             .unwrap()
             .objects
             .iter()
-            .map(|o| o.read().unwrap().name.clone())
+            .map(|o| o.name.clone())
             .collect::<Vec<_>>()
     );
-    let mut initable_objects: Vec<Arc<RwLock<CnvObject>>> = Vec::new();
+    let mut initable_objects: Vec<Arc<CnvObject>> = Vec::new();
     scene_script.read().unwrap().find_objects(
-        |o| o.content.read().unwrap().has_event("ONINIT"),
+        |o| {
+            o.content
+                .read()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .has_event("ONINIT")
+        },
         &mut initable_objects,
     );
     info!(
         "Found initable objects: {:?}",
         initable_objects
             .iter()
-            .map(|o| o.read().unwrap().name.clone())
+            .map(|o| o.name.clone())
             .collect::<Vec<_>>()
     );
     for object in initable_objects {
         let mut context = RunnerContext {
             runner: &mut *script_runner.write().unwrap(),
-            self_object: object.read().unwrap().name.clone(),
-            current_object: object.read().unwrap().name.clone(),
+            self_object: object.name.clone(),
+            current_object: object.name.clone(),
         };
-        if let Some(PropertyValue::Code(handler)) = object.read().unwrap().get_property("ONINIT") {
-            println!(
-                "Processing initable object: {:?}",
-                object.read().unwrap().name
-            );
+        if let Some(PropertyValue::Code(handler)) = object.get_property("ONINIT") {
+            println!("Processing initable object: {:?}", object.name);
             handler.run(&mut context)
         }
     }

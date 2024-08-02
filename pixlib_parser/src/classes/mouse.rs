@@ -19,13 +19,13 @@ pub struct MouseInit {
 
 #[derive(Debug, Clone)]
 pub struct Mouse {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: MouseInit,
 }
 
 impl Mouse {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: MouseInit,
     ) -> Self {
         Self {
@@ -189,7 +189,7 @@ impl CnvType for Mouse {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let mouse = properties.remove("MOUSE").and_then(discard_if_empty);

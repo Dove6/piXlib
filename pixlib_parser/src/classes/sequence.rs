@@ -17,13 +17,13 @@ pub struct SequenceInit {
 #[derive(Debug, Clone)]
 pub struct Sequence {
     // SEQUENCE
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: SequenceInit,
 }
 
 impl Sequence {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: SequenceInit,
     ) -> Self {
         Self {
@@ -147,7 +147,7 @@ impl CnvType for Sequence {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let filename = properties.remove("FILENAME").and_then(discard_if_empty);

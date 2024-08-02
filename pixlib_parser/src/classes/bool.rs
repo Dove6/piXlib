@@ -20,14 +20,14 @@ pub struct BoolInit {
 
 #[derive(Debug, Clone)]
 pub struct Bool {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: BoolInit,
     value: bool,
 }
 
 impl Bool {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: BoolInit,
     ) -> Self {
         let value = initial_properties.value.unwrap_or(false);
@@ -148,7 +148,7 @@ impl CnvType for Bool {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let default = properties

@@ -81,7 +81,7 @@ pub struct FrameIdentifier {
 #[derive(Debug, Clone)]
 pub struct Animation {
     // ANIMO
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: AnimationInit,
 
     is_reversed: bool,
@@ -107,7 +107,7 @@ pub struct Animation {
 
 impl Animation {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: AnimationInit,
     ) -> Self {
         let preload = initial_properties.preload.is_some_and(|v| v);
@@ -138,7 +138,6 @@ impl Animation {
             current_frame_duration: 0f64,
         };
         if preload {
-            let parent = parent.read().unwrap();
             let script = parent.parent.read().unwrap();
             let filesystem = Arc::clone(&script.runner.read().unwrap().filesystem);
             let path = Arc::clone(&script.path);
@@ -1110,7 +1109,7 @@ impl CnvType for Animation {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let as_button = properties

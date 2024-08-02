@@ -51,7 +51,7 @@ pub struct LoadedImage {
 #[derive(Debug, Clone)]
 pub struct Image {
     // IMAGE
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: ImageInit,
 
     is_flipped_horizontally: bool,
@@ -67,7 +67,7 @@ pub struct Image {
 
 impl Image {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: ImageInit,
     ) -> Self {
         let preload = initial_properties.preload.is_some_and(|v| v);
@@ -88,7 +88,6 @@ impl Image {
             position: (0, 0),
         };
         if preload {
-            let parent = parent.read().unwrap();
             let script = parent.parent.read().unwrap();
             let filesystem = Arc::clone(&script.runner.read().unwrap().filesystem);
             let path = Arc::clone(&script.path);
@@ -591,7 +590,7 @@ impl CnvType for Image {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let as_button = properties

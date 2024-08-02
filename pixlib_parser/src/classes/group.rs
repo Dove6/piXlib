@@ -12,13 +12,13 @@ pub struct GroupInit {
 
 #[derive(Debug, Clone)]
 pub struct Group {
-    parent: Arc<RwLock<CnvObject>>,
+    parent: Arc<CnvObject>,
     initial_properties: GroupInit,
 }
 
 impl Group {
     pub fn from_initial_properties(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         initial_properties: GroupInit,
     ) -> Self {
         Self {
@@ -143,7 +143,7 @@ impl CnvType for Group {
     }
 
     fn new(
-        parent: Arc<RwLock<CnvObject>>,
+        parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let on_done = properties
