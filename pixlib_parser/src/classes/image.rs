@@ -293,6 +293,19 @@ impl Image {
     pub fn show(&mut self) {
         self.is_visible = true;
     }
+
+    pub fn get_image_to_show(
+        &self,
+    ) -> RunnerResult<Option<(&ImageDefinition, &ImageData)>> {
+        if !self.is_visible {
+            return Ok(None);
+        }
+        let Some(loaded_data) = &self.loaded_data else {
+            return Ok(None);
+        };
+        let image = &loaded_data.image;
+        Ok(Some((&image.0, &image.1)))
+    }
 }
 
 impl CnvType for Image {

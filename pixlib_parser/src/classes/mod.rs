@@ -30,6 +30,9 @@ mod text;
 mod timer;
 
 pub use animation::Animation;
+pub use animation::SequenceDefinition;
+pub use animation::SpriteData;
+pub use animation::SpriteDefinition;
 pub use application::Application;
 pub use array::Array;
 pub use behavior::Behavior;
@@ -45,6 +48,8 @@ pub use expression::Expression;
 pub use font::Font;
 pub use group::Group;
 pub use image::Image;
+pub use image::ImageData;
+pub use image::ImageDefinition;
 pub use int::Int;
 pub use keyboard::Keyboard;
 pub use lalrpop_util::ParseError;

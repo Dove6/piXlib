@@ -1,5 +1,9 @@
 use std::{
-    cell::RefCell, collections::HashMap, io::Read, path::{Path, PathBuf}, sync::{Arc, RwLock}
+    cell::RefCell,
+    collections::HashMap,
+    io::Read,
+    path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use pixlib_parser::{
@@ -92,6 +96,7 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
                                 runner: Arc::new(RefCell::new(CnvRunner {
                                     scripts: HashMap::new(),
                                     filesystem: Arc::new(RefCell::new(DummyFileSystem {})),
+                                    current_scene: None,
                                 })),
                             })),
                             filename.clone().into(),

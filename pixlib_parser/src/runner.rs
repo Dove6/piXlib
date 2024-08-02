@@ -40,6 +40,7 @@ where
 #[derive(Debug, Clone)]
 pub struct CnvRunner {
     pub scripts: HashMap<Arc<Path>, Arc<RefCell<CnvScript>>>,
+    pub current_scene: Option<Arc<CnvObject>>,
     pub filesystem: Arc<RefCell<dyn FileSystem>>,
 }
 
@@ -259,6 +260,10 @@ impl CnvRunner {
     pub fn change_scene(&mut self, scene_name: &str) -> Result<(), ()> {
         todo!()
     }
+
+    pub fn get_current_scene(&self) -> Option<Arc<CnvObject>> {
+        self.current_scene.as_ref().map(Arc::clone)
+    }
 }
 
 pub enum BehaviorRunningError {
@@ -284,6 +289,10 @@ impl CnvScript {
             }
         }
         None
+    }
+    
+    pub fn get_object_at(&self, index: usize) -> Option<Arc<CnvObject>> {
+        self.objects.get(index).cloned()
     }
 
     pub fn find_objects(

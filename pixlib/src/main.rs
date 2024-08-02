@@ -1,37 +1,35 @@
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
 pub mod anchors;
-pub mod animation;
 pub mod arguments;
 pub mod components;
+pub mod graphics_plugin;
 pub mod image;
 pub mod iso;
 pub mod resources;
 pub mod states;
 pub mod systems;
+pub mod util;
 
-use std::{
-    cell::RefCell, env, path::PathBuf, sync::Arc,
-};
+use std::{cell::RefCell, env, path::PathBuf, sync::Arc};
 
-use animation::CnvIdentifier;
 use bevy::{
     ecs::{
         change_detection::DetectChanges,
         schedule::{common_conditions::in_state, IntoSystemConfigs, OnEnter, OnExit},
-        system::{Query, Res, ResMut},
+        system::{Res, ResMut},
     },
-    log::{error, info, warn},
-    prelude::{default, App, NonSend, NonSendMut, PluginGroup, Startup, Update},
-    render::{texture::ImagePlugin, view::Visibility},
-    sprite::Sprite,
+    log::{error, warn},
+    prelude::{default, App, NonSendMut, PluginGroup, Startup, Update},
+    render::texture::ImagePlugin,
     window::{PresentMode, Window, WindowPlugin},
     winit::WinitSettings,
     DefaultPlugins,
 };
+use graphics_plugin::GraphicsPlugin;
 use iso::{read_game_definition, read_script};
 use pixlib_parser::{
-    classes::{Animation, Image, ObjectBuilderError, PropertyValue},
+    classes::{ObjectBuilderError, PropertyValue},
     common::{Issue, IssueHandler, IssueKind, IssueManager},
     runner::{CnvRunner, ScriptSource},
 };
@@ -41,8 +39,8 @@ use resources::{
 };
 use states::AppState;
 use systems::{
-    animate_sprite, cleanup_root, detect_return_to_chooser, draw_cursor, handle_dropped_iso,
-    navigate_chooser, setup, setup_chooser, setup_viewer, update_chooser_labels,
+    cleanup_root, detect_return_to_chooser, draw_cursor, handle_dropped_iso, navigate_chooser,
+    setup, setup_chooser, update_chooser_labels,
 };
 
 const WINDOW_SIZE: (usize, usize) = (800, 600);
@@ -87,6 +85,7 @@ fn main() {
         .insert_non_send_resource(ScriptRunner(Arc::new(RefCell::new(CnvRunner {
             scripts: Default::default(),
             filesystem: Arc::new(RefCell::new(InsertedDisk::try_from(env::args()).unwrap())),
+            current_scene: None,
         }))))
         .insert_resource(ObjectBuilderIssueManager(issue_manager))
         .init_state::<AppState>()
@@ -99,59 +98,14 @@ fn main() {
                 .run_if(in_state(AppState::SceneChooser)),
         )
         .add_systems(OnExit(AppState::SceneChooser), cleanup_root)
-        .add_systems(OnEnter(AppState::SceneViewer), setup_viewer)
-        .add_systems(
-            Update,
-            (animate_sprite, show_hide_graphics).run_if(in_state(AppState::SceneViewer)),
-        )
         .add_systems(Update, reload_main_script)
         .add_systems(
             Update,
             (detect_return_to_chooser).run_if(in_state(AppState::SceneViewer)),
         )
         .add_systems(OnExit(AppState::SceneViewer), cleanup_root)
+        .add_plugins(GraphicsPlugin)
         .run();
-}
-
-pub fn show_hide_graphics(
-    script_runner: NonSend<ScriptRunner>,
-    mut query: Query<(&CnvIdentifier, &Sprite, &mut Visibility)>,
-) {
-    for (ident, _, mut visibility) in &mut query {
-        let Some(ident) = &ident.0 else {
-            continue;
-        };
-        let Some(animation_obj_whole) = script_runner.borrow().get_object(ident) else {
-            warn!(
-                "Animation has no associated object in script runner: {}",
-                ident
-            );
-            *visibility = Visibility::Hidden;
-            continue;
-        };
-        // info!("Object {ident}: {:?}", animation_obj_whole.content);
-        let mut animation_obj_guard = animation_obj_whole.content.borrow_mut();
-        let is_visible = if let Some(animation_obj) =
-            animation_obj_guard.as_mut().unwrap().as_any_mut().downcast_mut::<Animation>()
-        {
-            animation_obj.is_visible()
-        } else if let Some(image_obj) = animation_obj_guard.as_mut().unwrap().as_any_mut().downcast_mut::<Image>() {
-            image_obj.is_visible()
-        } else {
-            false
-        };
-        drop(animation_obj_guard);
-        if *visibility == Visibility::Visible && !is_visible {
-            info!("{} HIDE", ident);
-        } else if *visibility == Visibility::Hidden && is_visible {
-            info!("{} SHOW", ident)
-        }
-        *visibility = if is_visible {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
-    }
 }
 
 #[derive(Debug)]
@@ -184,7 +138,12 @@ fn reload_main_script(
         read_game_definition(iso, &game_paths, &mut script_runner, &mut issue_manager);
     let mut vec = Vec::new();
     script_runner.0.borrow().find_objects(
-        |o| matches!(o.content.borrow().as_ref().unwrap().get_type_id(), "APPLICATION"),
+        |o| {
+            matches!(
+                o.content.borrow().as_ref().unwrap().get_type_id(),
+                "APPLICATION"
+            )
+        },
         &mut vec,
     );
     if vec.len() != 1 {
@@ -233,10 +192,7 @@ fn reload_main_script(
         return;
     };
     let episode_object_name = episode_object_name.clone();
-    if let Some(episode_object) = script_runner
-        .borrow()
-        .get_object(&episode_object_name)
-    {
+    if let Some(episode_object) = script_runner.borrow().get_object(&episode_object_name) {
         let episode_name = episode_object.name.clone();
         if let Some(PropertyValue::String(ref episode_path)) = episode_object
             .content
