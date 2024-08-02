@@ -11,9 +11,7 @@ pub mod states;
 pub mod systems;
 
 use std::{
-    env,
-    path::PathBuf,
-    sync::{Arc, RwLock},
+    cell::RefCell, env, path::PathBuf, sync::Arc,
 };
 
 use animation::CnvIdentifier;
@@ -24,7 +22,7 @@ use bevy::{
         system::{Query, Res, ResMut},
     },
     log::{error, info, warn},
-    prelude::{default, App, PluginGroup, Startup, Update},
+    prelude::{default, App, NonSend, NonSendMut, PluginGroup, Startup, Update},
     render::{texture::ImagePlugin, view::Visibility},
     sprite::Sprite,
     window::{PresentMode, Window, WindowPlugin},
@@ -86,9 +84,9 @@ fn main() {
         })
         .insert_resource(InsertedDisk::try_from(env::args()).expect("Usage: pixlib path_to_iso"))
         .insert_resource(ChosenScene::default())
-        .insert_resource(ScriptRunner(Arc::new(RwLock::new(CnvRunner {
+        .insert_non_send_resource(ScriptRunner(Arc::new(RefCell::new(CnvRunner {
             scripts: Default::default(),
-            filesystem: Arc::new(RwLock::new(InsertedDisk::try_from(env::args()).unwrap())),
+            filesystem: Arc::new(RefCell::new(InsertedDisk::try_from(env::args()).unwrap())),
         }))))
         .insert_resource(ObjectBuilderIssueManager(issue_manager))
         .init_state::<AppState>()
@@ -116,14 +114,14 @@ fn main() {
 }
 
 pub fn show_hide_graphics(
-    script_runner: Res<ScriptRunner>,
+    script_runner: NonSend<ScriptRunner>,
     mut query: Query<(&CnvIdentifier, &Sprite, &mut Visibility)>,
 ) {
     for (ident, _, mut visibility) in &mut query {
         let Some(ident) = &ident.0 else {
             continue;
         };
-        let Some(animation_obj_whole) = script_runner.read().unwrap().get_object(ident) else {
+        let Some(animation_obj_whole) = script_runner.borrow().get_object(ident) else {
             warn!(
                 "Animation has no associated object in script runner: {}",
                 ident
@@ -132,7 +130,7 @@ pub fn show_hide_graphics(
             continue;
         };
         // info!("Object {ident}: {:?}", animation_obj_whole.content);
-        let mut animation_obj_guard = animation_obj_whole.content.write().unwrap();
+        let mut animation_obj_guard = animation_obj_whole.content.borrow_mut();
         let is_visible = if let Some(animation_obj) =
             animation_obj_guard.as_mut().unwrap().as_any_mut().downcast_mut::<Animation>()
         {
@@ -171,22 +169,22 @@ impl<I: Issue> IssueHandler<I> for IssuePrinter {
 fn reload_main_script(
     inserted_disk: Res<InsertedDisk>,
     game_paths: Res<GamePaths>,
-    mut script_runner: ResMut<ScriptRunner>,
+    mut script_runner: NonSendMut<ScriptRunner>,
     mut chosen_scene: ResMut<ChosenScene>,
     mut issue_manager: ResMut<ObjectBuilderIssueManager>,
 ) {
     if !inserted_disk.is_changed() {
         return;
     }
-    script_runner.write().unwrap().unload_all_scripts();
+    script_runner.borrow_mut().unload_all_scripts();
     let Some(iso) = inserted_disk.get() else {
         return;
     };
     let root_script_path =
         read_game_definition(iso, &game_paths, &mut script_runner, &mut issue_manager);
     let mut vec = Vec::new();
-    script_runner.0.read().unwrap().find_objects(
-        |o| matches!(o.content.read().unwrap().as_ref().unwrap().get_type_id(), "APPLICATION"),
+    script_runner.0.borrow().find_objects(
+        |o| matches!(o.content.borrow().as_ref().unwrap().get_type_id(), "APPLICATION"),
         &mut vec,
     );
     if vec.len() != 1 {
@@ -200,8 +198,7 @@ fn reload_main_script(
     let application_name = application.name.clone();
     if let Some(PropertyValue::String(ref application_path)) = application
         .content
-        .read()
-        .unwrap()
+        .borrow()
         .as_ref()
         .unwrap()
         .get_property("PATH")
@@ -219,8 +216,7 @@ fn reload_main_script(
     }
     let Some(PropertyValue::List(episode_list)) = application
         .content
-        .read()
-        .unwrap()
+        .borrow()
         .as_ref()
         .unwrap()
         .get_property("EPISODES")
@@ -238,15 +234,13 @@ fn reload_main_script(
     };
     let episode_object_name = episode_object_name.clone();
     if let Some(episode_object) = script_runner
-        .read()
-        .unwrap()
+        .borrow()
         .get_object(&episode_object_name)
     {
         let episode_name = episode_object.name.clone();
         if let Some(PropertyValue::String(ref episode_path)) = episode_object
             .content
-            .read()
-            .unwrap()
+            .borrow()
             .as_ref()
             .unwrap()
             .get_property("PATH")
@@ -266,8 +260,7 @@ fn reload_main_script(
         chosen_scene.index = 0;
         let Some(PropertyValue::List(scene_list)) = episode_object
             .content
-            .read()
-            .unwrap()
+            .borrow()
             .as_ref()
             .unwrap()
             .get_property("SCENES")
@@ -275,11 +268,10 @@ fn reload_main_script(
             panic!();
         };
         for scene_name in scene_list.iter() {
-            if let Some(scene_object) = script_runner.read().unwrap().get_object(scene_name) {
+            if let Some(scene_object) = script_runner.borrow().get_object(scene_name) {
                 if scene_object
                     .content
-                    .read()
-                    .unwrap()
+                    .borrow()
                     .as_ref()
                     .unwrap()
                     .get_type_id()
@@ -289,8 +281,7 @@ fn reload_main_script(
                 };
                 let Some(PropertyValue::String(scene_script_path)) = scene_object
                     .content
-                    .read()
-                    .unwrap()
+                    .borrow()
                     .as_ref()
                     .unwrap()
                     .get_property("PATH")
@@ -303,8 +294,7 @@ fn reload_main_script(
                     path: PathBuf::from(scene_script_path),
                     background: scene_object
                         .content
-                        .read()
-                        .unwrap()
+                        .borrow()
                         .as_ref()
                         .unwrap()
                         .get_property("BACKGROUND")

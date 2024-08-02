@@ -164,19 +164,17 @@ pub fn update_scene_list(
             read_game_definition(iso, game_paths, script_runner, issue_manager);
         let game_definition = script_runner
             .0
-            .read()
-            .unwrap()
+            .borrow()
             .get_script(&game_definition_path)
             .unwrap();
         info!("game_definition: {:?}", game_definition);
         for (name, path, background) in
             game_definition
-                .read()
-                .unwrap()
+                .borrow()
                 .objects
                 .iter()
                 .filter_map(|o| {
-                    let content_guard = o.content.read().unwrap();
+                    let content_guard = o.content.borrow();
                     let content = content_guard.as_ref().unwrap();
                     if content.get_type_id() == "SCENE" {
                         Some((

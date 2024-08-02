@@ -5,6 +5,7 @@ use crate::resources::ScriptRunner;
 use bevy::asset::{Assets, Handle};
 use bevy::ecs::system::ResMut;
 use bevy::log::{error, info, warn};
+use bevy::prelude::NonSendMut;
 use bevy::render::render_asset::RenderAssetUsages;
 use bevy::render::render_resource::{Extent3d, TextureFormat};
 use bevy::render::texture::Image;
@@ -14,7 +15,7 @@ use pixlib_parser::classes::Animation;
 
 pub fn animate_sprite(
     time: Res<Time>,
-    mut script_runner: ResMut<ScriptRunner>,
+    mut script_runner: NonSendMut<ScriptRunner>,
     mut textures: ResMut<Assets<Image>>,
     mut query: Query<(
         &CnvIdentifier,
@@ -29,14 +30,14 @@ pub fn animate_sprite(
         let Some(ident) = &ident.0 else {
             continue;
         };
-        let Some(animation_obj_whole) = script_runner.read().unwrap().get_object(&ident) else {
+        let Some(animation_obj_whole) = script_runner.as_ref().borrow().get_object(&ident) else {
             warn!(
                 "Animation has no associated object in script runner: {:?}",
                 ident
             );
             continue;
         };
-        let mut animation_obj_guard = animation_obj_whole.content.write().unwrap();
+        let mut animation_obj_guard = animation_obj_whole.content.borrow_mut();
         let animation_content = animation_obj_guard.as_mut().unwrap();
         let animation_obj = animation_content
             .as_any_mut()
@@ -44,7 +45,7 @@ pub fn animate_sprite(
             .unwrap();
         animation_obj.tick(
             &mut pixlib_parser::runner::RunnerContext {
-                runner: &mut *script_runner.write().unwrap(),
+                runner: &mut *script_runner.as_mut().borrow_mut(),
                 self_object: ident.clone(),
                 current_object: ident.clone(),
             },

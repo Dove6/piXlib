@@ -1,10 +1,5 @@
 use std::{
-    env::Args,
-    fs::File,
-    io::Read,
-    ops::{Deref, DerefMut},
-    path::{Path, PathBuf},
-    sync::{Arc, RwLock},
+    cell::RefCell, env::Args, fs::File, io::Read, ops::{Deref, DerefMut}, path::{Path, PathBuf}, sync::{Arc, RwLock}
 };
 
 use bevy::{
@@ -76,11 +71,11 @@ impl DerefMut for ObjectBuilderIssueManager {
     }
 }
 
-#[derive(Resource, Debug, Clone)]
-pub struct ScriptRunner(pub Arc<RwLock<CnvRunner>>);
+#[derive(Debug, Clone)]
+pub struct ScriptRunner(pub Arc<RefCell<CnvRunner>>);
 
 impl Deref for ScriptRunner {
-    type Target = RwLock<CnvRunner>;
+    type Target = RefCell<CnvRunner>;
 
     fn deref(&self) -> &Self::Target {
         &self.0

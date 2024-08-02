@@ -138,11 +138,11 @@ impl Animation {
             current_frame_duration: 0f64,
         };
         if preload {
-            let script = parent.parent.read().unwrap();
-            let filesystem = Arc::clone(&script.runner.read().unwrap().filesystem);
-            let path = Arc::clone(&script.path);
+            let script = parent.parent.as_ref();
+            let filesystem = Arc::clone(&script.borrow().runner.as_ref().borrow().filesystem);
+            let path = Arc::clone(&script.borrow().path);
             animation.load(
-                &*filesystem.read().unwrap(),
+                &*filesystem.as_ref().borrow(),
                 path.with_file_name(&filename).to_str().unwrap(),
             );
         }

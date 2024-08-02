@@ -6,7 +6,7 @@ use crate::resources::{
 };
 use bevy::hierarchy::BuildChildren;
 use bevy::log::{error, info};
-use bevy::prelude::SpatialBundle;
+use bevy::prelude::{NonSendMut, SpatialBundle};
 use bevy::sprite::SpriteBundle;
 use bevy::{
     ecs::system::Res,
@@ -32,7 +32,7 @@ pub fn setup_viewer(
     inserted_disk: Res<InsertedDisk>,
     chosen_scene: Res<ChosenScene>,
     mut commands: Commands,
-    mut script_runner: ResMut<ScriptRunner>,
+    mut script_runner: NonSendMut<ScriptRunner>,
     mut issue_manager: ResMut<ObjectBuilderIssueManager>,
 ) {
     let Some(iso) = inserted_disk.get() else {
@@ -52,40 +52,39 @@ pub fn setup_viewer(
         name,
         &game_paths,
         script_runner
-            .read()
-            .unwrap()
+            .as_ref()
+            .borrow()
             .get_root_script()
-            .map(|s| s.read().unwrap().path.clone()),
+            .map(|s| s.as_ref().borrow().path.clone()),
         ScriptSource::Scene,
         &script_runner,
         &mut issue_manager,
     );
-    let Some(scene_object) = script_runner.read().unwrap().get_object(name) else {
+    let Some(scene_object) = script_runner.as_ref().borrow().get_object(name) else {
         panic!(
             "Could not find scene object {}: {:?}",
             &name,
-            script_runner.read().unwrap().get_object(name)
+            script_runner.as_ref().borrow().get_object(name)
         );
     };
     if scene_object
         .content
-        .read()
-        .unwrap()
+        .borrow()
         .as_ref()
         .unwrap()
+        .as_ref()
         .get_type_id()
         != "SCENE"
     {
         panic!(
             "Could not find scene object {}: {:?}",
             &name,
-            script_runner.read().unwrap().get_object(name)
+            script_runner.as_ref().borrow().get_object(name)
         );
     };
     let Some(PropertyValue::String(scene_path)) = scene_object
         .content
-        .read()
-        .unwrap()
+        .borrow()
         .as_ref()
         .unwrap()
         .get_property("PATH")
@@ -94,8 +93,8 @@ pub fn setup_viewer(
         return;
     };
     let scene_script = script_runner
-        .read()
-        .unwrap()
+        .as_ref()
+        .borrow()
         .get_script(&scene_script_path)
         .unwrap();
 
@@ -105,8 +104,7 @@ pub fn setup_viewer(
             let mut initial_images = vec![];
             if let Some(PropertyValue::String(background_filename)) = scene_object
                 .content
-                .read()
-                .unwrap()
+                .borrow()
                 .as_ref()
                 .unwrap()
                 .get_property("BACKGROUND")
@@ -134,16 +132,15 @@ pub fn setup_viewer(
                 priority,
             } in initial_images.into_iter().chain(
                 scene_script
-                    .read()
-                    .unwrap()
+                    .as_ref()
+                    .borrow()
                     .objects
                     .iter()
                     .filter(|cnv_object| {
                         matches!(
                             cnv_object
                                 .content
-                                .read()
-                                .unwrap()
+                                .borrow()
                                 .as_ref()
                                 .unwrap()
                                 .get_type_id(),
@@ -151,7 +148,7 @@ pub fn setup_viewer(
                         )
                     })
                     .map(|cnv_object| {
-                        let content_guard = cnv_object.content.read().unwrap();
+                        let content_guard = cnv_object.content.borrow();
                         let content = content_guard.as_ref().unwrap();
                         let (filename, priority) = (
                             content
@@ -204,11 +201,10 @@ pub fn setup_viewer(
         .id();
     commands.insert_resource(RootEntityToDespawn(Some(root_entity)));
 
-    if let Some(init_beh_obj) = scene_script.read().unwrap().get_object("__INIT__") {
+    if let Some(init_beh_obj) = scene_script.as_ref().borrow().get_object("__INIT__") {
         if init_beh_obj
             .content
-            .read()
-            .unwrap()
+            .borrow()
             .as_ref()
             .unwrap()
             .get_type_id()
@@ -218,8 +214,7 @@ pub fn setup_viewer(
                 "Expected __INIT__ object to be a behavior, not: {:?}",
                 &init_beh_obj
                     .content
-                    .read()
-                    .unwrap()
+                    .borrow()
                     .as_ref()
                     .unwrap()
                     .get_type_id()
@@ -228,7 +223,7 @@ pub fn setup_viewer(
         }
         info!("Running __INIT__ behavior...");
         let mut context = RunnerContext {
-            runner: &mut *script_runner.write().unwrap(),
+            runner: &mut *script_runner.as_mut().borrow_mut(),
             self_object: init_beh_obj.name.clone(),
             current_object: init_beh_obj.name.clone(),
         };
@@ -236,26 +231,25 @@ pub fn setup_viewer(
     }
 
     let scene_script = script_runner
-        .read()
-        .unwrap()
+        .as_ref()
+        .borrow()
         .get_script(&scene_script_path)
         .unwrap();
     info!(
         "Scene objects: {:#?}",
         scene_script
-            .read()
-            .unwrap()
+            .as_ref()
+            .borrow()
             .objects
             .iter()
             .map(|o| o.name.clone())
             .collect::<Vec<_>>()
     );
     let mut initable_objects: Vec<Arc<CnvObject>> = Vec::new();
-    scene_script.read().unwrap().find_objects(
+    scene_script.as_ref().borrow().find_objects(
         |o| {
             o.content
-                .read()
-                .unwrap()
+                .borrow()
                 .as_ref()
                 .unwrap()
                 .has_event("ONINIT")
@@ -271,7 +265,7 @@ pub fn setup_viewer(
     );
     for object in initable_objects {
         let mut context = RunnerContext {
-            runner: &mut *script_runner.write().unwrap(),
+            runner: &mut *script_runner.as_mut().borrow_mut(),
             self_object: object.name.clone(),
             current_object: object.name.clone(),
         };

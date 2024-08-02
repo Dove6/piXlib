@@ -4,9 +4,7 @@ use bevy::{
     ecs::{
         event::EventReader,
         system::{Query, Res, ResMut},
-    },
-    log::info,
-    window::FileDragAndDrop,
+    }, log::info, prelude::NonSendMut, window::FileDragAndDrop
 };
 
 use crate::resources::{GamePaths, InsertedDisk, ObjectBuilderIssueManager, ScriptRunner};
@@ -17,7 +15,7 @@ pub fn handle_dropped_iso(
     mut event_reader: EventReader<FileDragAndDrop>,
     game_paths: Res<GamePaths>,
     mut inserted_disk: ResMut<InsertedDisk>,
-    mut script_runner: ResMut<ScriptRunner>,
+    mut script_runner: NonSendMut<ScriptRunner>,
     mut issue_manager: ResMut<ObjectBuilderIssueManager>,
     mut query: Query<&mut SceneListComponent>,
 ) {

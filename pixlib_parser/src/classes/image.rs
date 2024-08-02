@@ -66,10 +66,7 @@ pub struct Image {
 }
 
 impl Image {
-    pub fn from_initial_properties(
-        parent: Arc<CnvObject>,
-        initial_properties: ImageInit,
-    ) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: ImageInit) -> Self {
         let preload = initial_properties.preload.is_some_and(|v| v);
         let filename = initial_properties.filename.clone().unwrap_or_default();
         let is_visible = initial_properties.visible.unwrap_or(true);
@@ -88,11 +85,11 @@ impl Image {
             position: (0, 0),
         };
         if preload {
-            let script = parent.parent.read().unwrap();
-            let filesystem = Arc::clone(&script.runner.read().unwrap().filesystem);
-            let path = Arc::clone(&script.path);
+            let script = parent.parent.as_ref();
+            let filesystem = Arc::clone(&script.borrow().runner.as_ref().borrow().filesystem);
+            let path = Arc::clone(&script.borrow().path);
             image.load(
-                &*filesystem.read().unwrap(),
+                &*filesystem.as_ref().borrow(),
                 path.with_file_name(&filename).to_str().unwrap(),
             );
         }

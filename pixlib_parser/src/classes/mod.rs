@@ -63,12 +63,12 @@ pub use timer::Timer;
 
 use std::{
     any::Any,
-    borrow::Borrow,
+    cell::RefCell,
     collections::HashMap,
     fmt::Display,
     num::{ParseFloatError, ParseIntError},
     path::{Path, PathBuf},
-    sync::{Arc, RwLock},
+    sync::Arc,
     vec::IntoIter,
 };
 use thiserror::Error;
@@ -98,7 +98,7 @@ pub type FontName = String;
 
 #[derive(Debug, Clone)]
 pub struct CnvObjectBuilder {
-    parent: Arc<RwLock<CnvScript>>,
+    parent: Arc<RefCell<CnvScript>>,
     path: Arc<Path>,
     name: String,
     index: usize,
@@ -107,7 +107,7 @@ pub struct CnvObjectBuilder {
 
 impl CnvObjectBuilder {
     pub fn new(
-        parent: Arc<RwLock<CnvScript>>,
+        parent: Arc<RefCell<CnvScript>>,
         path: Arc<Path>,
         name: String,
         index: usize,
@@ -137,13 +137,13 @@ impl CnvObjectBuilder {
             parent: self.parent,
             name: self.name.clone(),
             index: self.index,
-            content: RwLock::new(None),
+            content: RefCell::new(None),
         });
         let content =
             CnvTypeFactory::create(Arc::clone(&object), type_name, properties).map_err(|e| {
                 ObjectBuilderError::new(self.name, ObjectBuildErrorKind::ParsingError(e))
             })?;
-        object.content.write().unwrap().replace(content);
+        object.content.replace(Some(content));
         Ok(object)
     }
 }
@@ -187,10 +187,10 @@ pub enum ObjectBuildErrorKind {
 
 #[derive(Debug)]
 pub struct CnvObject {
-    pub parent: Arc<RwLock<CnvScript>>,
+    pub parent: Arc<RefCell<CnvScript>>,
     pub name: String,
     pub index: usize,
-    pub content: RwLock<Option<Box<dyn CnvType>>>,
+    pub content: RefCell<Option<Box<dyn CnvType>>>,
 }
 
 #[derive(Debug)]
@@ -208,8 +208,7 @@ impl CnvObject {
     ) -> RunnerResult<Option<CnvValue>> {
         println!("Calling method: {:?} of: {:?}", identifier, self.name);
         self.content
-            .write()
-            .unwrap()
+            .borrow_mut()
             .as_mut()
             .unwrap()
             .call_method(identifier, arguments, context)
@@ -217,12 +216,7 @@ impl CnvObject {
 
     pub fn get_property(&self, name: &str) -> Option<PropertyValue> {
         println!("Getting property: {:?} of: {:?}", name, self.name);
-        self.content
-            .read()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .get_property(name)
+        self.content.borrow().as_ref().unwrap().get_property(name)
     }
 }
 
@@ -259,7 +253,7 @@ pub enum RunnerError {
 
 pub type RunnerResult<T> = std::result::Result<T, RunnerError>;
 
-pub trait CnvType: Send + Sync + std::fmt::Debug {
+pub trait CnvType: std::fmt::Debug {
     fn get_type_id(&self) -> &'static str;
     fn has_event(&self, name: &str) -> bool;
     fn has_property(&self, name: &str) -> bool;

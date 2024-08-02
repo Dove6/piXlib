@@ -1,8 +1,5 @@
 use std::{
-    collections::{HashMap, VecDeque},
-    ops::{Add, Div, Mul, Rem, Sub},
-    path::Path,
-    sync::{Arc, RwLock},
+    cell::RefCell, collections::{HashMap, VecDeque}, ops::{Add, Div, Mul, Rem, Sub}, path::Path, sync::{Arc, RwLock}
 };
 
 use crate::{
@@ -42,8 +39,8 @@ where
 
 #[derive(Debug, Clone)]
 pub struct CnvRunner {
-    pub scripts: HashMap<Arc<Path>, Arc<RwLock<CnvScript>>>,
-    pub filesystem: Arc<RwLock<dyn FileSystem>>,
+    pub scripts: HashMap<Arc<Path>, Arc<RefCell<CnvScript>>>,
+    pub filesystem: Arc<RefCell<dyn FileSystem>>,
 }
 
 pub struct RunnerContext<'a> {
@@ -74,7 +71,7 @@ impl CnvRunner {
     // pub fn step(&mut self, )
 
     pub fn load_script(
-        self_ptr: &Arc<RwLock<CnvRunner>>,
+        self_ptr: &Arc<RefCell<CnvRunner>>,
         path: Arc<Path>,
         contents: impl Iterator<Item = ParserInput>,
         parent_path: Option<Arc<Path>>,
@@ -87,7 +84,7 @@ impl CnvRunner {
             DeclarativeParser::new(contents, Default::default(), parser_issue_manager).peekable();
         let mut objects: Vec<CnvObjectBuilder> = Vec::new();
         let mut name_to_object: HashMap<String, usize> = HashMap::new();
-        let script = Arc::new(RwLock::new(CnvScript {
+        let script = Arc::new(RefCell::new(CnvScript {
             source_kind,
             path: Arc::clone(&path),
             parent_path,
@@ -139,24 +136,23 @@ impl CnvRunner {
                 }
             })
             .collect();
-        script.write().unwrap().objects = objects;
+        script.borrow_mut().objects = objects;
 
         self_ptr
-            .write()
-            .unwrap()
+            .borrow_mut()
             .scripts
             .insert(Arc::clone(&path), script); // TODO: err if present
         Ok(())
     }
 
-    pub fn get_script(&self, path: &Path) -> Option<Arc<RwLock<CnvScript>>> {
+    pub fn get_script(&self, path: &Path) -> Option<Arc<RefCell<CnvScript>>> {
         self.scripts.get(path).map(|s| Arc::clone(s))
     }
 
-    pub fn get_root_script(&self) -> Option<Arc<RwLock<CnvScript>>> {
+    pub fn get_root_script(&self) -> Option<Arc<RefCell<CnvScript>>> {
         self.scripts
             .values()
-            .find(|s| s.read().unwrap().source_kind == ScriptSource::Root)
+            .find(|s| s.borrow().source_kind == ScriptSource::Root)
             .map(|s| Arc::clone(s))
     }
 
@@ -167,7 +163,7 @@ impl CnvRunner {
     ) {
         buffer.clear();
         for (path, script) in self.scripts.iter() {
-            if predicate(&*script.read().unwrap()) {
+            if predicate(&*script.borrow()) {
                 buffer.push(Arc::clone(path));
             }
         }
@@ -185,8 +181,7 @@ impl CnvRunner {
             unloading_queue.push(current.into());
             for (key, value) in self.scripts.iter() {
                 if value
-                    .read()
-                    .unwrap()
+                    .borrow()
                     .parent_path
                     .as_ref()
                     .is_some_and(|p| current == p.as_ref())
@@ -203,7 +198,7 @@ impl CnvRunner {
     pub fn get_object(&self, name: &str) -> Option<Arc<CnvObject>> {
         // println!("Getting object: {:?}", name);
         for script in self.scripts.values() {
-            for object in script.read().unwrap().objects.iter() {
+            for object in script.borrow().objects.iter() {
                 if object.name == name {
                     return Some(Arc::clone(object));
                 }
@@ -219,7 +214,7 @@ impl CnvRunner {
     ) {
         buffer.clear();
         for script in self.scripts.values() {
-            for object in script.read().unwrap().objects.iter() {
+            for object in script.borrow().objects.iter() {
                 if predicate(&object) {
                     buffer.push(Arc::clone(object));
                 }
@@ -235,13 +230,12 @@ impl CnvRunner {
         let Some(script) = self.get_script(&script_name) else {
             return Err(BehaviorRunningError::ScriptNotFound);
         };
-        let Some(init_beh_obj) = script.read().unwrap().get_object(name) else {
+        let Some(init_beh_obj) = script.borrow().get_object(name) else {
             return Err(BehaviorRunningError::ObjectNotFound);
         };
         if init_beh_obj
             .content
-            .read()
-            .unwrap()
+            .borrow()
             .as_ref()
             .unwrap()
             .get_type_id()
@@ -279,7 +273,7 @@ pub struct CnvScript {
     pub path: Arc<Path>,
     pub parent_path: Option<Arc<Path>>,
     pub objects: Vec<Arc<CnvObject>>,
-    pub runner: Arc<RwLock<CnvRunner>>,
+    pub runner: Arc<RefCell<CnvRunner>>,
 }
 
 impl CnvScript {

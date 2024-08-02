@@ -1,8 +1,5 @@
 use std::{
-    collections::HashMap,
-    io::Read,
-    path::{Path, PathBuf},
-    sync::{Arc, RwLock},
+    cell::RefCell, collections::HashMap, io::Read, path::{Path, PathBuf}, sync::{Arc, RwLock}
 };
 
 use pixlib_parser::{
@@ -87,14 +84,14 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
                     .insert(
                         name.clone(),
                         CnvObjectBuilder::new(
-                            Arc::new(RwLock::new(CnvScript {
+                            Arc::new(RefCell::new(CnvScript {
                                 source_kind: pixlib_parser::runner::ScriptSource::Scene,
                                 path: Path::new("").into(),
                                 parent_path: None,
                                 objects: Vec::new(),
-                                runner: Arc::new(RwLock::new(CnvRunner {
+                                runner: Arc::new(RefCell::new(CnvRunner {
                                     scripts: HashMap::new(),
-                                    filesystem: Arc::new(RwLock::new(DummyFileSystem {})),
+                                    filesystem: Arc::new(RefCell::new(DummyFileSystem {})),
                                 })),
                             })),
                             filename.clone().into(),
