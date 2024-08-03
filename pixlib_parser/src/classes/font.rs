@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use parsers::{discard_if_empty, parse_program, FontDef};
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -19,10 +21,7 @@ pub struct Font {
 }
 
 impl Font {
-    pub fn from_initial_properties(
-        parent: Arc<CnvObject>,
-        initial_properties: FontInit,
-    ) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: FontInit) -> Self {
         Self {
             parent,
             initial_properties,

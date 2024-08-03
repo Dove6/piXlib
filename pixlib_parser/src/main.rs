@@ -10,7 +10,7 @@ use pixlib_parser::{
     classes::{CnvObject, CnvObjectBuilder},
     common::{Issue, IssueHandler, IssueManager},
     declarative_parser::{CnvDeclaration, DeclarativeParser, ParserIssue},
-    runner::{CnvRunner, CnvScript, DummyFileSystem, FileSystem},
+    runner::{CnvRunner, CnvScript, FileSystem, ScriptSource},
     scanner::{CnvDecoder, CnvHeader, CnvScanner, CodepageDecoder, CP1250_LUT},
 };
 
@@ -88,17 +88,14 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
                     .insert(
                         name.clone(),
                         CnvObjectBuilder::new(
-                            Arc::new(RefCell::new(CnvScript {
-                                source_kind: pixlib_parser::runner::ScriptSource::Scene,
-                                path: Path::new("").into(),
-                                parent_path: None,
-                                objects: Vec::new(),
-                                runner: Arc::new(RefCell::new(CnvRunner {
-                                    scripts: HashMap::new(),
-                                    filesystem: Arc::new(RefCell::new(DummyFileSystem {})),
-                                    current_scene: None,
-                                })),
-                            })),
+                            Arc::new(CnvScript::new(
+                                Arc::new(CnvRunner::new(Arc::new(RefCell::new(
+                                    PlainFileSystem {},
+                                )))),
+                                Path::new("").into(),
+                                None,
+                                ScriptSource::Scene,
+                            )),
                             filename.clone().into(),
                             name,
                             counter,
@@ -127,7 +124,6 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
         println!("{:?}", err);
     }
     println!("Parsing ended. Building objects.");
-    let filesystem = PlainFileSystem;
     let objects: HashMap<String, Arc<CnvObject>> = objects
         .into_iter()
         .map(|(name, builder)| (name, builder.build().unwrap()))

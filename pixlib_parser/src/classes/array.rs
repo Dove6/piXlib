@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use parsers::{discard_if_empty, parse_bool, parse_program};
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -20,10 +22,7 @@ pub struct Array {
 }
 
 impl Array {
-    pub fn from_initial_properties(
-        parent: Arc<CnvObject>,
-        initial_properties: ArrayInit,
-    ) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: ArrayInit) -> Self {
         Self {
             parent,
             initial_properties,

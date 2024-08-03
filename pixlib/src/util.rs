@@ -24,7 +24,11 @@ pub fn img_file_to_handle(textures: &mut Assets<Image>, file: ImgFile) -> Handle
     ))
 }
 
-pub fn image_data_to_handle(textures: &mut Assets<Image>, image_definition: &ImageDefinition, image_data: &ImageData) -> Handle<Image> {
+pub fn image_data_to_handle(
+    textures: &mut Assets<Image>,
+    image_definition: &ImageDefinition,
+    image_data: &ImageData,
+) -> Handle<Image> {
     textures.add(Image::new(
         Extent3d {
             width: image_definition.size_px.0,
@@ -38,7 +42,11 @@ pub fn image_data_to_handle(textures: &mut Assets<Image>, image_definition: &Ima
     ))
 }
 
-pub fn animation_data_to_handle(textures: &mut Assets<Image>, sprite_definition: &SpriteDefinition, sprite_data: &SpriteData) -> Handle<Image> {
+pub fn animation_data_to_handle(
+    textures: &mut Assets<Image>,
+    sprite_definition: &SpriteDefinition,
+    sprite_data: &SpriteData,
+) -> Handle<Image> {
     textures.add(Image::new(
         Extent3d {
             width: sprite_definition.size_px.0,

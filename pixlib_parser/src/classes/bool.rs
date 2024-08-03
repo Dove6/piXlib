@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use parsers::{discard_if_empty, parse_bool, parse_program};
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -26,10 +28,7 @@ pub struct Bool {
 }
 
 impl Bool {
-    pub fn from_initial_properties(
-        parent: Arc<CnvObject>,
-        initial_properties: BoolInit,
-    ) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: BoolInit) -> Self {
         let value = initial_properties.value.unwrap_or(false);
         Self {
             parent,

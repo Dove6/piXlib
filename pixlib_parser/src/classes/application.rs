@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use parsers::{discard_if_empty, parse_comma_separated, parse_datetime};
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -59,7 +61,7 @@ impl CnvType for Application {
     }
 
     fn new(
-        parent: Arc<CnvObject>,
+        _parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);

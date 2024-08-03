@@ -37,6 +37,8 @@ pub enum ParserFatal {
         position: Position,
         source: std::io::Error,
     },
+    #[error("Other error")]
+    Other,
 }
 
 #[derive(Error, Debug, Clone)]

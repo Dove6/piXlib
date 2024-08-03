@@ -1,5 +1,10 @@
 use std::{
-    cell::RefCell, env::Args, fs::File, io::Read, ops::{Deref, DerefMut}, path::{Path, PathBuf}, sync::{Arc, RwLock}
+    env::Args,
+    fs::File,
+    io::Read,
+    ops::{Deref, DerefMut},
+    path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use bevy::{
@@ -72,10 +77,10 @@ impl DerefMut for ObjectBuilderIssueManager {
 }
 
 #[derive(Debug, Clone)]
-pub struct ScriptRunner(pub Arc<RefCell<CnvRunner>>);
+pub struct ScriptRunner(pub Arc<CnvRunner>);
 
 impl Deref for ScriptRunner {
-    type Target = RefCell<CnvRunner>;
+    type Target = CnvRunner;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -110,7 +115,7 @@ impl FileSystem for InsertedDisk {
         }
     }
 
-    fn write_file(&mut self, filename: &str, data: &[u8]) -> std::io::Result<()> {
+    fn write_file(&mut self, _filename: &str, _data: &[u8]) -> std::io::Result<()> {
         Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
     }
 }

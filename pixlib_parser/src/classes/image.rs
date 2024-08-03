@@ -1,8 +1,9 @@
 use std::any::Any;
 
+use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
 use pixlib_formats::file_formats::img::parse_img;
 
-use crate::runner::DummyFileSystem;
+use crate::runner::{DummyFileSystem, RunnerError};
 
 use super::*;
 
@@ -86,8 +87,8 @@ impl Image {
         };
         if preload {
             let script = parent.parent.as_ref();
-            let filesystem = Arc::clone(&script.borrow().runner.as_ref().borrow().filesystem);
-            let path = Arc::clone(&script.borrow().path);
+            let filesystem = Arc::clone(&script.runner.filesystem);
+            let path = Arc::clone(&script.path);
             image.load(
                 &*filesystem.as_ref().borrow(),
                 path.with_file_name(&filename).to_str().unwrap(),
@@ -294,9 +295,7 @@ impl Image {
         self.is_visible = true;
     }
 
-    pub fn get_image_to_show(
-        &self,
-    ) -> RunnerResult<Option<(&ImageDefinition, &ImageData)>> {
+    pub fn get_image_to_show(&self) -> RunnerResult<Option<(&ImageDefinition, &ImageData)>> {
         if !self.is_visible {
             return Ok(None);
         }
@@ -648,11 +647,6 @@ impl CnvType for Image {
             .remove("VISIBLE")
             .and_then(discard_if_empty)
             .map(parse_bool)
-            .transpose()?;
-        let on_init = properties
-            .remove("ONINIT")
-            .and_then(discard_if_empty)
-            .map(parse_program)
             .transpose()?;
         let on_click = properties
             .remove("ONCLICK")

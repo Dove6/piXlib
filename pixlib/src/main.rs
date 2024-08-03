@@ -20,7 +20,7 @@ use bevy::{
         system::{Res, ResMut},
     },
     log::{error, warn},
-    prelude::{default, App, NonSendMut, PluginGroup, Startup, Update},
+    prelude::{default, App, NonSend, PluginGroup, Startup, Update},
     render::texture::ImagePlugin,
     window::{PresentMode, Window, WindowPlugin},
     winit::WinitSettings,
@@ -82,11 +82,9 @@ fn main() {
         })
         .insert_resource(InsertedDisk::try_from(env::args()).expect("Usage: pixlib path_to_iso"))
         .insert_resource(ChosenScene::default())
-        .insert_non_send_resource(ScriptRunner(Arc::new(RefCell::new(CnvRunner {
-            scripts: Default::default(),
-            filesystem: Arc::new(RefCell::new(InsertedDisk::try_from(env::args()).unwrap())),
-            current_scene: None,
-        }))))
+        .insert_non_send_resource(ScriptRunner(Arc::new(CnvRunner::new(Arc::new(
+            RefCell::new(InsertedDisk::try_from(env::args()).unwrap()),
+        )))))
         .insert_resource(ObjectBuilderIssueManager(issue_manager))
         .init_state::<AppState>()
         .add_systems(Startup, setup)
@@ -123,21 +121,21 @@ impl<I: Issue> IssueHandler<I> for IssuePrinter {
 fn reload_main_script(
     inserted_disk: Res<InsertedDisk>,
     game_paths: Res<GamePaths>,
-    mut script_runner: NonSendMut<ScriptRunner>,
+    script_runner: NonSend<ScriptRunner>,
     mut chosen_scene: ResMut<ChosenScene>,
     mut issue_manager: ResMut<ObjectBuilderIssueManager>,
 ) {
     if !inserted_disk.is_changed() {
         return;
     }
-    script_runner.borrow_mut().unload_all_scripts();
+    script_runner.unload_all_scripts();
     let Some(iso) = inserted_disk.get() else {
         return;
     };
     let root_script_path =
-        read_game_definition(iso, &game_paths, &mut script_runner, &mut issue_manager);
+        read_game_definition(iso, &game_paths, &script_runner, &mut issue_manager);
     let mut vec = Vec::new();
-    script_runner.0.borrow().find_objects(
+    script_runner.find_objects(
         |o| {
             matches!(
                 o.content.borrow().as_ref().unwrap().get_type_id(),
@@ -169,7 +167,7 @@ fn reload_main_script(
             &game_paths,
             Some(Arc::clone(&root_script_path)),
             ScriptSource::Application,
-            &mut script_runner,
+            &script_runner,
             &mut issue_manager,
         );
     }
@@ -192,7 +190,7 @@ fn reload_main_script(
         return;
     };
     let episode_object_name = episode_object_name.clone();
-    if let Some(episode_object) = script_runner.borrow().get_object(&episode_object_name) {
+    if let Some(episode_object) = script_runner.get_object(&episode_object_name) {
         let episode_name = episode_object.name.clone();
         if let Some(PropertyValue::String(ref episode_path)) = episode_object
             .content
@@ -224,7 +222,7 @@ fn reload_main_script(
             panic!();
         };
         for scene_name in scene_list.iter() {
-            if let Some(scene_object) = script_runner.borrow().get_object(scene_name) {
+            if let Some(scene_object) = script_runner.get_object(scene_name) {
                 if scene_object
                     .content
                     .borrow()
@@ -270,49 +268,3 @@ fn reload_main_script(
         );
     };
 }
-
-/*
-fn reload_scene_script(
-    chosen_scene: Res<ChosenScene>,
-    inserted_disk: Res<InsertedDisk>,
-    game_paths: Res<GamePaths>,
-    mut script_runner: ResMut<ScriptRunner>,
-) {
-    if !chosen_scene.is_changed() {
-        return;
-    }
-    let Some(iso) = &inserted_disk.get() else {
-        return;
-    };
-    let mut vec = Vec::new();
-    script_runner.find_scripts(
-        |s| matches!(s.source_kind, ScriptSource::Scene | ScriptSource::CnvLoader),
-        &mut vec,
-    );
-    for episode_script in vec.iter() {
-        script_runner.0.unload_script(episode_script);
-    }
-    let ChosenScene { list, index } = chosen_scene.as_ref();
-    let Some(SceneDefinition {
-        name,
-        path,
-        ..
-    }) = list.get(*index)
-    else {
-        println!(
-            "Could not load scene script: bad index {} for scene list {:?}",
-            index, list
-        );
-        return;
-    };
-    read_script(
-        iso,
-        &path.as_os_str().to_str().unwrap(),
-        &name,
-        &game_paths,
-        script_runner.get_root_script().map(|s| Arc::clone(&s.path)),
-        ScriptSource::Scene,
-        &mut script_runner,
-    );
-}
-*/

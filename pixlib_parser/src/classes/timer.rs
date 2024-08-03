@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -22,10 +24,7 @@ pub struct Timer {
 }
 
 impl Timer {
-    pub fn from_initial_properties(
-        parent: Arc<CnvObject>,
-        initial_properties: TimerInit,
-    ) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: TimerInit) -> Self {
         Self {
             parent,
             initial_properties,

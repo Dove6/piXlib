@@ -1,7 +1,11 @@
+use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
 use pixlib_formats::file_formats::ann::{parse_ann, LoopingSettings};
 use std::{any::Any, sync::Arc};
 
-use crate::{ast::IgnorableProgram, runner::DummyFileSystem};
+use crate::{
+    ast::IgnorableProgram,
+    runner::{DummyFileSystem, RunnerError},
+};
 
 use super::*;
 
@@ -139,8 +143,8 @@ impl Animation {
         };
         if preload {
             let script = parent.parent.as_ref();
-            let filesystem = Arc::clone(&script.borrow().runner.as_ref().borrow().filesystem);
-            let path = Arc::clone(&script.borrow().path);
+            let filesystem = Arc::clone(&script.runner.filesystem);
+            let path = Arc::clone(&script.path);
             animation.load(
                 &*filesystem.as_ref().borrow(),
                 path.with_file_name(&filename).to_str().unwrap(),
@@ -269,7 +273,7 @@ impl Animation {
         todo!()
     }
 
-    pub fn get_nof_in_event(&self, sequence_name: &str) -> usize {
+    pub fn get_nof_in_event(&self, _sequence_name: &str) -> usize {
         // GETNOFINEVENT INTEGER (STRING event)
         todo!()
     }
@@ -460,7 +464,7 @@ impl Animation {
         Ok(())
     }
 
-    pub fn play_rand(&self, arg1: &str, arg2: usize, arg3: usize) {
+    pub fn play_rand(&self, _arg1: &str, _arg2: usize, _arg3: usize) {
         // PLAYRAND (STRING, INT, INT)
         todo!()
     }
@@ -497,12 +501,12 @@ impl Animation {
         Ok(())
     }
 
-    pub fn set_anchor(&self, arg1: &str) {
+    pub fn set_anchor(&self, _arg1: &str) {
         // SETANCHOR (STRING)
         todo!()
     }
 
-    pub fn set_as_button(&self, enabled: bool, arg2: bool) {
+    pub fn set_as_button(&self, _enabled: bool, _arg2: bool) {
         // SETASBUTTON (BOOL enabled, BOOL)
         todo!()
     }
@@ -527,7 +531,7 @@ impl Animation {
         self.fps = fps;
     }
 
-    pub fn set_frame(&self, sequence_name: &str, frame_no: usize) {
+    pub fn set_frame(&self, _sequence_name: &str, _frame_no: usize) {
         // SETFRAME (STRING, INTEGER)
         todo!()
     }
@@ -577,7 +581,7 @@ impl Animation {
         self.is_visible = true;
     }
 
-    pub fn stop(&self, emit_on_finished: bool) {
+    pub fn stop(&self, _emit_on_finished: bool) {
         // STOP ([BOOL])
         todo!()
     }

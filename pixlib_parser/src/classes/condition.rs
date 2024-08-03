@@ -1,5 +1,9 @@
 use std::any::Any;
 
+use parsers::{discard_if_empty, parse_program, ConditionOperator};
+
+use crate::runner::RunnerError;
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -45,26 +49,14 @@ impl Condition {
         let left = context
             .runner
             .get_object(left)
-            .map(|o| {
-                o.call_method(
-                    CallableIdentifier::Method("GET"),
-                    &Vec::new(),
-                    context,
-                )
-            })
+            .map(|o| o.call_method(CallableIdentifier::Method("GET"), &Vec::new(), context))
             .transpose()?
             .unwrap()
             .unwrap_or_else(|| CnvValue::String(left.clone()));
         let right = context
             .runner
             .get_object(right)
-            .map(|o| {
-                o.call_method(
-                    CallableIdentifier::Method("GET"),
-                    &Vec::new(),
-                    context,
-                )
-            })
+            .map(|o| o.call_method(CallableIdentifier::Method("GET"), &Vec::new(), context))
             .transpose()?
             .unwrap()
             .unwrap_or_else(|| CnvValue::String(right.clone()));
@@ -173,11 +165,11 @@ impl CnvType for Condition {
     ) -> Result<Self, TypeParsingError> {
         let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);
         let operand2 = properties.remove("OPERAND2").and_then(discard_if_empty);
-        let operator = properties
+        let map = properties
             .remove("OPERATOR")
             .and_then(discard_if_empty)
-            .map(ConditionOperator::parse)
-            .transpose()?;
+            .map(ConditionOperator::parse);
+        let operator = map.transpose()?;
         let on_runtime_failed = properties
             .remove("ONRUNTIMEFAILED")
             .and_then(discard_if_empty)

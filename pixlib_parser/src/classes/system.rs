@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use parsers::discard_if_empty;
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -15,10 +17,7 @@ pub struct System {
 }
 
 impl System {
-    pub fn from_initial_properties(
-        parent: Arc<CnvObject>,
-        initial_properties: SystemInit,
-    ) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: SystemInit) -> Self {
         Self {
             parent,
             initial_properties,

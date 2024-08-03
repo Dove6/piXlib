@@ -40,12 +40,6 @@ pub enum ButtonFunctionComponent {
 
 pub fn setup_chooser(chosen_scene: Res<ChosenScene>, mut commands: Commands) {
     let scene_list = SceneListComponent::default();
-    // update_scene_list(
-    //     &inserted_disk,
-    //     &game_paths,
-    //     &mut script_runner,
-    //     &mut scene_list,
-    // );
 
     let root_entity = commands
         .spawn((
@@ -154,7 +148,7 @@ pub fn setup_chooser(chosen_scene: Res<ChosenScene>, mut commands: Commands) {
 pub fn update_scene_list(
     inserted_disk: &InsertedDisk,
     game_paths: &GamePaths,
-    script_runner: &mut ScriptRunner,
+    script_runner: &ScriptRunner,
     scene_list: &mut SceneListComponent,
     issue_manager: &mut ObjectBuilderIssueManager,
 ) {
@@ -162,37 +156,27 @@ pub fn update_scene_list(
     if let Some(iso) = inserted_disk.get() {
         let game_definition_path =
             read_game_definition(iso, game_paths, script_runner, issue_manager);
-        let game_definition = script_runner
-            .0
-            .borrow()
-            .get_script(&game_definition_path)
-            .unwrap();
+        let game_definition = script_runner.get_script(&game_definition_path).unwrap();
         info!("game_definition: {:?}", game_definition);
-        for (name, path, background) in
-            game_definition
-                .borrow()
-                .objects
-                .iter()
-                .filter_map(|o| {
-                    let content_guard = o.content.borrow();
-                    let content = content_guard.as_ref().unwrap();
-                    if content.get_type_id() == "SCENE" {
-                        Some((
-                            o.name.clone(),
-                            content.get_property("PATH").and_then(|v| match v {
-                                PropertyValue::String(s) => Some(s),
-                                _ => None,
-                            }),
-                            content.get_property("BACKGROUND").and_then(|v| match v {
-                                PropertyValue::String(s) => Some(s),
-                                _ => None,
-                            }),
-                        ))
-                    } else {
-                        None
-                    }
-                })
-        {
+        for (name, path, background) in game_definition.objects.borrow().iter().filter_map(|o| {
+            let content_guard = o.content.borrow();
+            let content = content_guard.as_ref().unwrap();
+            if content.get_type_id() == "SCENE" {
+                Some((
+                    o.name.clone(),
+                    content.get_property("PATH").and_then(|v| match v {
+                        PropertyValue::String(s) => Some(s),
+                        _ => None,
+                    }),
+                    content.get_property("BACKGROUND").and_then(|v| match v {
+                        PropertyValue::String(s) => Some(s),
+                        _ => None,
+                    }),
+                ))
+            } else {
+                None
+            }
+        }) {
             scene_list.scenes.push(SceneDefinition {
                 name,
                 path: PathBuf::from(path.unwrap()),

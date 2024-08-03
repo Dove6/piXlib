@@ -109,33 +109,33 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
     let mut image_counter = 0;
     let mut animation_counter = 0;
     let mut iter = query.iter_mut();
-    if let Some(current_scene) = (**runner).borrow().get_current_scene() {
+    if let Some(current_scene) = runner.get_current_scene() {
         if current_scene.get_property("BACKGROUND").is_some() {
             *iter.next().unwrap() = GraphicsMarker::BackgroundImage;
             background_assigned = true;
         }
     }
     let mut scene_graphics: Vec<Arc<CnvObject>> = Vec::new();
-    (**runner).borrow().find_objects(
+    runner.find_objects(
         |o| matches!(o.content.borrow().as_ref().unwrap().get_type_id(), "IMAGE"),
         &mut scene_graphics,
     );
     for graphics_object_index in scene_graphics.iter() {
         let mut marker = iter.next().unwrap();
         *marker = GraphicsMarker::Image {
-            script_path: (*graphics_object_index.parent).borrow().path.clone(),
+            script_path: graphics_object_index.parent.path.clone(),
             index: graphics_object_index.index,
         };
         image_counter += 1;
     }
-    (**runner).borrow().find_objects(
+    runner.find_objects(
         |o| matches!(o.content.borrow().as_ref().unwrap().get_type_id(), "ANIMO"),
         &mut scene_graphics,
     );
     for graphics_object_index in scene_graphics.iter() {
         let mut marker = iter.next().unwrap();
         *marker = GraphicsMarker::Animation {
-            script_path: (*graphics_object_index.parent).borrow().path.clone(),
+            script_path: graphics_object_index.parent.path.clone(),
             index: graphics_object_index.index,
         };
         animation_counter += 1;
@@ -163,8 +163,7 @@ pub fn update_background(
         if !matches!(*marker, GraphicsMarker::BackgroundImage) {
             continue;
         }
-        let PropertyValue::String(scene_path) = (**runner)
-            .borrow()
+        let PropertyValue::String(scene_path) = runner
             .get_current_scene()
             .unwrap()
             .get_property("PATH")
@@ -172,8 +171,7 @@ pub fn update_background(
         else {
             continue;
         };
-        let PropertyValue::String(background_path) = (**runner)
-            .borrow()
+        let PropertyValue::String(background_path) = runner
             .get_current_scene()
             .unwrap()
             .get_property("BACKGROUND")
@@ -181,7 +179,7 @@ pub fn update_background(
         else {
             continue;
         };
-        let loaded_file = (*(**runner).borrow().filesystem)
+        let loaded_file = (*runner.filesystem)
             .borrow()
             .read_file(
                 &Path::new(&scene_path)
@@ -216,10 +214,10 @@ pub fn update_images(
         let GraphicsMarker::Image { script_path, index } = &*marker else {
             continue;
         };
-        let Some(script) = (**runner).borrow().get_script(&script_path) else {
+        let Some(script) = runner.get_script(&script_path) else {
             continue;
         };
-        let Some(object) = (*script).borrow().get_object_at(*index) else {
+        let Some(object) = script.objects.borrow().get_object_at(*index) else {
             continue;
         };
         let image_guard = object.content.borrow();
@@ -264,14 +262,14 @@ pub fn update_animations(
     )>,
     runner: NonSend<ScriptRunner>,
 ) {
-    for (marker, mut sprite, mut transform, mut handle, mut visibility) in query.iter_mut() {
+    for (marker, _sprite, mut transform, mut handle, mut visibility) in query.iter_mut() {
         let GraphicsMarker::Animation { script_path, index } = &*marker else {
             continue;
         };
-        let Some(script) = (**runner).borrow().get_script(&script_path) else {
+        let Some(script) = runner.get_script(&script_path) else {
             continue;
         };
-        let Some(object) = (*script).borrow().get_object_at(*index) else {
+        let Some(object) = script.objects.borrow().get_object_at(*index) else {
             continue;
         };
         let animation_guard = object.content.borrow();
