@@ -14,12 +14,17 @@ pub use filesystem::GamePaths;
 pub use script::{CnvScript, ScriptSource};
 use script_container::ScriptContainer;
 pub use statement::CnvStatement;
+use thiserror::Error;
 pub use value::CnvValue;
 
+use std::borrow::BorrowMut;
 use std::{cell::RefCell, collections::HashMap, path::Path, sync::Arc};
 
 use events::{IncomingEvents, OutgoingEvents};
 
+use crate::classes::Scene;
+use crate::common::IssueKind;
+use crate::scanner::parse_cnv;
 use crate::{
     classes::{CallableIdentifier, CnvObject, CnvObjectBuilder, ObjectBuilderError},
     common::{Issue, IssueHandler, IssueManager},
@@ -65,14 +70,46 @@ pub enum RunnerError {
 
 pub type RunnerResult<T> = std::result::Result<T, RunnerError>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CnvRunner {
     pub scripts: RefCell<ScriptContainer>,
     pub events_in: IncomingEvents,
     pub events_out: OutgoingEvents,
-    pub current_scene: Option<Arc<CnvObject>>,
+    pub current_scene: RefCell<Option<Arc<CnvObject>>>,
     pub filesystem: Arc<RefCell<dyn FileSystem>>,
     pub game_paths: Arc<GamePaths>,
+    pub issue_manager: Arc<RefCell<IssueManager<RunnerIssue>>>,
+}
+
+impl core::fmt::Debug for CnvRunner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CnvRunner")
+            .field(
+                "scripts",
+                &self.scripts.borrow().iter().map(|o| {
+                    (
+                        o.parent_object.as_ref().map(|p| p.name.clone()),
+                        o.path.clone(),
+                    )
+                }),
+            )
+            .field("events_in", &self.events_in)
+            .field("events_out", &self.events_out)
+            .field("current_scene", &self.current_scene)
+            .field("filesystem", &self.filesystem)
+            .field("game_paths", &self.game_paths)
+            .field("issue_manager", &self.issue_manager)
+            .finish()
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum RunnerIssue {}
+
+impl Issue for RunnerIssue {
+    fn kind(&self) -> IssueKind {
+        IssueKind::Error
+    }
 }
 
 #[derive(Debug)]
@@ -83,14 +120,19 @@ pub struct RunnerContext<'a> {
 }
 
 impl CnvRunner {
-    pub fn new(filesystem: Arc<RefCell<dyn FileSystem>>, game_paths: Arc<GamePaths>) -> Self {
+    pub fn new(
+        filesystem: Arc<RefCell<dyn FileSystem>>,
+        game_paths: Arc<GamePaths>,
+        issue_manager: IssueManager<RunnerIssue>,
+    ) -> Self {
         Self {
             scripts: RefCell::new(ScriptContainer::default()),
             filesystem,
-            current_scene: None,
+            current_scene: RefCell::new(None),
             events_in: IncomingEvents::default(),
             events_out: OutgoingEvents::default(),
             game_paths,
+            issue_manager: Arc::new(RefCell::new(issue_manager)),
         }
     }
 
@@ -98,12 +140,13 @@ impl CnvRunner {
         self: &Arc<Self>,
         path: Arc<Path>,
         contents: impl Iterator<Item = declarative_parser::ParserInput>,
-        parent_path: Option<Arc<Path>>,
+        parent_object: Option<Arc<CnvObject>>,
         source_kind: ScriptSource,
-        issue_manager: &mut IssueManager<ObjectBuilderError>,
     ) -> Result<(), ParserFatal> {
         let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
         parser_issue_manager.set_handler(Box::new(IssuePrinter));
+        let mut issue_manager: IssueManager<ObjectBuilderError> = Default::default();
+        issue_manager.set_handler(Box::new(IssuePrinter));
         let mut dec_parser =
             DeclarativeParser::new(contents, Default::default(), parser_issue_manager).peekable();
         let mut objects: Vec<CnvObjectBuilder> = Vec::new();
@@ -111,7 +154,7 @@ impl CnvRunner {
         let script = Arc::new(CnvScript::new(
             Arc::clone(self),
             Arc::clone(&path),
-            parent_path,
+            parent_object.clone(),
             source_kind,
         ));
         while let Some(Ok((_pos, dec, _))) = dec_parser.next_if(|result| result.is_ok()) {
@@ -169,6 +212,20 @@ impl CnvRunner {
         container
             .push_script(script)
             .map_err(|_| ParserFatal::Other)?; // TODO: err if present
+        if let Some(parent_object) = parent_object.as_ref() {
+            if parent_object
+                .content
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .get_type_id()
+                == "SCENE"
+            {
+                self.current_scene
+                    .borrow_mut()
+                    .replace(Arc::clone(&parent_object));
+            }
+        }
         self.events_out
             .script
             .borrow_mut()
@@ -277,12 +334,37 @@ impl CnvRunner {
         Ok(None)
     }
 
-    pub fn change_scene(&mut self, _scene_name: &str) -> Result<(), ()> {
-        todo!()
+    pub fn change_scene(self: &Arc<Self>, scene_name: &str) -> Result<(), ()> {
+        self.scripts.borrow_mut().remove_scene_script();
+        let Some(scene_object) = self.get_object(scene_name) else {
+            return Err(());
+        };
+        let scene_guard = scene_object.content.borrow();
+        let scene = scene_guard
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<Scene>()
+            .unwrap();
+        let scene_name = scene_object.name.clone();
+        let scene_path = scene.get_script_path();
+        let (contents, path) = self
+            .filesystem
+            .borrow()
+            .read_scene_file(
+                self.game_paths.clone(),
+                Some(&scene_path.unwrap()),
+                &scene_name,
+                Some("CNV"),
+            )
+            .unwrap();
+        let contents = parse_cnv(&contents);
+        self.load_script(path, contents.as_parser_input(), None, ScriptSource::Scene)
+            .map_err(|_| ())
     }
 
     pub fn get_current_scene(&self) -> Option<Arc<CnvObject>> {
-        self.current_scene.as_ref().map(Arc::clone)
+        self.current_scene.borrow().as_ref().map(Arc::clone)
     }
 }
 

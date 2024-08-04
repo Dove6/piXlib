@@ -107,7 +107,10 @@ impl CnvType for Episode {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("GOTO") => {
-                context.runner.change_scene(&arguments[0].to_string());
+                self.parent
+                    .parent
+                    .runner
+                    .change_scene(&arguments[0].to_string());
                 Ok(None)
             }
             _ => todo!(),

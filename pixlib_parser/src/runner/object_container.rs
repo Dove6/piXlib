@@ -21,6 +21,10 @@ impl ObjectContainer {
         self.vec.iter()
     }
 
+    pub fn len(&self) -> usize {
+        self.vec.len()
+    }
+
     pub fn remove_object(&mut self, name: &str) -> Result<(), ()> {
         let Some(index) = self.vec.iter().position(|s| *s.name == *name) else {
             return Err(());

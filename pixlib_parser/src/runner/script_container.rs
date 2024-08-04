@@ -40,6 +40,10 @@ impl ScriptContainer {
         self.vec.iter()
     }
 
+    pub fn len(&self) -> usize {
+        self.vec.len()
+    }
+
     pub fn remove_script(&mut self, path: &Path) -> Result<(), ()> {
         let Some(index) = self.vec.iter().position(|s| *s.path == *path) else {
             return Err(());

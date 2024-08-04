@@ -105,12 +105,31 @@ pub enum ObjectBuildErrorKind {
     ParserIssue(ParserIssue),
 }
 
-#[derive(Debug)]
 pub struct CnvObject {
     pub parent: Arc<CnvScript>,
     pub name: String,
     pub index: usize,
     pub content: RefCell<Option<Box<dyn CnvType>>>,
+}
+
+impl core::fmt::Debug for CnvObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CnvObject")
+            .field(
+                "parent",
+                &format!(
+                    "CnvScript with {} objects",
+                    &self.parent.objects.borrow().len()
+                ),
+            )
+            .field("name", &self.name)
+            .field("index", &self.index)
+            .field(
+                "content",
+                &self.content.borrow().as_ref().map(|c| c.get_type_id()),
+            )
+            .finish()
+    }
 }
 
 impl CnvObject {
@@ -129,8 +148,9 @@ impl CnvObject {
     }
 
     pub fn get_property(&self, name: &str) -> Option<PropertyValue> {
-        println!("Getting property: {:?} of: {:?}", name, self.name);
-        self.content.borrow().as_ref().unwrap().get_property(name)
+        let value = self.content.borrow().as_ref().unwrap().get_property(name);
+        println!("Got property: {:?} of: {:?}: {:?}", name, self.name, value);
+        value
     }
 }
 

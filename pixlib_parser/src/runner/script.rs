@@ -4,26 +4,50 @@ use crate::classes::CnvObject;
 
 use super::{object_container::ObjectContainer, CnvRunner};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CnvScript {
     pub runner: Arc<CnvRunner>,
     pub objects: RefCell<ObjectContainer>,
     pub source_kind: ScriptSource,
     pub path: Arc<Path>,
-    pub parent_path: Option<Arc<Path>>,
+    pub parent_object: Option<Arc<CnvObject>>,
+}
+
+impl core::fmt::Debug for CnvScript {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CnvScript")
+            .field(
+                "runner",
+                &format!(
+                    "CnvRunner with {} scripts loaded",
+                    &self.runner.scripts.borrow().len()
+                ),
+            )
+            .field(
+                "objects",
+                &self.objects.borrow().iter().map(|o| o.name.clone()),
+            )
+            .field("source_kind", &self.source_kind)
+            .field("path", &self.path)
+            .field(
+                "parent_object",
+                &self.parent_object.as_ref().map(|o| o.name.clone()),
+            )
+            .finish()
+    }
 }
 
 impl CnvScript {
     pub fn new(
         runner: Arc<CnvRunner>,
         path: Arc<Path>,
-        parent_path: Option<Arc<Path>>,
+        parent_object: Option<Arc<CnvObject>>,
         source_kind: ScriptSource,
     ) -> Self {
         Self {
             runner,
             path,
-            parent_path,
+            parent_object,
             source_kind,
             objects: RefCell::new(ObjectContainer::default()),
         }

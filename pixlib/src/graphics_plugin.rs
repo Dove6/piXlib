@@ -8,11 +8,11 @@ use bevy::{
         in_state, BuildChildren, Bundle, Commands, Component, DespawnRecursiveExt, Entity, Image,
         IntoSystemConfigs, NonSend, Query, ResMut, SpatialBundle, Transform, Visibility,
     },
-    sprite::{Sprite, SpriteBundle},
+    sprite::{Anchor, Sprite, SpriteBundle},
 };
 use pixlib_formats::file_formats::img::parse_img;
 use pixlib_parser::{
-    classes::{CnvObject, PropertyValue},
+    classes::{CnvObject, PropertyValue, Scene},
     runner::ScriptEvent,
 };
 
@@ -99,6 +99,7 @@ pub fn reset_pool(
         *marker = GraphicsMarker::Unassigned;
         sprite.flip_x = false;
         sprite.flip_y = false;
+        sprite.anchor = Anchor::TopLeft;
         *transform = Transform::from_xyz(0f32, 0f32, 0f32);
         *handle = Handle::default();
         *visibility = Visibility::Hidden;
@@ -118,12 +119,13 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
     }
     let mut all_objects = Vec::new();
     runner.find_objects(|_| true, &mut all_objects);
-    let all_objects: Vec<String> = all_objects.iter().map(|o| o.name.clone()).collect();
-    info!("All loaded objects: {:?}", all_objects);
+    // let all_objects: Vec<String> = all_objects.iter().map(|o| o.name.clone()).collect();
+    // info!("All loaded objects: {:?}", all_objects);
     let mut background_assigned = false;
     let mut image_counter = 0;
     let mut animation_counter = 0;
     let mut iter = query.iter_mut();
+    // info!("Current scene: {:?}", runner.get_current_scene());
     if let Some(current_scene) = runner.get_current_scene() {
         if current_scene.get_property("BACKGROUND").is_some() {
             *iter.next().unwrap() = GraphicsMarker::BackgroundImage;
@@ -178,39 +180,38 @@ pub fn update_background(
         if !matches!(*marker, GraphicsMarker::BackgroundImage) {
             continue;
         }
-        let PropertyValue::String(scene_path) = runner
-            .get_current_scene()
-            .unwrap()
-            .get_property("PATH")
-            .unwrap()
-        else {
+        let Some(scene_object) = runner.get_current_scene() else {
             continue;
         };
-        let PropertyValue::String(background_path) = runner
-            .get_current_scene()
+        let scene_guard = scene_object.content.borrow();
+        let scene = scene_guard
+            .as_ref()
             .unwrap()
-            .get_property("BACKGROUND")
-            .unwrap()
-        else {
-            continue;
-        };
+            .as_any()
+            .downcast_ref::<Scene>()
+            .unwrap();
+        let scene_script_path = scene.get_script_path();
+        let scene_background_path = scene.get_background_path().unwrap();
         let loaded_file = (*runner.filesystem)
             .borrow()
-            .read_file(
-                &Path::new(&scene_path)
-                    .with_file_name(background_path)
-                    .as_os_str()
-                    .to_str()
-                    .unwrap(),
+            .read_scene_file(
+                Arc::clone(&runner.game_paths),
+                scene_script_path.as_deref(),
+                &scene_background_path,
+                Some(".IMG"),
             )
             .unwrap();
-        let image = parse_img(&loaded_file);
+        let image = parse_img(&loaded_file.0);
         *handle = img_file_to_handle(&mut textures, image);
         *visibility = Visibility::Visible;
         sprite.flip_x = false;
         sprite.flip_y = false;
+        sprite.anchor = Anchor::TopLeft;
         *transform = Transform::from_xyz(0f32, 0f32, 0f32);
-        info!("Updated background for scene {}", scene_path);
+        info!(
+            "Updated background for scene {:?} / {:?}",
+            scene_script_path, scene_object.name
+        );
     }
 }
 
@@ -247,6 +248,7 @@ pub fn update_images(
 
         sprite.flip_x = false;
         sprite.flip_y = false;
+        sprite.anchor = Anchor::TopLeft;
         let Some((image_definition, image_data)) = image.get_image_to_show().unwrap() else {
             *visibility = Visibility::Hidden;
             continue;

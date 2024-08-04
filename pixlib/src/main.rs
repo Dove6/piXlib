@@ -11,7 +11,7 @@ pub mod states;
 pub mod systems;
 pub mod util;
 
-use std::{cell::RefCell, env, path::Path, sync::Arc};
+use std::{cell::RefCell, env, sync::Arc};
 
 use bevy::{
     ecs::{
@@ -30,7 +30,7 @@ use graphics_plugin::GraphicsPlugin;
 use pixlib_parser::{
     classes::{Application, Episode, ObjectBuilderError, Scene},
     common::{Issue, IssueHandler, IssueKind, IssueManager},
-    runner::{CnvRunner, GamePaths, ScriptSource},
+    runner::{CnvRunner, GamePaths, RunnerIssue, ScriptSource},
     scanner::parse_cnv,
 };
 use resources::{
@@ -49,6 +49,8 @@ const WINDOW_TITLE: &str = "piXlib";
 fn main() {
     let mut issue_manager: IssueManager<ObjectBuilderError> = Default::default();
     issue_manager.set_handler(Box::new(IssuePrinter));
+    let mut runner_issue_manager: IssueManager<RunnerIssue> = Default::default();
+    runner_issue_manager.set_handler(Box::new(IssuePrinter));
     App::new()
         .add_plugins(
             DefaultPlugins
@@ -76,6 +78,7 @@ fn main() {
         .insert_non_send_resource(ScriptRunner(Arc::new(CnvRunner::new(
             Arc::new(RefCell::new(InsertedDisk::try_from(env::args()).unwrap())),
             Arc::new(GamePaths::default()),
+            runner_issue_manager,
         ))))
         .insert_resource(ObjectBuilderIssueManager(issue_manager))
         .init_state::<AppState>()
@@ -114,35 +117,35 @@ impl<I: Issue> IssueHandler<I> for IssuePrinter {
     }
 }
 
-fn reload_scene_script(
-    script_runner: NonSend<ScriptRunner>,
-    chosen_scene: Res<ChosenScene>,
-    mut issue_manager: ResMut<ObjectBuilderIssueManager>,
-) {
+fn reload_scene_script(script_runner: NonSend<ScriptRunner>, chosen_scene: Res<ChosenScene>) {
     if !chosen_scene.is_changed() {
         return;
     }
     let game_paths = Arc::clone(&script_runner.game_paths);
     script_runner.scripts.borrow_mut().remove_scene_script();
-    let name = chosen_scene.list[chosen_scene.index].name.clone();
-    let path: Arc<Path> = chosen_scene.list[chosen_scene.index].path.clone().into();
+    let scene_name = chosen_scene.list[chosen_scene.index].name.clone();
+    let Some(scene_object) = script_runner.get_object(&scene_name) else {
+        panic!("Cannot find defined scene object {}", scene_name); // TODO: check if == 1, not >= 1
+    };
+    let scene_guard = scene_object.content.borrow();
+    let scene = scene_guard
+        .as_ref()
+        .unwrap()
+        .as_any()
+        .downcast_ref::<Scene>()
+        .unwrap();
+    let path = scene.get_script_path().unwrap();
     let (contents, path) = script_runner
         .filesystem
         .borrow()
-        .read_scene_file(
-            game_paths,
-            Some(path.to_str().unwrap()),
-            &name,
-            Some(".CNV"),
-        )
+        .read_scene_file(game_paths, Some(&path), &scene_name, Some("CNV"))
         .unwrap();
     let contents = parse_cnv(&contents);
     script_runner.0.load_script(
         path,
         contents.as_parser_input(),
-        None,
+        Some(Arc::clone(&scene_object)),
         ScriptSource::Scene,
-        &mut issue_manager,
     );
 }
 
@@ -150,7 +153,6 @@ fn reload_main_script(
     inserted_disk: Res<InsertedDisk>,
     script_runner: NonSend<ScriptRunner>,
     mut chosen_scene: ResMut<ChosenScene>,
-    mut issue_manager: ResMut<ObjectBuilderIssueManager>,
 ) {
     if !inserted_disk.is_changed() {
         return;
@@ -159,7 +161,7 @@ fn reload_main_script(
     script_runner.unload_all_scripts();
 
     //#region Loading application.def
-    let root_script_path = script_runner.game_paths.get_game_definition_path();
+    let root_script_path = script_runner.game_paths.game_definition_filename.clone();
     let (contents, root_script_path) = script_runner
         .filesystem
         .borrow()
@@ -176,7 +178,6 @@ fn reload_main_script(
         contents.as_parser_input(),
         None,
         ScriptSource::Root,
-        &mut issue_manager,
     );
     //#endregion
 
@@ -203,16 +204,15 @@ fn reload_main_script(
                 game_paths.clone(),
                 Some(&application_script_path),
                 &application_name,
-                Some(".CNV"),
+                Some("CNV"),
             )
             .unwrap();
         let contents = parse_cnv(&contents);
         script_runner.0.load_script(
             application_script_path,
             contents.as_parser_input(),
-            Some(Arc::clone(&root_script_path)),
+            Some(Arc::clone(&application_object)),
             ScriptSource::Application,
-            &mut issue_manager,
         );
     };
     //#endregion
@@ -245,16 +245,15 @@ fn reload_main_script(
                 game_paths,
                 Some(&episode_script_path),
                 &episode_name,
-                Some(".CNV"),
+                Some("CNV"),
             )
             .unwrap();
         let contents = parse_cnv(&contents);
         script_runner.0.load_script(
             episode_script_path,
             contents.as_parser_input(),
-            Some(Arc::clone(&root_script_path)),
+            Some(Arc::clone(&episode_object)),
             ScriptSource::Episode,
-            &mut issue_manager,
         );
     };
     //#endregion
