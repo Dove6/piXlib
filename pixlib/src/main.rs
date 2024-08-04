@@ -11,7 +11,7 @@ pub mod states;
 pub mod systems;
 pub mod util;
 
-use std::{cell::RefCell, env, path::PathBuf, sync::Arc};
+use std::{cell::RefCell, env, path::Path, sync::Arc};
 
 use bevy::{
     ecs::{
@@ -19,7 +19,7 @@ use bevy::{
         schedule::{common_conditions::in_state, IntoSystemConfigs, OnEnter, OnExit},
         system::{Res, ResMut},
     },
-    log::{error, warn},
+    log::{error, info, warn},
     prelude::{default, App, NonSend, PluginGroup, Startup, Update},
     render::texture::ImagePlugin,
     window::{PresentMode, Window, WindowPlugin},
@@ -27,15 +27,15 @@ use bevy::{
     DefaultPlugins,
 };
 use graphics_plugin::GraphicsPlugin;
-use iso::{read_game_definition, read_script};
 use pixlib_parser::{
-    classes::{ObjectBuilderError, PropertyValue},
+    classes::{Application, Episode, ObjectBuilderError, Scene},
     common::{Issue, IssueHandler, IssueKind, IssueManager},
-    runner::{CnvRunner, ScriptSource},
+    runner::{CnvRunner, GamePaths, ScriptSource},
+    scanner::parse_cnv,
 };
 use resources::{
-    ChosenScene, DebugSettings, GamePaths, InsertedDisk, ObjectBuilderIssueManager,
-    SceneDefinition, ScriptRunner, WindowConfiguration,
+    ChosenScene, DebugSettings, InsertedDisk, ObjectBuilderIssueManager, SceneDefinition,
+    ScriptRunner, WindowConfiguration,
 };
 use states::AppState;
 use systems::{
@@ -71,20 +71,12 @@ fn main() {
         .insert_resource(DebugSettings {
             force_animation_infinite_looping: false,
         })
-        .insert_resource(GamePaths {
-            data_directory: "./DANE/".into(),
-            game_definition_filename: "./APPLICATION.DEF".into(),
-            music_directory: "./".into(),
-            dialogues_directory: "./WAVS/".into(),
-            sfx_directory: "./WAVS/SFX/".into(),
-            common_directory: "./COMMON/".into(),
-            classes_directory: "./COMMON/CLASSES/".into(),
-        })
         .insert_resource(InsertedDisk::try_from(env::args()).expect("Usage: pixlib path_to_iso"))
         .insert_resource(ChosenScene::default())
-        .insert_non_send_resource(ScriptRunner(Arc::new(CnvRunner::new(Arc::new(
-            RefCell::new(InsertedDisk::try_from(env::args()).unwrap()),
-        )))))
+        .insert_non_send_resource(ScriptRunner(Arc::new(CnvRunner::new(
+            Arc::new(RefCell::new(InsertedDisk::try_from(env::args()).unwrap())),
+            Arc::new(GamePaths::default()),
+        ))))
         .insert_resource(ObjectBuilderIssueManager(issue_manager))
         .init_state::<AppState>()
         .add_systems(Startup, setup)
@@ -97,6 +89,10 @@ fn main() {
         )
         .add_systems(OnExit(AppState::SceneChooser), cleanup_root)
         .add_systems(Update, reload_main_script)
+        .add_systems(
+            Update,
+            reload_scene_script.run_if(in_state(AppState::SceneViewer)),
+        )
         .add_systems(
             Update,
             (detect_return_to_chooser).run_if(in_state(AppState::SceneViewer)),
@@ -118,9 +114,40 @@ impl<I: Issue> IssueHandler<I> for IssuePrinter {
     }
 }
 
+fn reload_scene_script(
+    script_runner: NonSend<ScriptRunner>,
+    chosen_scene: Res<ChosenScene>,
+    mut issue_manager: ResMut<ObjectBuilderIssueManager>,
+) {
+    if !chosen_scene.is_changed() {
+        return;
+    }
+    let game_paths = Arc::clone(&script_runner.game_paths);
+    script_runner.scripts.borrow_mut().remove_scene_script();
+    let name = chosen_scene.list[chosen_scene.index].name.clone();
+    let path: Arc<Path> = chosen_scene.list[chosen_scene.index].path.clone().into();
+    let (contents, path) = script_runner
+        .filesystem
+        .borrow()
+        .read_scene_file(
+            game_paths,
+            Some(path.to_str().unwrap()),
+            &name,
+            Some(".CNV"),
+        )
+        .unwrap();
+    let contents = parse_cnv(&contents);
+    script_runner.0.load_script(
+        path,
+        contents.as_parser_input(),
+        None,
+        ScriptSource::Scene,
+        &mut issue_manager,
+    );
+}
+
 fn reload_main_script(
     inserted_disk: Res<InsertedDisk>,
-    game_paths: Res<GamePaths>,
     script_runner: NonSend<ScriptRunner>,
     mut chosen_scene: ResMut<ChosenScene>,
     mut issue_manager: ResMut<ObjectBuilderIssueManager>,
@@ -128,143 +155,136 @@ fn reload_main_script(
     if !inserted_disk.is_changed() {
         return;
     }
+    let game_paths = Arc::clone(&script_runner.game_paths);
     script_runner.unload_all_scripts();
-    let Some(iso) = inserted_disk.get() else {
-        return;
-    };
-    let root_script_path =
-        read_game_definition(iso, &game_paths, &script_runner, &mut issue_manager);
-    let mut vec = Vec::new();
-    script_runner.find_objects(
-        |o| {
-            matches!(
-                o.content.borrow().as_ref().unwrap().get_type_id(),
-                "APPLICATION"
-            )
-        },
-        &mut vec,
-    );
-    if vec.len() != 1 {
-        error!(
-            "Incorrect number of APPLICATION objects (should be 1): {:?}",
-            vec.iter().map(|o| o.name.clone())
-        );
-        return;
-    }
-    let application = vec.into_iter().next().unwrap();
-    let application_name = application.name.clone();
-    if let Some(PropertyValue::String(ref application_path)) = application
-        .content
+
+    //#region Loading application.def
+    let root_script_path = script_runner.game_paths.get_game_definition_path();
+    let (contents, root_script_path) = script_runner
+        .filesystem
         .borrow()
+        .read_scene_file(
+            game_paths.clone(),
+            None,
+            &root_script_path.to_str().unwrap(),
+            None,
+        )
+        .unwrap();
+    let contents = parse_cnv(&contents);
+    script_runner.0.load_script(
+        root_script_path.clone(),
+        contents.as_parser_input(),
+        None,
+        ScriptSource::Root,
+        &mut issue_manager,
+    );
+    //#endregion
+
+    let Some(application_object) = script_runner
+        .find_object(|o| o.content.borrow().as_ref().unwrap().get_type_id() == "APPLICATION")
+    else {
+        panic!("Invalid root script - missing application object"); // TODO: check if == 1, not >= 1
+    };
+    let application_name = application_object.name.clone();
+    let application_guard = application_object.content.borrow();
+    let application = application_guard
         .as_ref()
         .unwrap()
-        .get_property("PATH")
-    {
-        read_script(
-            iso,
-            application_path,
-            &application_name,
-            &game_paths,
+        .as_any()
+        .downcast_ref::<Application>()
+        .unwrap();
+
+    //#region Loading application script
+    if let Some(application_script_path) = application.get_script_path() {
+        let (contents, application_script_path) = script_runner
+            .filesystem
+            .borrow()
+            .read_scene_file(
+                game_paths.clone(),
+                Some(&application_script_path),
+                &application_name,
+                Some(".CNV"),
+            )
+            .unwrap();
+        let contents = parse_cnv(&contents);
+        script_runner.0.load_script(
+            application_script_path,
+            contents.as_parser_input(),
             Some(Arc::clone(&root_script_path)),
             ScriptSource::Application,
-            &script_runner,
             &mut issue_manager,
         );
+    };
+    //#endregion
+
+    let episode_list = application.get_episode_list();
+    if episode_list.is_empty() {
+        panic!(
+            "Invalid application object {} - no episodes defined",
+            application_name
+        );
     }
-    let Some(PropertyValue::List(episode_list)) = application
-        .content
-        .borrow()
+    let episode_name = episode_list[0].clone();
+    let Some(episode_object) = script_runner.get_object(&episode_name) else {
+        panic!("Cannot find defined episode object {}", episode_name); // TODO: check if == 1, not >= 1
+    };
+    let episode_guard = episode_object.content.borrow();
+    let episode = episode_guard
         .as_ref()
         .unwrap()
-        .get_property("EPISODES")
-    else {
-        panic!();
-    };
-    let episode_object_name = if episode_list.len() == 1 {
-        episode_list.into_iter().next().unwrap()
-    } else {
-        error!(
-            "Unexpected number of episodes (expected 1): {:?}",
-            episode_list
-        );
-        return;
-    };
-    let episode_object_name = episode_object_name.clone();
-    if let Some(episode_object) = script_runner.get_object(&episode_object_name) {
-        let episode_name = episode_object.name.clone();
-        if let Some(PropertyValue::String(ref episode_path)) = episode_object
-            .content
+        .as_any()
+        .downcast_ref::<Episode>()
+        .unwrap();
+
+    //#region Loading the first episode script
+    if let Some(episode_script_path) = episode.get_script_path() {
+        let (contents, episode_script_path) = script_runner
+            .filesystem
             .borrow()
-            .as_ref()
-            .unwrap()
-            .get_property("PATH")
-        {
-            read_script(
-                iso,
-                episode_path,
+            .read_scene_file(
+                game_paths,
+                Some(&episode_script_path),
                 &episode_name,
-                &game_paths,
-                Some(Arc::clone(&root_script_path)),
-                ScriptSource::Episode,
-                &script_runner,
-                &mut issue_manager,
-            );
-        }
-        chosen_scene.list.clear();
-        chosen_scene.index = 0;
-        let Some(PropertyValue::List(scene_list)) = episode_object
-            .content
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .get_property("SCENES")
-        else {
-            panic!();
-        };
-        for scene_name in scene_list.iter() {
-            if let Some(scene_object) = script_runner.get_object(scene_name) {
-                if scene_object
-                    .content
-                    .borrow()
-                    .as_ref()
-                    .unwrap()
-                    .get_type_id()
-                    != "SCENE"
-                {
-                    panic!();
-                };
-                let Some(PropertyValue::String(scene_script_path)) = scene_object
-                    .content
-                    .borrow()
-                    .as_ref()
-                    .unwrap()
-                    .get_property("PATH")
-                else {
-                    error!("Scene {} has no path", scene_name);
-                    continue;
-                };
-                let scene_defintion = SceneDefinition {
-                    name: scene_name.to_string(),
-                    path: PathBuf::from(scene_script_path),
-                    background: scene_object
-                        .content
-                        .borrow()
-                        .as_ref()
-                        .unwrap()
-                        .get_property("BACKGROUND")
-                        .and_then(|v| match v {
-                            PropertyValue::String(s) => Some(s),
-                            _ => None,
-                        }),
-                };
-                chosen_scene.list.push(scene_defintion);
-            }
-        }
-        chosen_scene.list.sort();
-    } else {
-        error!(
-            "Could not find episode object with name: {}",
-            episode_object_name
+                Some(".CNV"),
+            )
+            .unwrap();
+        let contents = parse_cnv(&contents);
+        script_runner.0.load_script(
+            episode_script_path,
+            contents.as_parser_input(),
+            Some(Arc::clone(&root_script_path)),
+            ScriptSource::Episode,
+            &mut issue_manager,
         );
     };
+    //#endregion
+
+    let scene_list = episode.get_scene_list();
+    if scene_list.is_empty() {
+        panic!(
+            "Invalid episode object {} - no scenes defined",
+            episode_name
+        );
+    }
+    chosen_scene.index = 0;
+    chosen_scene.list.clear();
+    for scene_name in scene_list {
+        let Some(scene_object) = script_runner.get_object(&scene_name) else {
+            panic!("Cannot find defined scene object {}", scene_name); // TODO: check if == 1, not >= 1
+        };
+        let scene_guard = scene_object.content.borrow();
+        let scene = scene_guard
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<Scene>()
+            .unwrap();
+        chosen_scene.list.push(SceneDefinition {
+            name: scene_name,
+            path: scene.get_script_path().unwrap().into(),
+            background: scene.get_background_path(),
+        });
+    }
+    chosen_scene.list.sort();
+    info!("scenes: {:?}", chosen_scene.list);
 }

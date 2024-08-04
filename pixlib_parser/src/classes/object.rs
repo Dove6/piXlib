@@ -10,6 +10,7 @@ use thiserror::Error;
 
 use crate::{
     common::Issue,
+    declarative_parser::ParserIssue,
     runner::{CnvScript, CnvValue, RunnerContext},
 };
 
@@ -100,6 +101,8 @@ pub enum ObjectBuildErrorKind {
     MissingType,
     #[error("Parsing error: {0}")]
     ParsingError(TypeParsingError),
+    #[error("Parser issue: {0}")]
+    ParserIssue(ParserIssue),
 }
 
 #[derive(Debug)]

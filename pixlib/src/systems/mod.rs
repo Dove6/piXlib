@@ -14,4 +14,5 @@ pub use handle_dropped_iso::handle_dropped_iso;
 pub use navigate_chooser::navigate_chooser;
 pub use setup::setup;
 pub use setup_chooser::setup_chooser;
+pub use setup_chooser::SceneListComponent;
 pub use update_chooser_labels::update_chooser_labels;

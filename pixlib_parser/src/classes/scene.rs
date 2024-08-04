@@ -178,6 +178,16 @@ impl Scene {
         // TOTIME
         todo!()
     }
+
+    ///
+
+    pub fn get_script_path(&self) -> Option<String> {
+        self.initial_properties.path.clone()
+    }
+
+    pub fn get_background_path(&self) -> Option<String> {
+        self.initial_properties.background.clone()
+    }
 }
 
 impl CnvType for Scene {

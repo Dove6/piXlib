@@ -1,10 +1,10 @@
-use std::{cell::RefCell, path::Path, sync::Arc};
+use std::{cell::RefCell, collections::VecDeque, path::Path, sync::Arc};
 
 #[derive(Debug, Clone, Default)]
 pub struct IncomingEvents {
-    pub timer: RefCell<Vec<TimerEvent>>,
-    pub mouse: RefCell<Vec<MouseEvent>>,
-    pub keyboard: RefCell<Vec<KeyboardEvent>>,
+    pub timer: RefCell<VecDeque<TimerEvent>>,
+    pub mouse: RefCell<VecDeque<MouseEvent>>,
+    pub keyboard: RefCell<VecDeque<KeyboardEvent>>,
 }
 
 #[derive(Debug, Clone)]
@@ -25,12 +25,12 @@ pub enum KeyboardEvent {
 
 #[derive(Debug, Clone, Default)]
 pub struct OutgoingEvents {
-    pub script: RefCell<Vec<ScriptEvent>>,
-    pub file: RefCell<Vec<FileEvent>>,
-    pub object: RefCell<Vec<ObjectEvent>>,
-    pub app: RefCell<Vec<ApplicationEvent>>,
-    pub sound: RefCell<Vec<SoundEvent>>,
-    pub graphics: RefCell<Vec<GraphicsEvent>>,
+    pub script: RefCell<VecDeque<ScriptEvent>>,
+    pub file: RefCell<VecDeque<FileEvent>>,
+    pub object: RefCell<VecDeque<ObjectEvent>>,
+    pub app: RefCell<VecDeque<ApplicationEvent>>,
+    pub sound: RefCell<VecDeque<SoundEvent>>,
+    pub graphics: RefCell<VecDeque<GraphicsEvent>>,
 }
 
 #[derive(Debug, Clone)]

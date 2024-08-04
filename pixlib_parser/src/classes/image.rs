@@ -3,7 +3,7 @@ use std::any::Any;
 use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
 use pixlib_formats::file_formats::img::parse_img;
 
-use crate::runner::{DummyFileSystem, RunnerError};
+use crate::runner::RunnerError;
 
 use super::*;
 
@@ -456,7 +456,8 @@ impl CnvType for Image {
                 Ok(None)
             }
             CallableIdentifier::Method("LOAD") => {
-                self.load(&DummyFileSystem, &arguments[0].to_string());
+                let filesystem = Arc::clone(&self.parent.parent.runner.filesystem);
+                self.load(&*filesystem.borrow(), &arguments[0].to_string());
                 Ok(None)
             }
             CallableIdentifier::Method("MERGEALPHA") => {

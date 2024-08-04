@@ -2,10 +2,7 @@ use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
 use pixlib_formats::file_formats::ann::{parse_ann, LoopingSettings};
 use std::{any::Any, sync::Arc};
 
-use crate::{
-    ast::IgnorableProgram,
-    runner::{DummyFileSystem, RunnerError},
-};
+use crate::{ast::IgnorableProgram, runner::RunnerError};
 
 use super::*;
 
@@ -346,7 +343,14 @@ impl Animation {
     pub fn load(&mut self, filesystem: &dyn FileSystem, filename: &str) -> RunnerResult<()> {
         // LOAD
         let data = filesystem
-            .read_file(filename)
+            .read_file(
+                self.parent
+                    .parent
+                    .path
+                    .with_file_name(filename)
+                    .to_str()
+                    .unwrap(),
+            )
             .map_err(|e| RunnerError::IoError { source: e })?;
         let data = parse_ann(&data);
         self.loaded_data = Some(LoadedAnimation {
@@ -858,7 +862,8 @@ impl CnvType for Animation {
                 Ok(None)
             }
             CallableIdentifier::Method("LOAD") => {
-                self.load(&DummyFileSystem, &arguments[0].to_string())?; // TODO: filesystem
+                let filesystem = Arc::clone(&self.parent.parent.runner.filesystem);
+                self.load(&*filesystem.borrow(), &arguments[0].to_string())?;
                 Ok(None)
             }
             CallableIdentifier::Method("MERGEALPHA") => {

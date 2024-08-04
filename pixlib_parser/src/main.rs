@@ -10,7 +10,7 @@ use pixlib_parser::{
     classes::{CnvObject, CnvObjectBuilder},
     common::{Issue, IssueHandler, IssueManager},
     declarative_parser::{CnvDeclaration, DeclarativeParser, ParserIssue},
-    runner::{CnvRunner, CnvScript, FileSystem, ScriptSource},
+    runner::{CnvRunner, CnvScript, FileSystem, GamePaths, ScriptSource},
     scanner::{CnvDecoder, CnvHeader, CnvScanner, CodepageDecoder, CP1250_LUT},
 };
 
@@ -89,9 +89,10 @@ fn parse_declarative(filename: PathBuf) -> std::io::Result<()> {
                         name.clone(),
                         CnvObjectBuilder::new(
                             Arc::new(CnvScript::new(
-                                Arc::new(CnvRunner::new(Arc::new(RefCell::new(
-                                    PlainFileSystem {},
-                                )))),
+                                Arc::new(CnvRunner::new(
+                                    Arc::new(RefCell::new(PlainFileSystem {})),
+                                    Arc::new(GamePaths::default()),
+                                )),
                                 Path::new("").into(),
                                 None,
                                 ScriptSource::Scene,

@@ -3,11 +3,78 @@ use std::collections::VecDeque;
 use lazy_static::lazy_static;
 use regex::bytes::Regex;
 
-use crate::common::{Position, Spanned};
+use crate::{
+    common::{Position, Spanned},
+    declarative_parser,
+};
 
 type IoReadResult = std::io::Result<u8>;
 type ScannerInput = std::io::Result<char>;
 type ScannerOutput = Spanned<char, Position, std::io::Error>;
+
+#[derive(Debug, Clone)]
+pub struct CnvFile(pub Vec<char>);
+
+impl AsRef<[char]> for CnvFile {
+    fn as_ref(&self) -> &[char] {
+        &self.0
+    }
+}
+
+impl CnvFile {
+    pub fn as_parser_input(&self) -> impl Iterator<Item = declarative_parser::ParserInput> + '_ {
+        self.0.iter().enumerate().map(|(i, c)| {
+            Ok((
+                Position {
+                    line: 1,
+                    column: 1 + i,
+                    character: i,
+                },
+                *c,
+                Position {
+                    line: 1,
+                    column: 2 + i,
+                    character: i + 1,
+                },
+            ))
+        })
+    }
+}
+
+pub fn parse_cnv(input: &[u8]) -> CnvFile {
+    let mut input = input.iter().map(|b| Ok(*b)).peekable();
+    let mut first_line = Vec::<u8>::new();
+    while let Some(res) =
+        input.next_if(|res| res.as_ref().is_ok_and(|c| !matches!(c, b'\r' | b'\n')))
+    {
+        first_line.push(res.unwrap())
+    }
+    while let Some(res) =
+        input.next_if(|res| res.as_ref().is_ok_and(|c| matches!(c, b'\r' | b'\n')))
+    {
+        first_line.push(res.unwrap())
+    }
+    let input: Box<dyn Iterator<Item = std::io::Result<u8>>> = match CnvHeader::try_new(&first_line)
+    {
+        Ok(Some(CnvHeader {
+            cipher_class: _,
+            step_count,
+        })) => Box::new(CnvDecoder::new(
+            input.collect::<Vec<_>>().into_iter(),
+            step_count,
+        )),
+        Ok(None) => Box::new(
+            first_line
+                .into_iter()
+                .map(Ok)
+                .chain(input.collect::<Vec<_>>()),
+        ),
+        Err(err) => panic!("{}", err),
+    };
+    let decoder = CodepageDecoder::new(&CP1250_LUT, input);
+    let scanner = CnvScanner::new(decoder);
+    CnvFile(scanner.map(|r| r.unwrap().1).collect())
+}
 
 #[derive(Clone, Debug)]
 struct IterBuf<I: Iterator<Item = IoReadResult>> {

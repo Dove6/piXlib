@@ -29,17 +29,6 @@ pub struct DebugSettings {
     pub force_animation_infinite_looping: bool,
 }
 
-#[derive(Resource, Debug, Clone, PartialEq, Eq)]
-pub struct GamePaths {
-    pub data_directory: PathBuf,
-    pub game_definition_filename: PathBuf,
-    pub music_directory: PathBuf,
-    pub dialogues_directory: PathBuf,
-    pub sfx_directory: PathBuf,
-    pub common_directory: PathBuf,
-    pub classes_directory: PathBuf,
-}
-
 #[derive(Resource, Default, Debug, Clone, PartialEq, Eq)]
 pub struct ChosenEpisode(pub Option<Arc<Path>>);
 
@@ -83,6 +72,12 @@ impl Deref for ScriptRunner {
     type Target = CnvRunner;
 
     fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<Arc<CnvRunner>> for ScriptRunner {
+    fn as_ref(&self) -> &Arc<CnvRunner> {
         &self.0
     }
 }

@@ -1,12 +1,9 @@
-use std::path::PathBuf;
-
 use bevy::{
     ecs::{
         component::Component,
         system::{Commands, Res},
     },
     hierarchy::BuildChildren,
-    log::info,
     prelude::default,
     render::color::Color,
     text::TextStyle,
@@ -15,19 +12,11 @@ use bevy::{
         AlignItems, BorderColor, JustifyContent, Style, UiRect, Val,
     },
 };
-use pixlib_parser::classes::PropertyValue;
 
-use crate::{
-    iso::read_game_definition,
-    resources::{
-        ChosenScene, GamePaths, InsertedDisk, ObjectBuilderIssueManager, RootEntityToDespawn,
-        SceneDefinition, ScriptRunner,
-    },
-};
+use crate::resources::{ChosenScene, RootEntityToDespawn};
 
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
 pub struct SceneListComponent {
-    pub scenes: Vec<SceneDefinition>,
     pub current_index: usize,
 }
 
@@ -143,47 +132,4 @@ pub fn setup_chooser(chosen_scene: Res<ChosenScene>, mut commands: Commands) {
         })
         .id();
     commands.insert_resource(RootEntityToDespawn(Some(root_entity)));
-}
-
-pub fn update_scene_list(
-    inserted_disk: &InsertedDisk,
-    game_paths: &GamePaths,
-    script_runner: &ScriptRunner,
-    scene_list: &mut SceneListComponent,
-    issue_manager: &mut ObjectBuilderIssueManager,
-) {
-    scene_list.scenes.clear();
-    if let Some(iso) = inserted_disk.get() {
-        let game_definition_path =
-            read_game_definition(iso, game_paths, script_runner, issue_manager);
-        let game_definition = script_runner.get_script(&game_definition_path).unwrap();
-        info!("game_definition: {:?}", game_definition);
-        for (name, path, background) in game_definition.objects.borrow().iter().filter_map(|o| {
-            let content_guard = o.content.borrow();
-            let content = content_guard.as_ref().unwrap();
-            if content.get_type_id() == "SCENE" {
-                Some((
-                    o.name.clone(),
-                    content.get_property("PATH").and_then(|v| match v {
-                        PropertyValue::String(s) => Some(s),
-                        _ => None,
-                    }),
-                    content.get_property("BACKGROUND").and_then(|v| match v {
-                        PropertyValue::String(s) => Some(s),
-                        _ => None,
-                    }),
-                ))
-            } else {
-                None
-            }
-        }) {
-            scene_list.scenes.push(SceneDefinition {
-                name,
-                path: PathBuf::from(path.unwrap()),
-                background,
-            });
-        }
-        scene_list.scenes.sort();
-    }
-    info!("scenes: {:?}", scene_list.scenes);
 }

@@ -6,12 +6,15 @@ use bevy::{
     log::{error, info},
     prelude::{
         in_state, BuildChildren, Bundle, Commands, Component, DespawnRecursiveExt, Entity, Image,
-        IntoSystemConfigs, NonSend, OnEnter, Query, ResMut, SpatialBundle, Transform, Visibility,
+        IntoSystemConfigs, NonSend, Query, ResMut, SpatialBundle, Transform, Visibility,
     },
     sprite::{Sprite, SpriteBundle},
 };
 use pixlib_formats::file_formats::img::parse_img;
-use pixlib_parser::classes::{CnvObject, PropertyValue};
+use pixlib_parser::{
+    classes::{CnvObject, PropertyValue},
+    runner::ScriptEvent,
+};
 
 use crate::{
     anchors::add_tuples,
@@ -42,7 +45,6 @@ impl Plugin for GraphicsPlugin {
                 Update,
                 update_animations.run_if(in_state(AppState::SceneViewer)),
             )
-            .add_systems(OnEnter(AppState::SceneViewer), reset_pool)
             .add_systems(Update, assign_pool.run_if(in_state(AppState::SceneViewer)));
     }
 }
@@ -105,6 +107,19 @@ pub fn reset_pool(
 }
 
 pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<ScriptRunner>) {
+    let mut out_events = runner.events_out.script.borrow_mut();
+    let mut any_script_loaded = false;
+    while let Some(ScriptEvent::ScriptLoaded { .. }) = out_events.front() {
+        info!("Popped event: {:?}", out_events.pop_front());
+        any_script_loaded = true;
+    }
+    if !any_script_loaded {
+        return;
+    }
+    let mut all_objects = Vec::new();
+    runner.find_objects(|_| true, &mut all_objects);
+    let all_objects: Vec<String> = all_objects.iter().map(|o| o.name.clone()).collect();
+    info!("All loaded objects: {:?}", all_objects);
     let mut background_assigned = false;
     let mut image_counter = 0;
     let mut animation_counter = 0;

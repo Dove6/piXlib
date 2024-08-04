@@ -1,12 +1,16 @@
 mod events;
 mod expression;
+mod filesystem;
 mod object_container;
 mod script;
 mod script_container;
 mod statement;
 mod value;
 
+pub use events::ScriptEvent;
 pub use expression::CnvExpression;
+pub use filesystem::FileSystem;
+pub use filesystem::GamePaths;
 pub use script::{CnvScript, ScriptSource};
 use script_container::ScriptContainer;
 pub use statement::CnvStatement;
@@ -19,9 +23,7 @@ use events::{IncomingEvents, OutgoingEvents};
 use crate::{
     classes::{CallableIdentifier, CnvObject, CnvObjectBuilder, ObjectBuilderError},
     common::{Issue, IssueHandler, IssueManager},
-    declarative_parser::{
-        CnvDeclaration, DeclarativeParser, ParserFatal, ParserInput, ParserIssue,
-    },
+    declarative_parser::{self, CnvDeclaration, DeclarativeParser, ParserFatal, ParserIssue},
 };
 
 #[derive(Debug)]
@@ -70,6 +72,7 @@ pub struct CnvRunner {
     pub events_out: OutgoingEvents,
     pub current_scene: Option<Arc<CnvObject>>,
     pub filesystem: Arc<RefCell<dyn FileSystem>>,
+    pub game_paths: Arc<GamePaths>,
 }
 
 #[derive(Debug)]
@@ -79,39 +82,22 @@ pub struct RunnerContext<'a> {
     pub current_object: String,
 }
 
-pub trait FileSystem: std::fmt::Debug + Send + Sync {
-    fn read_file(&self, filename: &str) -> std::io::Result<Vec<u8>>;
-    fn write_file(&mut self, filename: &str, data: &[u8]) -> std::io::Result<()>;
-}
-
-#[derive(Debug)]
-pub struct DummyFileSystem;
-
-impl FileSystem for DummyFileSystem {
-    fn read_file(&self, _: &str) -> std::io::Result<Vec<u8>> {
-        Ok(Vec::new())
-    }
-
-    fn write_file(&mut self, _: &str, _: &[u8]) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
 impl CnvRunner {
-    pub fn new(filesystem: Arc<RefCell<dyn FileSystem>>) -> Self {
+    pub fn new(filesystem: Arc<RefCell<dyn FileSystem>>, game_paths: Arc<GamePaths>) -> Self {
         Self {
             scripts: RefCell::new(ScriptContainer::default()),
             filesystem,
             current_scene: None,
             events_in: IncomingEvents::default(),
             events_out: OutgoingEvents::default(),
+            game_paths,
         }
     }
 
     pub fn load_script(
         self: &Arc<Self>,
         path: Arc<Path>,
-        contents: impl Iterator<Item = ParserInput>,
+        contents: impl Iterator<Item = declarative_parser::ParserInput>,
         parent_path: Option<Arc<Path>>,
         source_kind: ScriptSource,
         issue_manager: &mut IssueManager<ObjectBuilderError>,
@@ -180,7 +166,15 @@ impl CnvRunner {
             .map_err(|_e| ParserFatal::Other)?;
 
         let mut container = self.scripts.borrow_mut();
-        container.push_script(script); // TODO: err if present
+        container
+            .push_script(script)
+            .map_err(|_| ParserFatal::Other)?; // TODO: err if present
+        self.events_out
+            .script
+            .borrow_mut()
+            .push_back(ScriptEvent::ScriptLoaded {
+                path: Arc::clone(&path),
+            });
         Ok(())
     }
 
@@ -218,6 +212,17 @@ impl CnvRunner {
         for script in self.scripts.borrow().iter() {
             for object in script.objects.borrow().iter() {
                 if object.name == name {
+                    return Some(Arc::clone(object));
+                }
+            }
+        }
+        None
+    }
+
+    pub fn find_object(&self, predicate: impl Fn(&CnvObject) -> bool) -> Option<Arc<CnvObject>> {
+        for script in self.scripts.borrow().iter() {
+            for object in script.objects.borrow().iter() {
+                if predicate(&object) {
                     return Some(Arc::clone(object));
                 }
             }
@@ -266,7 +271,9 @@ impl CnvRunner {
             self_object: init_beh_obj.name.clone(),
             current_object: init_beh_obj.name.clone(),
         };
-        init_beh_obj.call_method(CallableIdentifier::Method("RUN"), &Vec::new(), &mut context);
+        init_beh_obj
+            .call_method(CallableIdentifier::Method("RUN"), &Vec::new(), &mut context)
+            .map_err(|e| BehaviorRunningError::RunnerError(e))?;
         Ok(None)
     }
 
@@ -283,4 +290,5 @@ pub enum BehaviorRunningError {
     ScriptNotFound,
     ObjectNotFound,
     InvalidType,
+    RunnerError(RunnerError),
 }

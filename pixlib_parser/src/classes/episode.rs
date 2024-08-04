@@ -61,6 +61,16 @@ impl Episode {
     pub fn restart() {
         todo!()
     }
+
+    ///
+
+    pub fn get_script_path(&self) -> Option<String> {
+        self.initial_properties.path.clone()
+    }
+
+    pub fn get_scene_list(&self) -> Vec<String> {
+        self.initial_properties.scenes.clone().unwrap_or(Vec::new())
+    }
 }
 
 impl CnvType for Episode {
