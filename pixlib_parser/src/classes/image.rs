@@ -2,6 +2,7 @@ use std::any::Any;
 
 use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
 use pixlib_formats::file_formats::img::parse_img;
+use xxhash_rust::xxh3::xxh3_64;
 
 use crate::runner::RunnerError;
 
@@ -193,6 +194,9 @@ impl Image {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
             })?;
         let data = parse_img(&data.0);
+        let converted_data = data
+            .image_data
+            .to_rgba8888(data.header.color_format, data.header.compression_type);
         self.loaded_data = Some(LoadedImage {
             filename: Some(filename.to_owned()),
             image: (
@@ -201,9 +205,8 @@ impl Image {
                     offset_px: (data.header.x_position_px, data.header.y_position_px),
                 },
                 ImageData {
-                    data: data
-                        .image_data
-                        .to_rgba8888(data.header.color_format, data.header.compression_type),
+                    hash: xxh3_64(&converted_data),
+                    data: converted_data,
                 },
             ),
         });

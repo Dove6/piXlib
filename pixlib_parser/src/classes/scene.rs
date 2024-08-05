@@ -2,6 +2,7 @@ use std::any::Any;
 
 use parsers::{discard_if_empty, parse_bool, parse_comma_separated, parse_datetime, parse_program};
 use pixlib_formats::file_formats::img::parse_img;
+use xxhash_rust::xxh3::xxh3_64;
 
 use crate::runner::RunnerError;
 
@@ -44,15 +45,11 @@ pub struct Scene {
 impl Scene {
     pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: SceneInit) -> Self {
         let background_path = initial_properties.background.clone();
-        let mut scene = Self {
+        Self {
             parent,
             initial_properties,
             loaded_background: None,
-        };
-        if let Some(background_path) = background_path {
-            scene.load_background(&background_path).unwrap();
         }
-        scene
     }
 
     pub fn create_object() {
@@ -215,6 +212,9 @@ impl Scene {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
             })?;
         let data = parse_img(&data.0);
+        let converted_data = data
+            .image_data
+            .to_rgba8888(data.header.color_format, data.header.compression_type);
         self.loaded_background = Some(LoadedImage {
             filename: Some(filename.to_owned()),
             image: (
@@ -223,16 +223,22 @@ impl Scene {
                     offset_px: (data.header.x_position_px, data.header.y_position_px),
                 },
                 ImageData {
-                    data: data
-                        .image_data
-                        .to_rgba8888(data.header.color_format, data.header.compression_type),
+                    hash: xxh3_64(&converted_data),
+                    data: converted_data,
                 },
             ),
         });
         Ok(())
     }
 
-    pub fn get_background_to_show(&self) -> RunnerResult<Option<(&ImageDefinition, &ImageData)>> {
+    pub fn get_background_to_show(
+        &mut self,
+    ) -> RunnerResult<Option<(&ImageDefinition, &ImageData)>> {
+        if self.loaded_background.is_none() {
+            if let Some(ref background_path) = self.initial_properties.background.clone() {
+                self.load_background(&background_path)?;
+            }
+        }
         let Some(loaded_background) = &self.loaded_background else {
             return Ok(None);
         };

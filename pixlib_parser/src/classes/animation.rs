@@ -1,6 +1,7 @@
 use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
 use pixlib_formats::file_formats::ann::{parse_ann, LoopingSettings};
 use std::{any::Any, sync::Arc};
+use xxhash_rust::xxh3::xxh3_64;
 
 use crate::{ast::IgnorableProgram, runner::RunnerError};
 
@@ -335,6 +336,9 @@ impl Animation {
                 .sprites
                 .into_iter()
                 .map(|s| {
+                    let converted_data = s
+                        .image_data
+                        .to_rgba8888(data.header.color_format, s.header.compression_type);
                     (
                         SpriteDefinition {
                             name: s.header.name.0,
@@ -345,9 +349,8 @@ impl Animation {
                             ),
                         },
                         SpriteData {
-                            data: s
-                                .image_data
-                                .to_rgba8888(data.header.color_format, s.header.compression_type),
+                            hash: xxh3_64(&converted_data),
+                            data: converted_data,
                         },
                     )
                 })

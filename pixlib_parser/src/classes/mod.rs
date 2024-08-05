@@ -172,6 +172,7 @@ pub struct ImageDefinition {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImageData {
+    pub hash: u64,
     pub data: Vec<u8>, // RGBA8888
 }
 
@@ -206,6 +207,7 @@ pub struct SpriteDefinition {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SpriteData {
+    pub hash: u64,
     pub data: Vec<u8>, // RGBA8888
 }
 

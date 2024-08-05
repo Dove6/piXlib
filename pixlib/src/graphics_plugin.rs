@@ -18,6 +18,7 @@ use pixlib_parser::{
 
 use crate::{
     anchors::add_tuples,
+    image,
     resources::ScriptRunner,
     states::AppState,
     util::{animation_data_to_handle, image_data_to_handle},
@@ -65,11 +66,15 @@ pub enum GraphicsMarker {
 }
 
 #[derive(Component, Debug, Default)]
+pub struct LoadedGraphicsIdentifier(pub Option<u64>);
+
+#[derive(Component, Debug, Default)]
 pub struct GraphicsPoolMarker;
 
 #[derive(Bundle, Default)]
 pub struct GraphicsBundle {
     pub marker: GraphicsMarker,
+    pub identifier: LoadedGraphicsIdentifier,
     pub sprite: SpriteBundle,
 }
 
@@ -87,6 +92,7 @@ pub fn create_pool(mut commands: Commands) {
 pub fn reset_pool(
     mut query: Query<(
         &mut GraphicsMarker,
+        &mut LoadedGraphicsIdentifier,
         &mut Sprite,
         &mut Transform,
         &mut Handle<Image>,
@@ -94,9 +100,12 @@ pub fn reset_pool(
     )>,
 ) {
     let mut counter = 0;
-    for (mut marker, mut sprite, mut transform, mut handle, mut visibility) in query.iter_mut() {
+    for (mut marker, mut ident, mut sprite, mut transform, mut handle, mut visibility) in
+        query.iter_mut()
+    {
         counter += 1;
         *marker = GraphicsMarker::Unassigned;
+        ident.0 = None;
         sprite.flip_x = false;
         sprite.flip_y = false;
         sprite.anchor = Anchor::TopLeft;
@@ -168,7 +177,8 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
 pub fn update_background(
     mut textures: ResMut<Assets<Image>>,
     mut query: Query<(
-        &mut GraphicsMarker,
+        &GraphicsMarker,
+        &mut LoadedGraphicsIdentifier,
         &mut Sprite,
         &mut Transform,
         &mut Handle<Image>,
@@ -176,28 +186,34 @@ pub fn update_background(
     )>,
     runner: NonSend<ScriptRunner>,
 ) {
-    for (marker, mut sprite, mut transform, mut handle, mut visibility) in query.iter_mut() {
+    for (marker, mut ident, mut sprite, mut transform, mut handle, mut visibility) in
+        query.iter_mut()
+    {
         if !matches!(*marker, GraphicsMarker::BackgroundImage) {
             continue;
         }
         let Some(scene_object) = runner.get_current_scene() else {
             continue;
         };
-        let scene_guard = scene_object.content.borrow();
+        let mut scene_guard = scene_object.content.borrow_mut();
         let scene = scene_guard
-            .as_ref()
+            .as_mut()
             .unwrap()
-            .as_any()
-            .downcast_ref::<Scene>()
+            .as_any_mut()
+            .downcast_mut::<Scene>()
             .unwrap();
         let scene_script_path = scene.get_script_path();
-        sprite.flip_x = false;
-        sprite.flip_y = false;
-        sprite.anchor = Anchor::TopLeft;
         let Some((image_definition, image_data)) = scene.get_background_to_show().unwrap() else {
             *visibility = Visibility::Hidden;
             continue;
         };
+        if ident.0.is_some_and(|h| h == image_data.hash) {
+            continue;
+        }
+        ident.0 = Some(image_data.hash);
+        sprite.flip_x = false;
+        sprite.flip_y = false;
+        sprite.anchor = Anchor::TopLeft;
         *visibility = Visibility::Visible;
         *transform = Transform::from_xyz(
             image_definition.offset_px.0 as f32,
@@ -215,7 +231,8 @@ pub fn update_background(
 pub fn update_images(
     mut textures: ResMut<Assets<Image>>,
     mut query: Query<(
-        &mut GraphicsMarker,
+        &GraphicsMarker,
+        &mut LoadedGraphicsIdentifier,
         &mut Sprite,
         &mut Transform,
         &mut Handle<Image>,
@@ -223,7 +240,9 @@ pub fn update_images(
     )>,
     runner: NonSend<ScriptRunner>,
 ) {
-    for (marker, mut sprite, mut transform, mut handle, mut visibility) in query.iter_mut() {
+    for (marker, mut ident, mut sprite, mut transform, mut handle, mut visibility) in
+        query.iter_mut()
+    {
         let GraphicsMarker::Image { script_path, index } = &*marker else {
             continue;
         };
@@ -243,18 +262,22 @@ pub fn update_images(
             continue;
         };
 
-        sprite.flip_x = false;
-        sprite.flip_y = false;
-        sprite.anchor = Anchor::TopLeft;
         let Some((image_definition, image_data)) = image.get_image_to_show().unwrap() else {
             *visibility = Visibility::Hidden;
             continue;
         };
+        if ident.0.is_some_and(|h| h == image_data.hash) {
+            continue;
+        }
+        ident.0 = Some(image_data.hash);
         *visibility = if image.is_visible() {
             Visibility::Visible
         } else {
             Visibility::Hidden
         };
+        sprite.flip_x = false;
+        sprite.flip_y = false;
+        sprite.anchor = Anchor::TopLeft;
         *transform = Transform::from_xyz(
             image_definition.offset_px.0 as f32,
             image_definition.offset_px.1 as f32,
@@ -268,7 +291,8 @@ pub fn update_images(
 pub fn update_animations(
     mut textures: ResMut<Assets<Image>>,
     mut query: Query<(
-        &mut GraphicsMarker,
+        &GraphicsMarker,
+        &mut LoadedGraphicsIdentifier,
         &mut Sprite,
         &mut Transform,
         &mut Handle<Image>,
@@ -276,7 +300,9 @@ pub fn update_animations(
     )>,
     runner: NonSend<ScriptRunner>,
 ) {
-    for (marker, _sprite, mut transform, mut handle, mut visibility) in query.iter_mut() {
+    for (marker, mut ident, mut sprite, mut transform, mut handle, mut visibility) in
+        query.iter_mut()
+    {
         let GraphicsMarker::Animation { script_path, index } = &*marker else {
             continue;
         };
@@ -302,19 +328,25 @@ pub fn update_animations(
         else {
             continue;
         };
-        let Some((frame, sprite, data)) = frame_to_show else {
+        let Some((frame_definition, sprite_definition, sprite_data)) = frame_to_show else {
             *visibility = Visibility::Hidden;
             continue;
         };
+        if ident.0.is_some_and(|h| h == sprite_data.hash) {
+            continue;
+        }
+        ident.0 = Some(sprite_data.hash);
         *visibility = if animation.is_visible() {
             Visibility::Visible
         } else {
             Visibility::Hidden
         };
-        let total_offset = add_tuples(sprite.offset_px, frame.offset_px);
-        //sprite.flip_x = animation
+        let total_offset = add_tuples(sprite_definition.offset_px, frame_definition.offset_px);
+        sprite.flip_x = false;
+        sprite.flip_y = false;
+        sprite.anchor = Anchor::TopLeft;
         *transform = Transform::from_xyz(total_offset.0 as f32, total_offset.1 as f32, 0f32);
-        *handle = animation_data_to_handle(&mut textures, &sprite, &data);
+        *handle = animation_data_to_handle(&mut textures, &sprite_definition, &sprite_data);
         info!("Updated animation {}", &object.name);
     }
 }
