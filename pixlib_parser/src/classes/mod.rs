@@ -1,4 +1,5 @@
 use parsers::TypeParsingError;
+use pixlib_formats::file_formats::ann::LoopingSettings;
 use std::{any::Any, collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc};
@@ -8,7 +9,7 @@ use regex::Regex;
 use crate::runner::RunnerResult;
 use crate::{
     ast::IgnorableProgram,
-    runner::{CnvStatement, CnvValue, FileSystem, RunnerContext},
+    runner::{CnvStatement, CnvValue, RunnerContext},
 };
 
 pub trait CnvType: std::fmt::Debug {
@@ -163,6 +164,64 @@ impl CnvTypeFactory {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ImageDefinition {
+    pub size_px: (u32, u32),
+    pub offset_px: (i32, i32),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ImageData {
+    pub data: Vec<u8>, // RGBA8888
+}
+
+#[derive(Debug, Clone)]
+pub struct LoadedImage {
+    pub filename: Option<String>,
+    pub image: (ImageDefinition, ImageData),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SequenceDefinition {
+    pub name: String,
+    pub opacity: u8,
+    pub looping: LoopingSettings,
+    pub frames: Vec<FrameDefinition>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FrameDefinition {
+    pub name: String,
+    pub offset_px: (i32, i32),
+    pub opacity: u8,
+    pub sprite_idx: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SpriteDefinition {
+    pub name: String,
+    pub size_px: (u32, u32),
+    pub offset_px: (i32, i32),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SpriteData {
+    pub data: Vec<u8>, // RGBA8888
+}
+
+#[derive(Debug, Clone)]
+pub struct LoadedAnimation {
+    pub filename: Option<String>,
+    pub sequences: Vec<SequenceDefinition>,
+    pub sprites: Vec<(SpriteDefinition, SpriteData)>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Copy)]
+pub struct FrameIdentifier {
+    pub sequence_idx: usize,
+    pub frame_idx: usize,
+}
+
 pub type EpisodeName = String;
 pub type SceneName = String;
 pub type ConditionName = String;
@@ -206,9 +265,6 @@ mod text;
 mod timer;
 
 pub use animation::Animation;
-pub use animation::SequenceDefinition;
-pub use animation::SpriteData;
-pub use animation::SpriteDefinition;
 pub use application::Application;
 pub use array::Array;
 pub use behavior::Behavior;
@@ -224,8 +280,6 @@ pub use expression::Expression;
 pub use font::Font;
 pub use group::Group;
 pub use image::Image;
-pub use image::ImageData;
-pub use image::ImageDefinition;
 pub use int::Int;
 pub use keyboard::Keyboard;
 pub use lalrpop_util::ParseError;

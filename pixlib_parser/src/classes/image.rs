@@ -32,23 +32,6 @@ pub struct ImageInit {
     pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ImageDefinition {
-    pub size_px: (u32, u32),
-    pub offset_px: (i32, i32),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ImageData {
-    pub data: Vec<u8>, // RGBA8888
-}
-
-#[derive(Debug, Clone)]
-pub struct LoadedImage {
-    pub filename: Option<String>,
-    pub image: (ImageDefinition, ImageData),
-}
-
 #[derive(Debug, Clone)]
 pub struct Image {
     // IMAGE
@@ -86,13 +69,7 @@ impl Image {
             position: (0, 0),
         };
         if preload {
-            let script = parent.parent.as_ref();
-            let filesystem = Arc::clone(&script.runner.filesystem);
-            let path = Arc::clone(&script.path);
-            image.load(
-                &*filesystem.as_ref().borrow(),
-                path.with_file_name(&filename).to_str().unwrap(),
-            );
+            image.load(&filename).unwrap();
         }
         image
     }
@@ -201,11 +178,21 @@ impl Image {
         todo!()
     }
 
-    pub fn load(&mut self, filesystem: &dyn FileSystem, filename: &str) -> RunnerResult<()> {
+    pub fn load(&mut self, filename: &str) -> RunnerResult<()> {
+        let script = self.parent.parent.as_ref();
+        let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
-            .read_file(filename)
-            .map_err(|e| RunnerError::IoError { source: e })?;
-        let data = parse_img(&data);
+            .borrow()
+            .read_scene_file(
+                Arc::clone(&script.runner.game_paths),
+                Some(script.path.with_file_name("").to_str().unwrap()),
+                filename,
+                Some("IMG"),
+            )
+            .map_err(|_| RunnerError::IoError {
+                source: std::io::Error::from(std::io::ErrorKind::NotFound),
+            })?;
+        let data = parse_img(&data.0);
         self.loaded_data = Some(LoadedImage {
             filename: Some(filename.to_owned()),
             image: (
@@ -456,8 +443,7 @@ impl CnvType for Image {
                 Ok(None)
             }
             CallableIdentifier::Method("LOAD") => {
-                let filesystem = Arc::clone(&self.parent.parent.runner.filesystem);
-                self.load(&*filesystem.borrow(), &arguments[0].to_string());
+                self.load(&arguments[0].to_string());
                 Ok(None)
             }
             CallableIdentifier::Method("MERGEALPHA") => {

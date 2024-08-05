@@ -1,6 +1,9 @@
 use std::any::Any;
 
 use parsers::{discard_if_empty, parse_bool, parse_comma_separated, parse_datetime, parse_program};
+use pixlib_formats::file_formats::img::parse_img;
+
+use crate::runner::RunnerError;
 
 use super::*;
 
@@ -34,14 +37,22 @@ pub struct Scene {
     // SCENE
     parent: Arc<CnvObject>,
     initial_properties: SceneInit,
+
+    loaded_background: Option<LoadedImage>,
 }
 
 impl Scene {
     pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: SceneInit) -> Self {
-        Self {
+        let background_path = initial_properties.background.clone();
+        let mut scene = Self {
             parent,
             initial_properties,
+            loaded_background: None,
+        };
+        if let Some(background_path) = background_path {
+            scene.load_background(&background_path).unwrap();
         }
+        scene
     }
 
     pub fn create_object() {
@@ -187,6 +198,46 @@ impl Scene {
 
     pub fn get_background_path(&self) -> Option<String> {
         self.initial_properties.background.clone()
+    }
+
+    fn load_background(&mut self, filename: &str) -> RunnerResult<()> {
+        let script = self.parent.parent.as_ref();
+        let filesystem = Arc::clone(&script.runner.filesystem);
+        let data = filesystem
+            .borrow()
+            .read_scene_file(
+                Arc::clone(&script.runner.game_paths),
+                Some(self.initial_properties.path.as_ref().unwrap()),
+                filename,
+                Some("IMG"),
+            )
+            .map_err(|_| RunnerError::IoError {
+                source: std::io::Error::from(std::io::ErrorKind::NotFound),
+            })?;
+        let data = parse_img(&data.0);
+        self.loaded_background = Some(LoadedImage {
+            filename: Some(filename.to_owned()),
+            image: (
+                ImageDefinition {
+                    size_px: (data.header.width_px, data.header.height_px),
+                    offset_px: (data.header.x_position_px, data.header.y_position_px),
+                },
+                ImageData {
+                    data: data
+                        .image_data
+                        .to_rgba8888(data.header.color_format, data.header.compression_type),
+                },
+            ),
+        });
+        Ok(())
+    }
+
+    pub fn get_background_to_show(&self) -> RunnerResult<Option<(&ImageDefinition, &ImageData)>> {
+        let Some(loaded_background) = &self.loaded_background else {
+            return Ok(None);
+        };
+        let image = &loaded_background.image;
+        Ok(Some((&image.0, &image.1)))
     }
 }
 

@@ -10,9 +10,9 @@ use bevy::{
     },
     sprite::{Anchor, Sprite, SpriteBundle},
 };
-use pixlib_formats::file_formats::img::parse_img;
+
 use pixlib_parser::{
-    classes::{CnvObject, PropertyValue, Scene},
+    classes::{CnvObject, Scene},
     runner::ScriptEvent,
 };
 
@@ -20,7 +20,7 @@ use crate::{
     anchors::add_tuples,
     resources::ScriptRunner,
     states::AppState,
-    util::{animation_data_to_handle, image_data_to_handle, img_file_to_handle},
+    util::{animation_data_to_handle, image_data_to_handle},
 };
 
 const POOL_SIZE: usize = 50;
@@ -191,23 +191,20 @@ pub fn update_background(
             .downcast_ref::<Scene>()
             .unwrap();
         let scene_script_path = scene.get_script_path();
-        let scene_background_path = scene.get_background_path().unwrap();
-        let loaded_file = (*runner.filesystem)
-            .borrow()
-            .read_scene_file(
-                Arc::clone(&runner.game_paths),
-                scene_script_path.as_deref(),
-                &scene_background_path,
-                Some(".IMG"),
-            )
-            .unwrap();
-        let image = parse_img(&loaded_file.0);
-        *handle = img_file_to_handle(&mut textures, image);
-        *visibility = Visibility::Visible;
         sprite.flip_x = false;
         sprite.flip_y = false;
         sprite.anchor = Anchor::TopLeft;
-        *transform = Transform::from_xyz(0f32, 0f32, 0f32);
+        let Some((image_definition, image_data)) = scene.get_background_to_show().unwrap() else {
+            *visibility = Visibility::Hidden;
+            continue;
+        };
+        *visibility = Visibility::Visible;
+        *transform = Transform::from_xyz(
+            image_definition.offset_px.0 as f32,
+            image_definition.offset_px.1 as f32,
+            0f32,
+        );
+        *handle = image_data_to_handle(&mut textures, image_definition, image_data);
         info!(
             "Updated background for scene {:?} / {:?}",
             scene_script_path, scene_object.name
