@@ -2,3 +2,9 @@
 members = ["pixlib", "pixlib_formats", "pixlib_parser"]
 resolver = "2"
 default-members = ["pixlib"]
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

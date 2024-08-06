@@ -26,6 +26,7 @@ bevy = { version = "0.13", default_features = false, features = [
     # "file_watcher",
     "jpeg",
     "wav",
+    "dynamic_linking",
 ] }
 bevy_kira_audio = { version = "0.19" }
 regex = "1.10"
