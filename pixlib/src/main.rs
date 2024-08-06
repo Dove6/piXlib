@@ -5,6 +5,7 @@ pub mod arguments;
 pub mod components;
 pub mod graphics_plugin;
 pub mod image;
+pub mod inputs_plugin;
 pub mod iso;
 pub mod resources;
 pub mod states;
@@ -27,6 +28,7 @@ use bevy::{
     DefaultPlugins,
 };
 use graphics_plugin::GraphicsPlugin;
+use inputs_plugin::InputsPlugin;
 use pixlib_parser::{
     classes::{Application, Episode, ObjectBuilderError, Scene},
     common::{Issue, IssueHandler, IssueKind, IssueManager},
@@ -102,6 +104,8 @@ fn main() {
         )
         .add_systems(OnExit(AppState::SceneViewer), cleanup_root)
         .add_plugins(GraphicsPlugin)
+        .add_plugins(InputsPlugin)
+        .add_systems(Update, step_script_runner.run_if(in_state(AppState::SceneViewer)))
         .run();
 }
 
@@ -117,12 +121,16 @@ impl<I: Issue> IssueHandler<I> for IssuePrinter {
     }
 }
 
+fn step_script_runner(runner: NonSend<ScriptRunner>) {
+    runner.0.step().unwrap();
+}
+
 fn reload_scene_script(script_runner: NonSend<ScriptRunner>, chosen_scene: Res<ChosenScene>) {
     if !chosen_scene.is_changed() {
         return;
     }
     let game_paths = Arc::clone(&script_runner.game_paths);
-    script_runner.scripts.borrow_mut().remove_scene_script();
+    script_runner.scripts.borrow_mut().remove_scene_script().unwrap();
     let scene_name = chosen_scene.list[chosen_scene.index].name.clone();
     let Some(scene_object) = script_runner.get_object(&scene_name) else {
         panic!("Cannot find defined scene object {}", scene_name); // TODO: check if == 1, not >= 1
@@ -146,7 +154,7 @@ fn reload_scene_script(script_runner: NonSend<ScriptRunner>, chosen_scene: Res<C
         contents.as_parser_input(),
         Some(Arc::clone(&scene_object)),
         ScriptSource::Scene,
-    );
+    ).unwrap();
 }
 
 fn reload_main_script(
@@ -178,7 +186,7 @@ fn reload_main_script(
         contents.as_parser_input(),
         None,
         ScriptSource::Root,
-    );
+    ).unwrap();
     //#endregion
 
     let Some(application_object) = script_runner
@@ -213,7 +221,7 @@ fn reload_main_script(
             contents.as_parser_input(),
             Some(Arc::clone(&application_object)),
             ScriptSource::Application,
-        );
+        ).unwrap();
     };
     //#endregion
 
@@ -254,7 +262,7 @@ fn reload_main_script(
             contents.as_parser_input(),
             Some(Arc::clone(&episode_object)),
             ScriptSource::Episode,
-        );
+        ).unwrap();
     };
     //#endregion
 

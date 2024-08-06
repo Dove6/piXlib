@@ -4,6 +4,7 @@ use bevy::{
     app::{App, Plugin, Startup, Update},
     asset::{Assets, Handle},
     log::{error, info},
+    math::Vec3,
     prelude::{
         in_state, BuildChildren, Bundle, Commands, Component, DespawnRecursiveExt, Entity, Image,
         IntoSystemConfigs, NonSend, Query, ResMut, SpatialBundle, Transform, Visibility,
@@ -50,18 +51,22 @@ impl Plugin for GraphicsPlugin {
     }
 }
 
-#[derive(Component, Debug, Default)]
+#[derive(Component, Debug, Default, Clone)]
 pub enum GraphicsMarker {
     #[default]
     Unassigned,
     BackgroundImage,
     Image {
+        script_index: usize,
         script_path: Arc<Path>,
-        index: usize,
+        object_index: usize,
+        object_name: String,
     },
     Animation {
+        script_index: usize,
         script_path: Arc<Path>,
-        index: usize,
+        object_index: usize,
+        object_name: String,
     },
 }
 
@@ -141,30 +146,35 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
             background_assigned = true;
         }
     }
-    let mut scene_graphics: Vec<Arc<CnvObject>> = Vec::new();
-    runner.find_objects(
-        |o| matches!(o.content.borrow().as_ref().unwrap().get_type_id(), "IMAGE"),
-        &mut scene_graphics,
-    );
-    for graphics_object_index in scene_graphics.iter() {
-        let mut marker = iter.next().unwrap();
-        *marker = GraphicsMarker::Image {
-            script_path: graphics_object_index.parent.path.clone(),
-            index: graphics_object_index.index,
-        };
-        image_counter += 1;
+    for (script_index, script) in runner.scripts.borrow().iter().enumerate() {
+        for (object_index, object) in script.objects.borrow().iter().enumerate() {
+            if object.content.borrow().as_ref().unwrap().get_type_id() != "IMAGE" {
+                continue;
+            }
+            let mut marker = iter.next().unwrap();
+            *marker = GraphicsMarker::Image {
+                script_index,
+                script_path: Arc::clone(&script.path),
+                object_index,
+                object_name: object.name.clone(),
+            };
+            image_counter += 1;
+        }
     }
-    runner.find_objects(
-        |o| matches!(o.content.borrow().as_ref().unwrap().get_type_id(), "ANIMO"),
-        &mut scene_graphics,
-    );
-    for graphics_object_index in scene_graphics.iter() {
-        let mut marker = iter.next().unwrap();
-        *marker = GraphicsMarker::Animation {
-            script_path: graphics_object_index.parent.path.clone(),
-            index: graphics_object_index.index,
-        };
-        animation_counter += 1;
+    for (script_index, script) in runner.scripts.borrow().iter().enumerate() {
+        for (object_index, object) in script.objects.borrow().iter().enumerate() {
+            if object.content.borrow().as_ref().unwrap().get_type_id() != "ANIMO" {
+                continue;
+            }
+            let mut marker = iter.next().unwrap();
+            *marker = GraphicsMarker::Animation {
+                script_index,
+                script_path: Arc::clone(&script.path),
+                object_index,
+                object_name: object.name.clone(),
+            };
+            image_counter += 1;
+        }
     }
     info!(
         "Assigned {} background, {} images and {} animations",
@@ -218,8 +228,9 @@ pub fn update_background(
         *transform = Transform::from_xyz(
             image_definition.offset_px.0 as f32,
             image_definition.offset_px.1 as f32,
-            0f32,
-        );
+            -100f32,
+        )
+        .with_scale(Vec3::new(1f32, -1f32, 1f32));
         *handle = image_data_to_handle(&mut textures, image_definition, image_data);
         info!(
             "Updated background for scene {:?} / {:?}",
@@ -243,13 +254,19 @@ pub fn update_images(
     for (marker, mut ident, mut sprite, mut transform, mut handle, mut visibility) in
         query.iter_mut()
     {
-        let GraphicsMarker::Image { script_path, index } = &*marker else {
+        let GraphicsMarker::Image {
+            script_index,
+            script_path,
+            object_index,
+            object_name,
+        } = &*marker
+        else {
             continue;
         };
         let Some(script) = runner.get_script(&script_path) else {
             continue;
         };
-        let Some(object) = script.objects.borrow().get_object_at(*index) else {
+        let Some(object) = script.objects.borrow().get_object_at(*object_index) else {
             continue;
         };
         let image_guard = object.content.borrow();
@@ -281,8 +298,9 @@ pub fn update_images(
         *transform = Transform::from_xyz(
             image_definition.offset_px.0 as f32,
             image_definition.offset_px.1 as f32,
-            0f32,
-        );
+            *script_index as f32 + (*object_index as f32) / 10000f32,
+        )
+        .with_scale(Vec3::new(1f32, -1f32, 1f32));
         *handle = image_data_to_handle(&mut textures, image_definition, image_data);
         info!("Updated image {}", &object.name);
     }
@@ -303,13 +321,19 @@ pub fn update_animations(
     for (marker, mut ident, mut sprite, mut transform, mut handle, mut visibility) in
         query.iter_mut()
     {
-        let GraphicsMarker::Animation { script_path, index } = &*marker else {
+        let GraphicsMarker::Animation {
+            script_index,
+            script_path,
+            object_index,
+            object_name,
+        } = &*marker
+        else {
             continue;
         };
         let Some(script) = runner.get_script(&script_path) else {
             continue;
         };
-        let Some(object) = script.objects.borrow().get_object_at(*index) else {
+        let Some(object) = script.objects.borrow().get_object_at(*object_index) else {
             continue;
         };
         let animation_guard = object.content.borrow();
@@ -345,7 +369,12 @@ pub fn update_animations(
         sprite.flip_x = false;
         sprite.flip_y = false;
         sprite.anchor = Anchor::TopLeft;
-        *transform = Transform::from_xyz(total_offset.0 as f32, total_offset.1 as f32, 0f32);
+        *transform = Transform::from_xyz(
+            total_offset.0 as f32,
+            total_offset.1 as f32,
+            *script_index as f32 + (*object_index as f32) / 10000f32,
+        )
+        .with_scale(Vec3::new(1f32, -1f32, 1f32));
         *handle = animation_data_to_handle(&mut textures, &sprite_definition, &sprite_data);
         info!("Updated animation {}", &object.name);
     }

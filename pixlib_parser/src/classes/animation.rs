@@ -549,6 +549,8 @@ impl Animation {
         todo!()
     }
 
+    ///
+
     pub fn tick(&mut self, context: &mut RunnerContext, duration: f64) -> RunnerResult<()> {
         let Some(loaded_data) = &self.loaded_data else {
             return Ok(());
@@ -605,6 +607,7 @@ impl Animation {
     pub fn get_frame_to_show(
         &self,
     ) -> RunnerResult<Option<(&FrameDefinition, &SpriteDefinition, &SpriteData)>> {
+        // eprintln!("[ANIMO: {}] is_visible: {}", self.parent.name, self.is_visible);
         if !self.is_visible {
             return Ok(None);
         }
@@ -614,6 +617,7 @@ impl Animation {
         let sequence = &loaded_data.sequences[self.current_frame.sequence_idx];
         let frame = &sequence.frames[self.current_frame.frame_idx];
         let sprite = &loaded_data.sprites[frame.sprite_idx];
+        // eprintln!("[ANIMO: {}] [current frame] position: {:?} + {:?}, hash: {:?}", self.parent.name, sprite.0.offset_px, frame.offset_px, sprite.1.hash);
         Ok(Some((frame, &sprite.0, &sprite.1)))
     }
 }

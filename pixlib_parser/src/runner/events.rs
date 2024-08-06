@@ -18,9 +18,11 @@ pub enum MouseEvent {
     RightButtonPressed { x: u32, y: u32 },
 }
 
+pub use keyboard_types::Code as KeyboardKey;
+
 #[derive(Debug, Clone)]
 pub enum KeyboardEvent {
-    KeyPressed,
+    KeyPressed { key_code: keyboard_types::Code },
 }
 
 #[derive(Debug, Clone, Default)]

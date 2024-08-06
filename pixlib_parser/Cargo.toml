@@ -15,6 +15,7 @@ regex = "1.10"
 itertools = "0.12"
 string-interner = "0.17"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
+keyboard-types = "0.7"
 
 [build-dependencies]
 lalrpop = "0.20"

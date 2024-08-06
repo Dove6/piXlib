@@ -7,7 +7,7 @@ mod script_container;
 mod statement;
 mod value;
 
-pub use events::ScriptEvent;
+pub use events::{KeyboardEvent, MouseEvent, ScriptEvent, TimerEvent, KeyboardKey};
 pub use expression::CnvExpression;
 pub use filesystem::FileSystem;
 pub use filesystem::GamePaths;
@@ -17,11 +17,11 @@ pub use statement::CnvStatement;
 use thiserror::Error;
 pub use value::CnvValue;
 
-use std::borrow::BorrowMut;
 use std::{cell::RefCell, collections::HashMap, path::Path, sync::Arc};
 
 use events::{IncomingEvents, OutgoingEvents};
 
+use crate::classes::Animation;
 use crate::classes::Scene;
 use crate::common::IssueKind;
 use crate::scanner::parse_cnv;
@@ -113,8 +113,8 @@ impl Issue for RunnerIssue {
 }
 
 #[derive(Debug)]
-pub struct RunnerContext<'a> {
-    pub runner: &'a mut CnvRunner,
+pub struct RunnerContext {
+    pub runner: Arc<CnvRunner>,
     pub self_object: String,
     pub current_object: String,
 }
@@ -134,6 +134,25 @@ impl CnvRunner {
             game_paths,
             issue_manager: Arc::new(RefCell::new(issue_manager)),
         }
+    }
+
+    pub fn step(self: &Arc<CnvRunner>) -> Result<(), RunnerError> {
+        let mut timer_events = self.events_in.timer.borrow_mut();
+        while let Some(evt) = timer_events.pop_front() {
+            match evt {
+                TimerEvent::Elapsed { seconds } => {
+                    let mut buffer = Vec::new();
+                    self.find_objects(|o| o.content.borrow().as_ref().unwrap().get_type_id() == "ANIMO", &mut buffer);
+                    for animation_object in buffer {
+                        let mut guard = animation_object.content.borrow_mut();
+                        let animation = guard.as_mut().unwrap().as_any_mut().downcast_mut::<Animation>().unwrap();
+                        let mut context = RunnerContext { current_object: animation_object.name.clone(), self_object: animation_object.name.clone(), runner: Arc::clone(self) };
+                        animation.tick(&mut context, seconds)?;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn load_script(
@@ -260,8 +279,8 @@ impl CnvRunner {
         self.scripts.borrow_mut().remove_all_scripts();
     }
 
-    pub fn unload_script(&self, path: &Path) {
-        self.scripts.borrow_mut().remove_script(path);
+    pub fn unload_script(&self, path: &Path) -> Result<(), ()> {
+        self.scripts.borrow_mut().remove_script(path)
     }
 
     pub fn get_object(&self, name: &str) -> Option<Arc<CnvObject>> {
@@ -303,7 +322,7 @@ impl CnvRunner {
     }
 
     pub fn run_behavior(
-        &mut self,
+        self: &Arc<CnvRunner>,
         script_name: Arc<Path>,
         name: &str,
     ) -> Result<Option<CnvValue>, BehaviorRunningError> {
@@ -324,7 +343,7 @@ impl CnvRunner {
             return Err(BehaviorRunningError::InvalidType);
         };
         let mut context = RunnerContext {
-            runner: self,
+            runner: Arc::clone(self),
             self_object: init_beh_obj.name.clone(),
             current_object: init_beh_obj.name.clone(),
         };
@@ -335,7 +354,7 @@ impl CnvRunner {
     }
 
     pub fn change_scene(self: &Arc<Self>, scene_name: &str) -> Result<(), ()> {
-        self.scripts.borrow_mut().remove_scene_script();
+        self.scripts.borrow_mut().remove_scene_script()?;
         let Some(scene_object) = self.get_object(scene_name) else {
             return Err(());
         };
