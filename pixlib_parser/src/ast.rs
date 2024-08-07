@@ -25,7 +25,6 @@ pub struct IgnorableStatement {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Invocation(Invocation),
     ExpressionStatement(Expression),
 }
 
@@ -41,6 +40,7 @@ pub enum Expression {
     LiteralBool(bool),
     SelfReference,
     Identifier(String),
+    Invocation(Box<Invocation>),
     Parameter(String), // TODO: Parameter(usize)
     NameResolution(Box<Expression>),
     FieldAccess(Box<Expression>, String),

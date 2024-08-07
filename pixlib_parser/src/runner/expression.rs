@@ -53,6 +53,7 @@ impl CnvExpression for Expression {
                 .get_object(name[..].trim_matches('\"'))
                 .map(CnvValue::Reference)
                 .or_else(|| Some(CnvValue::String(name.trim_matches('\"').to_owned())))),
+            Expression::Invocation(invocation) => invocation.calculate(context.clone()),
             Expression::SelfReference => Ok(context
                 .runner
                 .get_object(&context.self_object)

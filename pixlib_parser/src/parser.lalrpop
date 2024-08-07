@@ -18,8 +18,7 @@ IgnorableStatement: ast::IgnorableStatement = {
 }
 
 Statement: ast::Statement = {
-    "@" <m:"identifier"> "(" <a:Arguments> ")" => ast::Statement::Invocation(ast::Invocation { parent: None, name: m, arguments: a }),
-    <p:Expression> "^" <m:"identifier"> "(" <a:Arguments> ")" => ast::Statement::Invocation(ast::Invocation { parent: Some(p), name: m, arguments: a }),
+    <Expression> => ast::Statement::ExpressionStatement(<>),
 }
 
 Arguments: Vec<ast::Expression> = {
@@ -38,14 +37,26 @@ Arguments: Vec<ast::Expression> = {
 }
 
 Expression: ast::Expression = {
+    <p:Callable> <ma:CallPart?> => match ma {
+        Some((m, a)) => ast::Expression::Invocation(Box::new(ast::Invocation { parent: Some(p), name: m, arguments: a })),
+        None => p,
+    },
+    "@" <m:"identifier"> "(" <a:Arguments> ")" => ast::Expression::Invocation(Box::new(ast::Invocation { parent: None, name: m, arguments: a })),
+    "{" ";"? <(<IgnorableStatement> ";"+)*> "}" => ast::Expression::Block(<>),
+    "true" => ast::Expression::LiteralBool(true),
+    "false" => ast::Expression::LiteralBool(false),
+}
+
+Callable: ast::Expression = {
     <Resolvable>,
     "*" <Resolvable> => ast::Expression::NameResolution(Box::new(<>)),
     "$" <"identifier"> => ast::Expression::Parameter(<>),
     <p:Expression> "|" <f:"identifier"> => ast::Expression::FieldAccess(Box::new(p), f),
-    "{" ";"? <(<IgnorableStatement> ";"+)*> "}" => ast::Expression::Block(<>),
-    "true" => ast::Expression::LiteralBool(true),
-    "false" => ast::Expression::LiteralBool(false),
     "this" => ast::Expression::SelfReference,
+}
+
+CallPart: (String, Vec<ast::Expression>) = {
+    "^" <m:"identifier"> "(" <a:Arguments> ")" => (m, a),
 }
 
 Resolvable: ast::Expression = {

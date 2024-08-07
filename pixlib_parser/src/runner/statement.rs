@@ -58,12 +58,6 @@ impl CnvStatement for Statement {
     fn run(&self, context: RunnerContext) {
         // println!("Statement::run: {:?}", self);
         match self {
-            Statement::Invocation(invocation) => {
-                invocation
-                    .calculate(context)
-                    .inspect_err(|e| eprintln!("Error: {:?}", e))
-                    .unwrap();
-            }
             Statement::ExpressionStatement(expression) => {
                 expression.calculate(context).unwrap();
             }
