@@ -128,12 +128,15 @@ impl CnvType for Group {
     }
 
     fn call_method(
-        &mut self,
+        &self,
         name: CallableIdentifier,
         _arguments: &[CnvValue],
         _context: &mut RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
-        eprintln!("Skipping method call {:?} for GROUP {:?}", name, self.parent.name); // TODO: fill in
+        eprintln!(
+            "Skipping method call {:?} for GROUP {:?}",
+            name, self.parent.name
+        ); // TODO: fill in
         Ok(None)
     }
 

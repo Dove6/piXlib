@@ -28,7 +28,8 @@ impl CnvStatement for Program {
                     .runner
                     .get_object(identifier)
                     .unwrap_or_else(|| panic!("Expected existing object named {}", &identifier));
-                obj.call_method(CallableIdentifier::Method("RUN"), &Vec::new(), context);
+                obj.call_method(CallableIdentifier::Method("RUN"), &Vec::new(), context)
+                    .unwrap();
             }
             Program::Block(ignorable_statements) => {
                 for ignorable_statement in ignorable_statements {
@@ -54,10 +55,10 @@ impl CnvStatement for Statement {
         // println!("Statement::run: {:?}", self);
         match self {
             Statement::Invocation(invocation) => {
-                invocation.calculate(context);
+                invocation.calculate(context).unwrap();
             }
             Statement::ExpressionStatement(expression) => {
-                expression.calculate(context);
+                expression.calculate(context).unwrap();
             }
         }
     }

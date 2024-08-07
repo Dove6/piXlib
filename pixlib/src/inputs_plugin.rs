@@ -2,7 +2,10 @@ use bevy::{
     app::{App, Plugin, Update},
     input::ButtonInput,
     math::Vec2,
-    prelude::{in_state, Camera, IntoSystemConfigs, KeyCode, MouseButton, NonSend, Query, Res, Transform, With},
+    prelude::{
+        in_state, Camera, IntoSystemConfigs, KeyCode, MouseButton, NonSend, Query, Res, Transform,
+        With,
+    },
     time::Time,
     window::{PrimaryWindow, Window},
 };
@@ -17,7 +20,12 @@ impl Plugin for InputsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (queue_timer_input, queue_mouse_input, queue_keyboard_input, move_camera)
+            (
+                queue_timer_input,
+                queue_mouse_input,
+                queue_keyboard_input,
+                move_camera,
+            )
                 .run_if(in_state(AppState::SceneViewer)),
         );
     }
@@ -54,9 +62,11 @@ pub fn queue_mouse_input(
     }
 }
 
-
 // FIXME: remove (this is for debugging only)
-pub fn move_camera(keys: Res<ButtonInput<KeyCode>>, mut camera_transform: Query<(&mut Transform, &Camera)>) {
+pub fn move_camera(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut camera_transform: Query<(&mut Transform, &Camera)>,
+) {
     let mut transform = camera_transform.single_mut().0;
     if keys.pressed(KeyCode::ArrowLeft) {
         transform.translation.x -= 2f32;

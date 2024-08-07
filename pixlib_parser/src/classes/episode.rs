@@ -2,6 +2,8 @@ use std::any::Any;
 
 use parsers::{discard_if_empty, parse_comma_separated, parse_datetime};
 
+use crate::runner::RunnerError;
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -99,7 +101,7 @@ impl CnvType for Episode {
     }
 
     fn call_method(
-        &mut self,
+        &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
         _context: &mut RunnerContext,
@@ -110,7 +112,8 @@ impl CnvType for Episode {
                 self.parent
                     .parent
                     .runner
-                    .change_scene(&arguments[0].to_string());
+                    .change_scene(&arguments[0].to_string())
+                    .map_err(|_| RunnerError::Other)?;
                 Ok(None)
             }
             _ => todo!(),

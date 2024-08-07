@@ -143,8 +143,8 @@ impl CnvObject {
     ) -> RunnerResult<Option<CnvValue>> {
         println!("Calling method: {:?} of: {:?}", identifier, self.name);
         self.content
-            .borrow_mut()
-            .as_mut()
+            .borrow()
+            .as_ref()
             .unwrap()
             .call_method(identifier, arguments, context)
     }

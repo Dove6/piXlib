@@ -138,7 +138,7 @@ impl CnvType for CanvasObserver {
     }
 
     fn call_method(
-        &mut self,
+        &self,
         name: CallableIdentifier,
         _arguments: &[CnvValue],
         context: &mut RunnerContext,

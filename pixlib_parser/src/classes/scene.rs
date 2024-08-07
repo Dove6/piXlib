@@ -44,7 +44,7 @@ pub struct Scene {
 
 impl Scene {
     pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: SceneInit) -> Self {
-        let background_path = initial_properties.background.clone();
+        // let background_path = initial_properties.background.clone();
         Self {
             parent,
             initial_properties,
@@ -283,7 +283,7 @@ impl CnvType for Scene {
     }
 
     fn call_method(
-        &mut self,
+        &self,
         name: CallableIdentifier,
         _arguments: &[CnvValue],
         context: &mut RunnerContext,

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use codepage_strings::{Coding, ConvertError};
 use lazy_static::lazy_static;
 
@@ -43,7 +45,7 @@ pub enum CompressionType {
 }
 
 impl<'a> ImageData<'a> {
-    pub fn to_rgba8888(&self, format: ColorFormat, compression: CompressionType) -> Vec<u8> {
+    pub fn to_rgba8888(&self, format: ColorFormat, compression: CompressionType) -> Arc<[u8]> {
         let has_alpha = self.alpha.len() > 0;
         let color_data = match compression {
             CompressionType::None => self.color.to_owned(),
@@ -58,7 +60,6 @@ impl<'a> ImageData<'a> {
             CompressionType::Rle => decode_rle(self.alpha, 1),
             CompressionType::Lzw2 | CompressionType::Jpeg => decode_lzw2(self.alpha),
             CompressionType::RleInLzw2 => decode_rle(&decode_lzw2(self.alpha), 1),
-            _ => panic!(),
         };
         assert!(color_data.len() % 2 == 0);
         if has_alpha {
@@ -98,7 +99,7 @@ impl<'a> ImageData<'a> {
                 }
             }
         }
-        data
+        data.into()
     }
 }
 

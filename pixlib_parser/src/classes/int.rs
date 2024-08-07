@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
 
@@ -20,23 +20,12 @@ pub struct IntInit {
     pub on_signal: Option<Arc<IgnorableProgram>>,         // ONSIGNAL signal
 }
 
-#[derive(Debug, Clone)]
-pub struct Int {
-    parent: Arc<CnvObject>,
-    initial_properties: IntInit,
-    value: i32,
+#[derive(Debug, Clone, Default)]
+struct IntegerState {
+    pub value: i32,
 }
 
-impl Int {
-    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: IntInit) -> Self {
-        let value = initial_properties.value.unwrap_or(0);
-        Self {
-            parent,
-            value,
-            initial_properties,
-        }
-    }
-
+impl IntegerState {
     pub fn abs() {
         // ABS
         todo!()
@@ -122,9 +111,28 @@ impl Int {
         todo!()
     }
 
-    pub fn set() {
+    pub fn set(
+        &mut self,
+        integer: &Int,
+        context: &mut RunnerContext,
+        value: i32,
+    ) -> RunnerResult<()> {
         // SET
-        todo!()
+        let changed_value = self.value != value;
+        self.value = value;
+        if changed_value {
+            integer.call_method(
+                CallableIdentifier::Event("ONCHANGED"),
+                &vec![CnvValue::Integer(self.value)],
+                context,
+            )?;
+        }
+        integer.call_method(
+            CallableIdentifier::Event("ONBRUTALCHANGED"),
+            &vec![CnvValue::Integer(self.value)],
+            context,
+        )?;
+        Ok(())
     }
 
     pub fn setdefault() {
@@ -145,6 +153,26 @@ impl Int {
     pub fn xor() {
         // XOR
         todo!()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Int {
+    parent: Arc<CnvObject>,
+    state: RefCell<IntegerState>,
+    initial_properties: IntInit,
+    value: i32,
+}
+
+impl Int {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: IntInit) -> Self {
+        let value = initial_properties.value.unwrap_or(0);
+        Self {
+            parent,
+            state: RefCell::new(IntegerState::default()),
+            value,
+            initial_properties,
+        }
     }
 }
 
@@ -177,7 +205,7 @@ impl CnvType for Int {
     }
 
     fn call_method(
-        &mut self,
+        &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: &mut RunnerContext,
@@ -185,12 +213,26 @@ impl CnvType for Int {
         match name {
             CallableIdentifier::Method("SET") => {
                 assert!(arguments.len() == 1);
-                self.value = arguments[0].to_integer();
+                self.state
+                    .borrow_mut()
+                    .set(self, context, arguments[0].to_integer())?;
                 Ok(None)
             }
             CallableIdentifier::Method("GET") => Ok(Some(CnvValue::Integer(self.value))),
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.initial_properties.on_init.as_ref() {
+                    v.run(context)
+                }
+                Ok(None)
+            }
+            CallableIdentifier::Event("ONCHANGED") => {
+                if let Some(v) = self.initial_properties.on_changed.as_ref() {
+                    v.run(context)
+                }
+                Ok(None)
+            }
+            CallableIdentifier::Event("ONBRUTALCHANGED") => {
+                if let Some(v) = self.initial_properties.on_brutal_changed.as_ref() {
                     v.run(context)
                 }
                 Ok(None)

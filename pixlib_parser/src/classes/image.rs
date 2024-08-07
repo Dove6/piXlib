@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
 use pixlib_formats::file_formats::img::parse_img;
@@ -33,267 +33,108 @@ pub struct ImageInit {
     pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
 }
 
+#[derive(Debug, Clone, Default)]
+struct ImageState {
+    pub initialized: bool,
+
+    // initialized from properties
+    pub is_button: bool,
+    pub file_data: ImageFileData,
+    pub does_monitor_collision: bool,
+    pub priority: isize,
+    pub is_visible: bool,
+
+    // general graphics state
+    pub position: (i32, i32),
+    pub opacity: usize,
+    // anchor: ???,
+    pub is_flipped_horizontally: bool,
+    pub is_flipped_vertically: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ImageEventHandlers {
+    pub on_click: Option<Arc<IgnorableProgram>>, // ONCLICK signal
+    pub on_collision: Option<Arc<IgnorableProgram>>, // ONCOLLISION signal
+    pub on_collision_finished: Option<Arc<IgnorableProgram>>, // ONCOLLISIONFINISHED signal
+    pub on_done: Option<Arc<IgnorableProgram>>,  // ONDONE signal
+    pub on_focus_off: Option<Arc<IgnorableProgram>>, // ONFOCUSOFF signal
+    pub on_focus_on: Option<Arc<IgnorableProgram>>, // ONFOCUSON signal
+    pub on_init: Option<Arc<IgnorableProgram>>,  // ONINIT signal
+    pub on_release: Option<Arc<IgnorableProgram>>, // ONRELEASE signal
+    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
+}
+
 #[derive(Debug, Clone)]
 pub struct Image {
     // IMAGE
     parent: Arc<CnvObject>,
-    initial_properties: ImageInit,
 
-    is_flipped_horizontally: bool,
-    is_flipped_vertically: bool,
-    is_visible: bool,
-    loaded_data: Option<LoadedImage>,
-    // anchor: ,
-    is_button: bool,
-    opacity: usize,
-    priority: i32,
-    position: (i32, i32),
+    state: RefCell<ImageState>,
+    event_handlers: ImageEventHandlers,
+
+    should_flush_after_played: bool,
+    should_collisions_respect_alpha: bool,
+    should_preload: bool,
+    should_release: bool,
+    should_draw_to_canvas: bool,
 }
 
 impl Image {
-    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: ImageInit) -> Self {
-        let preload = initial_properties.preload.is_some_and(|v| v);
-        let filename = initial_properties.filename.clone().unwrap_or_default();
-        let is_visible = initial_properties.visible.unwrap_or(true);
-        let is_button = initial_properties.as_button.unwrap_or(false);
-        let priority = initial_properties.priority.unwrap_or(0);
-        let mut image = Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, props: ImageInit) -> Self {
+        let filename = props.filename;
+        let image = Self {
             parent: Arc::clone(&parent),
-            initial_properties,
-            is_flipped_horizontally: false,
-            is_flipped_vertically: false,
-            is_visible,
-            loaded_data: None,
-            is_button,
-            opacity: 1,
-            priority,
-            position: (0, 0),
+            state: RefCell::new(ImageState {
+                is_button: props.as_button.unwrap_or_default(),
+                does_monitor_collision: props.monitor_collision.unwrap_or_default(),
+                priority: props.priority.unwrap_or_default() as isize,
+                is_visible: props.visible.unwrap_or(true),
+                ..ImageState::default()
+            }),
+            event_handlers: ImageEventHandlers {
+                on_click: props.on_click,
+                on_collision: props.on_collision,
+                on_collision_finished: props.on_collision_finished,
+                on_done: props.on_done,
+                on_focus_off: props.on_focus_off,
+                on_focus_on: props.on_focus_on,
+                on_init: props.on_init,
+                on_release: props.on_release,
+                on_signal: props.on_signal,
+            },
+            should_flush_after_played: props.flush_after_played.unwrap_or_default(),
+            should_collisions_respect_alpha: props.monitor_collision_alpha.unwrap_or_default(),
+            should_preload: props.preload.unwrap_or_default(),
+            should_release: props.release.unwrap_or(true),
+            should_draw_to_canvas: props.to_canvas.unwrap_or(true),
         };
-        if preload {
-            image.load(&filename).unwrap();
+        if let Some(filename) = filename {
+            if image.should_preload {
+                image.state.borrow_mut().load(&image, &filename).unwrap();
+            } else {
+                image.state.borrow_mut().file_data = ImageFileData::NotLoaded(filename);
+            }
         }
         image
     }
 
-    pub fn clear_clipping(&self) {
-        todo!()
-    }
-
-    pub fn draw_onto(&self) {
-        todo!()
-    }
-
-    pub fn flip_h(&mut self) {
-        self.is_flipped_horizontally = !self.is_flipped_horizontally;
-    }
-
-    pub fn flip_v(&mut self) {
-        self.is_flipped_vertically = !self.is_flipped_vertically;
-    }
-
-    pub fn get_alpha(&self) {
-        todo!()
-    }
-
-    pub fn get_center_x(&self) {
-        todo!()
-    }
-
-    pub fn get_center_y(&self) {
-        todo!()
-    }
-
-    pub fn get_color_at(&self) {
-        todo!()
-    }
-
-    pub fn get_color_b_at(&self) {
-        todo!()
-    }
-
-    pub fn get_color_g_at(&self) {
-        todo!()
-    }
-
-    pub fn get_color_r_at(&self) {
-        todo!()
-    }
-
-    pub fn get_height(&self) {
-        todo!()
-    }
-
-    pub fn get_opacity(&self) {
-        todo!()
-    }
-
-    pub fn get_pixel(&self) {
-        todo!()
-    }
-
-    pub fn get_position_x(&self) {
-        todo!()
-    }
-
-    pub fn get_position_y(&self) {
-        todo!()
-    }
-
-    pub fn get_priority(&self) {
-        todo!()
-    }
-
-    pub fn get_slide_comps(&self) {
-        todo!()
-    }
-
-    pub fn get_width(&self) {
-        todo!()
-    }
-
-    pub fn hide(&mut self) {
-        self.is_visible = false;
-    }
-
-    pub fn invalidate(&self) {
-        todo!()
-    }
-
-    pub fn is_at(&self) {
-        todo!()
-    }
-
-    pub fn is_inside(&self) {
-        todo!()
-    }
-
-    pub fn is_near(&self) {
-        todo!()
-    }
-
     pub fn is_visible(&self) -> bool {
-        self.is_visible
+        self.state.borrow().is_visible()
     }
 
-    pub fn link(&self) {
-        todo!()
-    }
+    ///
 
-    pub fn load(&mut self, filename: &str) -> RunnerResult<()> {
-        let script = self.parent.parent.as_ref();
-        let filesystem = Arc::clone(&script.runner.filesystem);
-        let data = filesystem
-            .borrow()
-            .read_scene_file(
-                Arc::clone(&script.runner.game_paths),
-                Some(script.path.with_file_name("").to_str().unwrap()),
-                filename,
-                Some("IMG"),
-            )
-            .map_err(|_| RunnerError::IoError {
-                source: std::io::Error::from(std::io::ErrorKind::NotFound),
-            })?;
-        let data = parse_img(&data.0);
-        let converted_data = data
-            .image_data
-            .to_rgba8888(data.header.color_format, data.header.compression_type);
-        self.loaded_data = Some(LoadedImage {
-            filename: Some(filename.to_owned()),
-            image: (
-                ImageDefinition {
-                    size_px: (data.header.width_px, data.header.height_px),
-                    offset_px: (data.header.x_position_px, data.header.y_position_px),
-                },
-                ImageData {
-                    hash: xxh3_64(&converted_data),
-                    data: converted_data,
-                },
-            ),
-        });
-        Ok(())
-    }
-
-    pub fn merge_alpha(&self) {
-        todo!()
-    }
-
-    pub fn merge_alpha2(&self) {
-        todo!()
-    }
-
-    pub fn monitor_collision(&self) {
-        todo!()
-    }
-
-    pub fn move_to(&self) {
-        todo!()
-    }
-
-    pub fn remove_monitor_collision(&self) {
-        todo!()
-    }
-
-    pub fn replace_color(&self) {
-        todo!()
-    }
-
-    pub fn reset_flips(&self) {
-        todo!()
-    }
-
-    pub fn reset_position(&self) {
-        todo!()
-    }
-
-    pub fn save(&self) {
-        todo!()
-    }
-
-    pub fn set_anchor(&self) {
-        todo!()
-    }
-
-    pub fn set_as_button(&self) {
-        todo!()
-    }
-
-    pub fn set_clipping(&self) {
-        todo!()
-    }
-
-    pub fn set_opacity(&self) {
-        todo!()
-    }
-
-    pub fn set_position(&self) {
-        todo!()
-    }
-
-    pub fn set_priority(&self) {
-        todo!()
-    }
-
-    pub fn set_reset_position(&self) {
-        todo!()
-    }
-
-    pub fn set_scale_factor(&self) {
-        todo!()
-    }
-
-    pub fn show(&mut self) {
-        self.is_visible = true;
-    }
-
-    pub fn get_image_to_show(&self) -> RunnerResult<Option<(&ImageDefinition, &ImageData)>> {
-        if !self.is_visible {
+    pub fn get_image_to_show(&self) -> RunnerResult<Option<(ImageDefinition, ImageData)>> {
+        let state = self.state.borrow();
+        if !state.is_visible {
             return Ok(None);
         }
-        let Some(loaded_data) = &self.loaded_data else {
+        let ImageFileData::Loaded(loaded_data) = &state.file_data else {
             return Ok(None);
         };
         let image = &loaded_data.image;
-        Ok(Some((&image.0, &image.1)))
+        Ok(Some((image.0.clone(), image.1.clone())))
     }
 }
 
@@ -334,7 +175,7 @@ impl CnvType for Image {
     }
 
     fn call_method(
-        &mut self,
+        &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: &mut RunnerContext,
@@ -342,235 +183,237 @@ impl CnvType for Image {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("CLEARCLIPPING") => {
-                self.clear_clipping();
+                self.state.borrow_mut().clear_clipping();
                 Ok(None)
             }
             CallableIdentifier::Method("DRAWONTO") => {
-                self.draw_onto();
+                self.state.borrow_mut().draw_onto();
                 Ok(None)
             }
             CallableIdentifier::Method("FLIPH") => {
-                self.flip_h();
+                self.state.borrow_mut().flip_h();
                 Ok(None)
             }
             CallableIdentifier::Method("FLIPV") => {
-                self.flip_v();
+                self.state.borrow_mut().flip_v();
                 Ok(None)
             }
             CallableIdentifier::Method("GETALPHA") => {
-                self.get_alpha();
+                self.state.borrow_mut().get_alpha();
                 Ok(None)
             }
             CallableIdentifier::Method("GETCENTERX") => {
-                self.get_center_x();
+                self.state.borrow_mut().get_center_x();
                 Ok(None)
             }
             CallableIdentifier::Method("GETCENTERY") => {
-                self.get_center_y();
+                self.state.borrow_mut().get_center_y();
                 Ok(None)
             }
             CallableIdentifier::Method("GETCOLORAT") => {
-                self.get_color_at();
+                self.state.borrow_mut().get_color_at();
                 Ok(None)
             }
             CallableIdentifier::Method("GETCOLORBAT") => {
-                self.get_color_b_at();
+                self.state.borrow_mut().get_color_b_at();
                 Ok(None)
             }
             CallableIdentifier::Method("GETCOLORGAT") => {
-                self.get_color_g_at();
+                self.state.borrow_mut().get_color_g_at();
                 Ok(None)
             }
             CallableIdentifier::Method("GETCOLORRAT") => {
-                self.get_color_r_at();
+                self.state.borrow_mut().get_color_r_at();
                 Ok(None)
             }
             CallableIdentifier::Method("GETHEIGHT") => {
-                self.get_height();
+                self.state.borrow_mut().get_height();
                 Ok(None)
             }
             CallableIdentifier::Method("GETOPACITY") => {
-                self.get_opacity();
+                self.state.borrow_mut().get_opacity();
                 Ok(None)
             }
             CallableIdentifier::Method("GETPIXEL") => {
-                self.get_pixel();
+                self.state.borrow_mut().get_pixel();
                 Ok(None)
             }
             CallableIdentifier::Method("GETPOSITIONX") => {
-                self.get_position_x();
+                self.state.borrow_mut().get_position_x();
                 Ok(None)
             }
             CallableIdentifier::Method("GETPOSITIONY") => {
-                self.get_position_y();
+                self.state.borrow_mut().get_position_y();
                 Ok(None)
             }
             CallableIdentifier::Method("GETPRIORITY") => {
-                self.get_priority();
+                self.state.borrow_mut().get_priority();
                 Ok(None)
             }
             CallableIdentifier::Method("GETSLIDECOMPS") => {
-                self.get_slide_comps();
+                self.state.borrow_mut().get_slide_comps();
                 Ok(None)
             }
             CallableIdentifier::Method("GETWIDTH") => {
-                self.get_width();
+                self.state.borrow_mut().get_width();
                 Ok(None)
             }
             CallableIdentifier::Method("HIDE") => {
-                self.hide();
+                self.state.borrow_mut().hide();
                 Ok(None)
             }
             CallableIdentifier::Method("INVALIDATE") => {
-                self.invalidate();
+                self.state.borrow_mut().invalidate();
                 Ok(None)
             }
             CallableIdentifier::Method("ISAT") => {
-                self.is_at();
+                self.state.borrow_mut().is_at();
                 Ok(None)
             }
             CallableIdentifier::Method("ISINSIDE") => {
-                self.is_inside();
+                self.state.borrow_mut().is_inside();
                 Ok(None)
             }
             CallableIdentifier::Method("ISNEAR") => {
-                self.is_near();
+                self.state.borrow_mut().is_near();
                 Ok(None)
             }
             CallableIdentifier::Method("ISVISIBLE") => {
-                self.is_visible();
+                self.state.borrow_mut().is_visible();
                 Ok(None)
             }
             CallableIdentifier::Method("LINK") => {
-                self.link();
+                self.state.borrow_mut().link();
                 Ok(None)
             }
             CallableIdentifier::Method("LOAD") => {
-                self.load(&arguments[0].to_string());
+                self.state
+                    .borrow_mut()
+                    .load(self, &arguments[0].to_string())?;
                 Ok(None)
             }
             CallableIdentifier::Method("MERGEALPHA") => {
-                self.merge_alpha();
+                self.state.borrow_mut().merge_alpha();
                 Ok(None)
             }
             CallableIdentifier::Method("MERGEALPHA2") => {
-                self.merge_alpha2();
+                self.state.borrow_mut().merge_alpha2();
                 Ok(None)
             }
             CallableIdentifier::Method("MONITORCOLLISION") => {
-                self.monitor_collision();
+                self.state.borrow_mut().monitor_collision();
                 Ok(None)
             }
             CallableIdentifier::Method("MOVE") => {
-                self.move_to();
+                self.state.borrow_mut().move_to();
                 Ok(None)
             }
             CallableIdentifier::Method("REMOVEMONITORCOLLISION") => {
-                self.remove_monitor_collision();
+                self.state.borrow_mut().remove_monitor_collision();
                 Ok(None)
             }
             CallableIdentifier::Method("REPLACECOLOR") => {
-                self.replace_color();
+                self.state.borrow_mut().replace_color();
                 Ok(None)
             }
             CallableIdentifier::Method("RESETFLIPS") => {
-                self.reset_flips();
+                self.state.borrow_mut().reset_flips();
                 Ok(None)
             }
             CallableIdentifier::Method("RESETPOSITION") => {
-                self.reset_position();
+                self.state.borrow_mut().reset_position();
                 Ok(None)
             }
             CallableIdentifier::Method("SAVE") => {
-                self.save();
+                self.state.borrow_mut().save();
                 Ok(None)
             }
             CallableIdentifier::Method("SETANCHOR") => {
-                self.set_anchor();
+                self.state.borrow_mut().set_anchor();
                 Ok(None)
             }
             CallableIdentifier::Method("SETASBUTTON") => {
-                self.set_as_button();
+                self.state.borrow_mut().set_as_button();
                 Ok(None)
             }
             CallableIdentifier::Method("SETCLIPPING") => {
-                self.set_clipping();
+                self.state.borrow_mut().set_clipping();
                 Ok(None)
             }
             CallableIdentifier::Method("SETOPACITY") => {
-                self.set_opacity();
+                self.state.borrow_mut().set_opacity();
                 Ok(None)
             }
             CallableIdentifier::Method("SETPOSITION") => {
-                self.set_position();
+                self.state.borrow_mut().set_position();
                 Ok(None)
             }
             CallableIdentifier::Method("SETPRIORITY") => {
-                self.set_priority();
+                self.state.borrow_mut().set_priority();
                 Ok(None)
             }
             CallableIdentifier::Method("SETRESETPOSITION") => {
-                self.set_reset_position();
+                self.state.borrow_mut().set_reset_position();
                 Ok(None)
             }
             CallableIdentifier::Method("SETSCALEFACTOR") => {
-                self.set_scale_factor();
+                self.state.borrow_mut().set_scale_factor();
                 Ok(None)
             }
             CallableIdentifier::Method("SHOW") => {
-                self.show();
+                self.state.borrow_mut().show();
                 Ok(None)
             }
             CallableIdentifier::Event("ONCLICK") => {
-                if let Some(v) = self.initial_properties.on_click.as_ref() {
+                if let Some(v) = self.event_handlers.on_click.as_ref() {
                     v.run(context)
                 }
                 Ok(None)
             }
             CallableIdentifier::Event("ONCOLLISION") => {
-                if let Some(v) = self.initial_properties.on_collision.as_ref() {
+                if let Some(v) = self.event_handlers.on_collision.as_ref() {
                     v.run(context)
                 }
                 Ok(None)
             }
             CallableIdentifier::Event("ONCOLLISIONFINISHED") => {
-                if let Some(v) = self.initial_properties.on_collision_finished.as_ref() {
+                if let Some(v) = self.event_handlers.on_collision_finished.as_ref() {
                     v.run(context)
                 }
                 Ok(None)
             }
             CallableIdentifier::Event("ONDONE") => {
-                if let Some(v) = self.initial_properties.on_done.as_ref() {
+                if let Some(v) = self.event_handlers.on_done.as_ref() {
                     v.run(context)
                 }
                 Ok(None)
             }
             CallableIdentifier::Event("ONFOCUSOFF") => {
-                if let Some(v) = self.initial_properties.on_focus_off.as_ref() {
+                if let Some(v) = self.event_handlers.on_focus_off.as_ref() {
                     v.run(context)
                 }
                 Ok(None)
             }
             CallableIdentifier::Event("ONFOCUSON") => {
-                if let Some(v) = self.initial_properties.on_focus_on.as_ref() {
+                if let Some(v) = self.event_handlers.on_focus_on.as_ref() {
                     v.run(context)
                 }
                 Ok(None)
             }
             CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.initial_properties.on_init.as_ref() {
+                if let Some(v) = self.event_handlers.on_init.as_ref() {
                     v.run(context)
                 }
                 Ok(None)
             }
             CallableIdentifier::Event("ONRELEASE") => {
-                if let Some(v) = self.initial_properties.on_release.as_ref() {
+                if let Some(v) = self.event_handlers.on_release.as_ref() {
                     v.run(context)
                 }
                 Ok(None)
             }
             CallableIdentifier::Event("ONSIGNAL") => {
-                if let Some(v) = self.initial_properties.on_signal.as_ref() {
+                if let Some(v) = self.event_handlers.on_signal.as_ref() {
                     v.run(context)
                 }
                 Ok(None)
@@ -581,9 +424,6 @@ impl CnvType for Image {
 
     fn get_property(&self, name: &str) -> Option<PropertyValue> {
         match name {
-            "FILENAME" => self.initial_properties.filename.clone().map(|v| v.into()),
-            "PRIORITY" => Some(self.priority.into()),
-            "ONINIT" => self.initial_properties.on_init.clone().map(|v| v.into()),
             _ => todo!(),
         }
     }
@@ -707,5 +547,217 @@ impl CnvType for Image {
                 on_signal,
             },
         ))
+    }
+}
+
+impl ImageState {
+    pub fn clear_clipping(&self) {
+        todo!()
+    }
+
+    pub fn draw_onto(&self) {
+        todo!()
+    }
+
+    pub fn flip_h(&mut self) {
+        self.is_flipped_horizontally = !self.is_flipped_horizontally;
+    }
+
+    pub fn flip_v(&mut self) {
+        self.is_flipped_vertically = !self.is_flipped_vertically;
+    }
+
+    pub fn get_alpha(&self) {
+        todo!()
+    }
+
+    pub fn get_center_x(&self) {
+        todo!()
+    }
+
+    pub fn get_center_y(&self) {
+        todo!()
+    }
+
+    pub fn get_color_at(&self) {
+        todo!()
+    }
+
+    pub fn get_color_b_at(&self) {
+        todo!()
+    }
+
+    pub fn get_color_g_at(&self) {
+        todo!()
+    }
+
+    pub fn get_color_r_at(&self) {
+        todo!()
+    }
+
+    pub fn get_height(&self) {
+        todo!()
+    }
+
+    pub fn get_opacity(&self) {
+        todo!()
+    }
+
+    pub fn get_pixel(&self) {
+        todo!()
+    }
+
+    pub fn get_position_x(&self) {
+        todo!()
+    }
+
+    pub fn get_position_y(&self) {
+        todo!()
+    }
+
+    pub fn get_priority(&self) {
+        todo!()
+    }
+
+    pub fn get_slide_comps(&self) {
+        todo!()
+    }
+
+    pub fn get_width(&self) {
+        todo!()
+    }
+
+    pub fn hide(&mut self) {
+        self.is_visible = false;
+    }
+
+    pub fn invalidate(&self) {
+        todo!()
+    }
+
+    pub fn is_at(&self) {
+        todo!()
+    }
+
+    pub fn is_inside(&self) {
+        todo!()
+    }
+
+    pub fn is_near(&self) {
+        todo!()
+    }
+
+    pub fn is_visible(&self) -> bool {
+        self.is_visible
+    }
+
+    pub fn link(&self) {
+        todo!()
+    }
+
+    pub fn load(&mut self, image: &Image, filename: &str) -> RunnerResult<()> {
+        let script = image.parent.parent.as_ref();
+        let filesystem = Arc::clone(&script.runner.filesystem);
+        let data = filesystem
+            .borrow()
+            .read_scene_file(
+                Arc::clone(&script.runner.game_paths),
+                Some(script.path.with_file_name("").to_str().unwrap()),
+                filename,
+                Some("IMG"),
+            )
+            .map_err(|_| RunnerError::IoError {
+                source: std::io::Error::from(std::io::ErrorKind::NotFound),
+            })?;
+        let data = parse_img(&data.0);
+        let converted_data = data
+            .image_data
+            .to_rgba8888(data.header.color_format, data.header.compression_type);
+        self.file_data = ImageFileData::Loaded(LoadedImage {
+            filename: Some(filename.to_owned()),
+            image: (
+                ImageDefinition {
+                    size_px: (data.header.width_px, data.header.height_px),
+                    offset_px: (data.header.x_position_px, data.header.y_position_px),
+                },
+                ImageData {
+                    hash: xxh3_64(&converted_data),
+                    data: converted_data,
+                },
+            ),
+        });
+        Ok(())
+    }
+
+    pub fn merge_alpha(&self) {
+        todo!()
+    }
+
+    pub fn merge_alpha2(&self) {
+        todo!()
+    }
+
+    pub fn monitor_collision(&self) {
+        todo!()
+    }
+
+    pub fn move_to(&self) {
+        todo!()
+    }
+
+    pub fn remove_monitor_collision(&self) {
+        todo!()
+    }
+
+    pub fn replace_color(&self) {
+        todo!()
+    }
+
+    pub fn reset_flips(&self) {
+        todo!()
+    }
+
+    pub fn reset_position(&self) {
+        todo!()
+    }
+
+    pub fn save(&self) {
+        todo!()
+    }
+
+    pub fn set_anchor(&self) {
+        todo!()
+    }
+
+    pub fn set_as_button(&self) {
+        todo!()
+    }
+
+    pub fn set_clipping(&self) {
+        todo!()
+    }
+
+    pub fn set_opacity(&self) {
+        todo!()
+    }
+
+    pub fn set_position(&self) {
+        todo!()
+    }
+
+    pub fn set_priority(&self) {
+        todo!()
+    }
+
+    pub fn set_reset_position(&self) {
+        todo!()
+    }
+
+    pub fn set_scale_factor(&self) {
+        todo!()
+    }
+
+    pub fn show(&mut self) {
+        self.is_visible = true;
     }
 }

@@ -105,7 +105,10 @@ fn main() {
         .add_systems(OnExit(AppState::SceneViewer), cleanup_root)
         .add_plugins(GraphicsPlugin)
         .add_plugins(InputsPlugin)
-        .add_systems(Update, step_script_runner.run_if(in_state(AppState::SceneViewer)))
+        .add_systems(
+            Update,
+            step_script_runner.run_if(in_state(AppState::SceneViewer)),
+        )
         .run();
 }
 
@@ -130,7 +133,11 @@ fn reload_scene_script(script_runner: NonSend<ScriptRunner>, chosen_scene: Res<C
         return;
     }
     let game_paths = Arc::clone(&script_runner.game_paths);
-    script_runner.scripts.borrow_mut().remove_scene_script().unwrap();
+    script_runner
+        .scripts
+        .borrow_mut()
+        .remove_scene_script()
+        .unwrap();
     let scene_name = chosen_scene.list[chosen_scene.index].name.clone();
     let Some(scene_object) = script_runner.get_object(&scene_name) else {
         panic!("Cannot find defined scene object {}", scene_name); // TODO: check if == 1, not >= 1
@@ -149,12 +156,15 @@ fn reload_scene_script(script_runner: NonSend<ScriptRunner>, chosen_scene: Res<C
         .read_scene_file(game_paths, Some(&path), &scene_name, Some("CNV"))
         .unwrap();
     let contents = parse_cnv(&contents);
-    script_runner.0.load_script(
-        path,
-        contents.as_parser_input(),
-        Some(Arc::clone(&scene_object)),
-        ScriptSource::Scene,
-    ).unwrap();
+    script_runner
+        .0
+        .load_script(
+            path,
+            contents.as_parser_input(),
+            Some(Arc::clone(&scene_object)),
+            ScriptSource::Scene,
+        )
+        .unwrap();
 }
 
 fn reload_main_script(
@@ -181,12 +191,15 @@ fn reload_main_script(
         )
         .unwrap();
     let contents = parse_cnv(&contents);
-    script_runner.0.load_script(
-        root_script_path.clone(),
-        contents.as_parser_input(),
-        None,
-        ScriptSource::Root,
-    ).unwrap();
+    script_runner
+        .0
+        .load_script(
+            root_script_path.clone(),
+            contents.as_parser_input(),
+            None,
+            ScriptSource::Root,
+        )
+        .unwrap();
     //#endregion
 
     let Some(application_object) = script_runner
@@ -216,12 +229,15 @@ fn reload_main_script(
             )
             .unwrap();
         let contents = parse_cnv(&contents);
-        script_runner.0.load_script(
-            application_script_path,
-            contents.as_parser_input(),
-            Some(Arc::clone(&application_object)),
-            ScriptSource::Application,
-        ).unwrap();
+        script_runner
+            .0
+            .load_script(
+                application_script_path,
+                contents.as_parser_input(),
+                Some(Arc::clone(&application_object)),
+                ScriptSource::Application,
+            )
+            .unwrap();
     };
     //#endregion
 
@@ -257,12 +273,15 @@ fn reload_main_script(
             )
             .unwrap();
         let contents = parse_cnv(&contents);
-        script_runner.0.load_script(
-            episode_script_path,
-            contents.as_parser_input(),
-            Some(Arc::clone(&episode_object)),
-            ScriptSource::Episode,
-        ).unwrap();
+        script_runner
+            .0
+            .load_script(
+                episode_script_path,
+                contents.as_parser_input(),
+                Some(Arc::clone(&episode_object)),
+                ScriptSource::Episode,
+            )
+            .unwrap();
     };
     //#endregion
 

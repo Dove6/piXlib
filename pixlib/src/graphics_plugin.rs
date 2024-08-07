@@ -12,14 +12,10 @@ use bevy::{
     sprite::{Anchor, Sprite, SpriteBundle},
 };
 
-use pixlib_parser::{
-    classes::{CnvObject, Scene},
-    runner::ScriptEvent,
-};
+use pixlib_parser::{classes::Scene, runner::ScriptEvent};
 
 use crate::{
     anchors::add_tuples,
-    image,
     resources::ScriptRunner,
     states::AppState,
     util::{animation_data_to_handle, image_data_to_handle},
@@ -173,7 +169,7 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
                 object_index,
                 object_name: object.name.clone(),
             };
-            image_counter += 1;
+            animation_counter += 1;
         }
     }
     info!(
@@ -258,7 +254,7 @@ pub fn update_images(
             script_index,
             script_path,
             object_index,
-            object_name,
+            object_name: _,
         } = &*marker
         else {
             continue;
@@ -301,7 +297,7 @@ pub fn update_images(
             *script_index as f32 + (*object_index as f32) / 10000f32,
         )
         .with_scale(Vec3::new(1f32, -1f32, 1f32));
-        *handle = image_data_to_handle(&mut textures, image_definition, image_data);
+        *handle = image_data_to_handle(&mut textures, &image_definition, &image_data);
         info!("Updated image {}", &object.name);
     }
 }
@@ -325,7 +321,7 @@ pub fn update_animations(
             script_index,
             script_path,
             object_index,
-            object_name,
+            object_name: _,
         } = &*marker
         else {
             continue;

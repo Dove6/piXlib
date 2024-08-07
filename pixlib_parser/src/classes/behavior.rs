@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_program};
 
@@ -15,10 +15,22 @@ pub struct BehaviorInit {
     pub on_signal: HashMap<String, Arc<IgnorableProgram>>, // ONSIGNAL signal
 }
 
+#[derive(Debug, Clone, Default)]
+struct BehaviorState {
+    is_enabled: bool,
+}
+
+impl BehaviorState {
+    pub fn disable(&mut self) {
+        self.is_enabled = false;
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Behavior {
     // BEHAVIOUR
     parent: Arc<CnvObject>,
+    state: RefCell<BehaviorState>,
     initial_properties: BehaviorInit,
 
     is_enabled: bool,
@@ -31,6 +43,7 @@ impl Behavior {
     ) -> Self {
         Self {
             parent,
+            state: RefCell::new(BehaviorState { is_enabled: true }),
             initial_properties,
             is_enabled: true,
         }
@@ -38,10 +51,6 @@ impl Behavior {
 
     pub fn break_running(&self) {
         todo!()
-    }
-
-    pub fn disable(&mut self) {
-        self.is_enabled = false;
     }
 
     pub fn run(&self, context: &mut RunnerContext) -> RunnerResult<()> {
@@ -111,7 +120,7 @@ impl CnvType for Behavior {
     }
 
     fn call_method(
-        &mut self,
+        &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: &mut RunnerContext,
@@ -123,11 +132,11 @@ impl CnvType for Behavior {
                 Ok(None)
             }
             CallableIdentifier::Method("DISABLE") => {
-                self.disable();
+                self.state.borrow_mut().disable();
                 Ok(None)
             }
             CallableIdentifier::Method("RUN") => {
-                self.run(context);
+                self.run(context)?;
                 Ok(None)
             }
             CallableIdentifier::Method("RUNC") => {

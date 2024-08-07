@@ -64,7 +64,7 @@ impl CnvType for CnvLoader {
     }
 
     fn call_method(
-        &mut self,
+        &self,
         _name: CallableIdentifier,
         _arguments: &[CnvValue],
         _context: &mut RunnerContext,

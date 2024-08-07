@@ -18,7 +18,8 @@ pub fn img_file_to_handle(textures: &mut Assets<Image>, file: ImgFile) -> Handle
         },
         bevy::render::render_resource::TextureDimension::D2,
         file.image_data
-            .to_rgba8888(file.header.color_format, file.header.compression_type),
+            .to_rgba8888(file.header.color_format, file.header.compression_type)
+            .to_vec(),
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::default(),
     ))
@@ -36,7 +37,7 @@ pub fn image_data_to_handle(
             depth_or_array_layers: 1,
         },
         bevy::render::render_resource::TextureDimension::D2,
-        image_data.data.clone(),
+        image_data.data.to_vec(),
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::default(),
     ))
@@ -54,7 +55,7 @@ pub fn animation_data_to_handle(
             depth_or_array_layers: 1,
         },
         bevy::render::render_resource::TextureDimension::D2,
-        sprite_data.data.to_owned(),
+        sprite_data.data.to_vec(),
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::default(),
     ))

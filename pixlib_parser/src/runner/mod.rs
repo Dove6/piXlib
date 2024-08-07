@@ -66,6 +66,7 @@ pub enum RunnerError {
     NoDataLoaded,
     SequenceNameNotFound { name: String },
     IoError { source: std::io::Error },
+    Other,
 }
 
 pub type RunnerResult<T> = std::result::Result<T, RunnerError>;

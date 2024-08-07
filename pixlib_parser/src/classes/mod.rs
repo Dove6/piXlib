@@ -23,7 +23,7 @@ pub trait CnvType: std::fmt::Debug {
 
     fn get_property(&self, name: &str) -> Option<PropertyValue>;
     fn call_method(
-        &mut self,
+        &self,
         identifier: CallableIdentifier,
         arguments: &[CnvValue],
         context: &mut RunnerContext,
@@ -78,7 +78,7 @@ impl CnvType for DummyCnvType {
     }
 
     fn call_method(
-        &mut self,
+        &self,
         _identifier: CallableIdentifier,
         _arguments: &[CnvValue],
         _context: &mut RunnerContext,
@@ -173,13 +173,21 @@ pub struct ImageDefinition {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImageData {
     pub hash: u64,
-    pub data: Vec<u8>, // RGBA8888
+    pub data: Arc<[u8]>, // RGBA8888
 }
 
 #[derive(Debug, Clone)]
 pub struct LoadedImage {
     pub filename: Option<String>,
     pub image: (ImageDefinition, ImageData),
+}
+
+#[derive(Debug, Clone, Default)]
+pub enum ImageFileData {
+    #[default]
+    Empty,
+    NotLoaded(String),
+    Loaded(LoadedImage),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -208,7 +216,15 @@ pub struct SpriteDefinition {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SpriteData {
     pub hash: u64,
-    pub data: Vec<u8>, // RGBA8888
+    pub data: Arc<[u8]>, // RGBA8888
+}
+
+#[derive(Debug, Clone, Default)]
+pub enum AnimationFileData {
+    #[default]
+    Empty,
+    NotLoaded(String),
+    Loaded(LoadedAnimation),
 }
 
 #[derive(Debug, Clone)]

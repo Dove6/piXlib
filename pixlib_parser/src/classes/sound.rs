@@ -108,7 +108,7 @@ impl CnvType for Sound {
     }
 
     fn call_method(
-        &mut self,
+        &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: &mut RunnerContext,

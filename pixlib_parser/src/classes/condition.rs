@@ -39,7 +39,7 @@ impl Condition {
         todo!()
     }
 
-    pub fn check(&mut self, context: &mut RunnerContext) -> RunnerResult<bool> {
+    pub fn check(&self, context: &mut RunnerContext) -> RunnerResult<bool> {
         let Some(left) = &self.initial_properties.operand1 else {
             return Err(RunnerError::MissingLeftOperand);
         };
@@ -73,14 +73,14 @@ impl Condition {
                     CallableIdentifier::Event("ONRUNTIMEFAILED"),
                     &Vec::new(),
                     context,
-                );
+                )?;
             }
             Ok(true) => {
                 self.call_method(
                     CallableIdentifier::Event("ONRUNTIMESUCCESS"),
                     &Vec::new(),
                     context,
-                );
+                )?;
             }
             _ => {}
         }
@@ -118,7 +118,7 @@ impl CnvType for Condition {
     }
 
     fn call_method(
-        &mut self,
+        &self,
         name: CallableIdentifier,
         _arguments: &[CnvValue],
         context: &mut RunnerContext,

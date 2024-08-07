@@ -99,7 +99,7 @@ impl CnvType for Keyboard {
     }
 
     fn call_method(
-        &mut self,
+        &self,
         name: CallableIdentifier,
         _arguments: &[CnvValue],
         context: &mut RunnerContext,
