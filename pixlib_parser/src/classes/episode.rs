@@ -87,7 +87,7 @@ impl CnvType for Episode {
     }
 
     fn has_event(&self, _name: &str) -> bool {
-        todo!()
+        false
     }
 
     fn has_property(&self, _name: &str) -> bool {

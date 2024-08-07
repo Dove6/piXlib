@@ -7,7 +7,7 @@ mod script_container;
 mod statement;
 mod value;
 
-pub use events::{KeyboardEvent, MouseEvent, ScriptEvent, TimerEvent, KeyboardKey};
+pub use events::{KeyboardEvent, KeyboardKey, MouseEvent, ScriptEvent, TimerEvent};
 pub use expression::CnvExpression;
 pub use filesystem::FileSystem;
 pub use filesystem::GamePaths;
@@ -142,15 +142,52 @@ impl CnvRunner {
             match evt {
                 TimerEvent::Elapsed { seconds } => {
                     let mut buffer = Vec::new();
-                    self.find_objects(|o| o.content.borrow().as_ref().unwrap().get_type_id() == "ANIMO", &mut buffer);
+                    self.find_objects(
+                        |o| o.content.borrow().as_ref().unwrap().get_type_id() == "ANIMO",
+                        &mut buffer,
+                    );
                     for animation_object in buffer {
                         let mut guard = animation_object.content.borrow_mut();
-                        let animation = guard.as_mut().unwrap().as_any_mut().downcast_mut::<Animation>().unwrap();
-                        let mut context = RunnerContext { current_object: animation_object.name.clone(), self_object: animation_object.name.clone(), runner: Arc::clone(self) };
+                        let animation = guard
+                            .as_mut()
+                            .unwrap()
+                            .as_any_mut()
+                            .downcast_mut::<Animation>()
+                            .unwrap();
+                        let mut context = RunnerContext {
+                            current_object: animation_object.name.clone(),
+                            self_object: animation_object.name.clone(),
+                            runner: Arc::clone(self),
+                        };
                         animation.tick(&mut context, seconds)?;
                     }
                 }
             }
+        }
+        let mut to_init = Vec::new();
+        self.find_objects(|o| !*o.initialized.borrow(), &mut to_init);
+        for object in to_init {
+            if !object
+                .content
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .has_event("ONINIT")
+            {
+                *object.initialized.borrow_mut() = true;
+                continue;
+            }
+            let mut context = RunnerContext {
+                current_object: object.name.clone(),
+                self_object: object.name.clone(),
+                runner: Arc::clone(self),
+            };
+            object.call_method(
+                CallableIdentifier::Event("ONINIT"),
+                &Vec::new(),
+                &mut context,
+            )?;
+            *object.initialized.borrow_mut() = true;
         }
         Ok(())
     }

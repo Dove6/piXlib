@@ -115,8 +115,8 @@ impl CnvType for Group {
         "GROUP"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
+    fn has_event(&self, name: &str) -> bool {
+        matches!(name, "ONDONE" | "ONINIT" | "ONSIGNAL")
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -133,7 +133,7 @@ impl CnvType for Group {
         _arguments: &[CnvValue],
         _context: &mut RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
-        eprintln!("Skipping method call {:?} for GROUP {:?}", name, self); // TODO: fill in
+        eprintln!("Skipping method call {:?} for GROUP {:?}", name, self.parent.name); // TODO: fill in
         Ok(None)
     }
 

@@ -151,8 +151,11 @@ impl CnvType for Str {
         "STRING"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
+    fn has_event(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "ONBRUTALCHANGED" | "ONCHANGED" | "ONDONE" | "ONINIT" | "ONNETCHANGED" | "ONSIGNAL"
+        )
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -167,7 +170,7 @@ impl CnvType for Str {
         &mut self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
-        _context: &mut RunnerContext,
+        context: &mut RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("SET") => {
@@ -176,6 +179,12 @@ impl CnvType for Str {
                 Ok(None)
             }
             CallableIdentifier::Method("GET") => Ok(Some(CnvValue::String(self.value.clone()))),
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.initial_properties.on_init.as_ref() {
+                    v.run(context)
+                }
+                Ok(None)
+            }
             _ => todo!(),
         }
     }

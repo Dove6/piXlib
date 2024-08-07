@@ -55,6 +55,7 @@ impl CnvObjectBuilder {
             parent: self.parent,
             name: self.name.clone(),
             index: self.index,
+            initialized: RefCell::new(false),
             content: RefCell::new(None),
         });
         let content =
@@ -109,6 +110,7 @@ pub struct CnvObject {
     pub parent: Arc<CnvScript>,
     pub name: String,
     pub index: usize,
+    pub initialized: RefCell<bool>,
     pub content: RefCell<Option<Box<dyn CnvType>>>,
 }
 

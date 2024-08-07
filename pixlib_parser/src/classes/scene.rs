@@ -260,8 +260,18 @@ impl CnvType for Scene {
         "SCENE"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
+    fn has_event(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "ONACTIVATE"
+                | "ONDEACTIVATE"
+                | "ONDOMODAL"
+                | "ONDONE"
+                | "ONINIT"
+                | "ONMUSICLOOPED"
+                | "ONRESTART"
+                | "ONSIGNAL"
+        )
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -274,11 +284,19 @@ impl CnvType for Scene {
 
     fn call_method(
         &mut self,
-        _name: CallableIdentifier,
+        name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _context: &mut RunnerContext,
+        context: &mut RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
-        todo!()
+        match name {
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.initial_properties.on_init.as_ref() {
+                    v.run(context)
+                }
+                Ok(None)
+            }
+            _ => todo!(),
+        }
     }
 
     fn get_property(&self, name: &str) -> Option<PropertyValue> {
