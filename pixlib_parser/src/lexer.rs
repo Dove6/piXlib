@@ -207,7 +207,7 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
                 CnvToken::Plus,
                 self.next_position.assign(next_pos),
             ))),
-            Some(Ok((pos, '-', next_pos))) => Some(Ok((
+            Some(Ok((pos, '-', next_pos))) if self.state.bracket_level > 0 => Some(Ok((
                 pos,
                 CnvToken::Minus,
                 self.next_position.assign(next_pos),

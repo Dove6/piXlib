@@ -53,12 +53,7 @@ impl Behavior {
         todo!()
     }
 
-    pub fn run(&self) -> RunnerResult<()> {
-        let context = RunnerContext {
-            runner: Arc::clone(&self.parent.parent.runner),
-            self_object: self.parent.name.clone(),
-            current_object: self.parent.name.clone(),
-        };
+    pub fn run(&self, context: RunnerContext) -> RunnerResult<()> {
         if let Some(condition) = self.initial_properties.condition.as_ref() {
             let condition = context.runner.get_object(condition).unwrap();
             match condition.call_method(
@@ -131,6 +126,7 @@ impl CnvType for Behavior {
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
+        let context = context.with_current_object(self.parent.name.clone());
         match name {
             CallableIdentifier::Method("BREAK") => {
                 self.break_running();
@@ -141,7 +137,7 @@ impl CnvType for Behavior {
                 Ok(None)
             }
             CallableIdentifier::Method("RUN") => {
-                self.run()?;
+                self.run(context)?;
                 Ok(None)
             }
             CallableIdentifier::Method("RUNC") => {

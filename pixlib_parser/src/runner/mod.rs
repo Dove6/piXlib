@@ -133,6 +133,15 @@ pub struct RunnerContext {
     pub current_object: String,
 }
 
+impl RunnerContext {
+    pub fn with_current_object(self, current_object: String) -> Self {
+        Self {
+            current_object,
+            ..self
+        }
+    }
+}
+
 impl CnvRunner {
     pub fn new(
         filesystem: Arc<RefCell<dyn FileSystem>>,
@@ -280,7 +289,7 @@ impl CnvRunner {
                         Ok(built_object) => Some(built_object),
                         Err(e) => {
                             issue_manager.emit_issue(e);
-                            None
+                            panic!();
                         }
                     }),
             )?;
