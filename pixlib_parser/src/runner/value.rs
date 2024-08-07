@@ -5,7 +5,7 @@ use std::{
 
 use crate::classes::CnvObject;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CnvValue {
     Integer(i32),
     Double(f64),

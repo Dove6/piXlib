@@ -25,143 +25,11 @@ struct IntegerState {
     pub value: i32,
 }
 
-impl IntegerState {
-    pub fn abs() {
-        // ABS
-        todo!()
-    }
-
-    pub fn add() {
-        // ADD
-        todo!()
-    }
-
-    pub fn and() {
-        // AND
-        todo!()
-    }
-
-    pub fn clamp() {
-        // CLAMP
-        todo!()
-    }
-
-    pub fn clear() {
-        // CLEAR
-        todo!()
-    }
-
-    pub fn copyfile() {
-        // COPYFILE
-        todo!()
-    }
-
-    pub fn dec() {
-        // DEC
-        todo!()
-    }
-
-    pub fn div() {
-        // DIV
-        todo!()
-    }
-
-    pub fn get() {
-        // GET
-        todo!()
-    }
-
-    pub fn inc() {
-        // INC
-        todo!()
-    }
-
-    pub fn modulus() {
-        // MOD
-        todo!()
-    }
-
-    pub fn mul() {
-        // MUL
-        todo!()
-    }
-
-    pub fn not() {
-        // NOT
-        todo!()
-    }
-
-    pub fn or() {
-        // OR
-        todo!()
-    }
-
-    pub fn power() {
-        // POWER
-        todo!()
-    }
-
-    pub fn random() {
-        // RANDOM
-        todo!()
-    }
-
-    pub fn resetini() {
-        // RESETINI
-        todo!()
-    }
-
-    pub fn set(
-        &mut self,
-        integer: &Int,
-        context: &mut RunnerContext,
-        value: i32,
-    ) -> RunnerResult<()> {
-        // SET
-        let changed_value = self.value != value;
-        self.value = value;
-        if changed_value {
-            integer.call_method(
-                CallableIdentifier::Event("ONCHANGED"),
-                &vec![CnvValue::Integer(self.value)],
-                context,
-            )?;
-        }
-        integer.call_method(
-            CallableIdentifier::Event("ONBRUTALCHANGED"),
-            &vec![CnvValue::Integer(self.value)],
-            context,
-        )?;
-        Ok(())
-    }
-
-    pub fn setdefault() {
-        // SETDEFAULT
-        todo!()
-    }
-
-    pub fn sub() {
-        // SUB
-        todo!()
-    }
-
-    pub fn switch() {
-        // SWITCH
-        todo!()
-    }
-
-    pub fn xor() {
-        // XOR
-        todo!()
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Int {
     parent: Arc<CnvObject>,
     state: RefCell<IntegerState>,
     initial_properties: IntInit,
-    value: i32,
 }
 
 impl Int {
@@ -169,8 +37,7 @@ impl Int {
         let value = initial_properties.value.unwrap_or(0);
         Self {
             parent,
-            state: RefCell::new(IntegerState::default()),
-            value,
+            state: RefCell::new(IntegerState { value }),
             initial_properties,
         }
     }
@@ -218,7 +85,9 @@ impl CnvType for Int {
                     .set(self, context, arguments[0].to_integer())?;
                 Ok(None)
             }
-            CallableIdentifier::Method("GET") => Ok(Some(CnvValue::Integer(self.value))),
+            CallableIdentifier::Method("GET") => {
+                Ok(Some(CnvValue::Integer(self.state.borrow().get()?)))
+            }
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.initial_properties.on_init.as_ref() {
                     v.run(context)
@@ -314,5 +183,136 @@ impl CnvType for Int {
                 on_signal,
             },
         ))
+    }
+}
+
+impl IntegerState {
+    pub fn abs() {
+        // ABS
+        todo!()
+    }
+
+    pub fn add() {
+        // ADD
+        todo!()
+    }
+
+    pub fn and() {
+        // AND
+        todo!()
+    }
+
+    pub fn clamp() {
+        // CLAMP
+        todo!()
+    }
+
+    pub fn clear() {
+        // CLEAR
+        todo!()
+    }
+
+    pub fn copyfile() {
+        // COPYFILE
+        todo!()
+    }
+
+    pub fn dec() {
+        // DEC
+        todo!()
+    }
+
+    pub fn div() {
+        // DIV
+        todo!()
+    }
+
+    pub fn get(&self) -> RunnerResult<i32> {
+        // GET
+        Ok(self.value)
+    }
+
+    pub fn inc() {
+        // INC
+        todo!()
+    }
+
+    pub fn modulus() {
+        // MOD
+        todo!()
+    }
+
+    pub fn mul() {
+        // MUL
+        todo!()
+    }
+
+    pub fn not() {
+        // NOT
+        todo!()
+    }
+
+    pub fn or() {
+        // OR
+        todo!()
+    }
+
+    pub fn power() {
+        // POWER
+        todo!()
+    }
+
+    pub fn random() {
+        // RANDOM
+        todo!()
+    }
+
+    pub fn resetini() {
+        // RESETINI
+        todo!()
+    }
+
+    pub fn set(
+        &mut self,
+        integer: &Int,
+        context: &mut RunnerContext,
+        value: i32,
+    ) -> RunnerResult<()> {
+        // SET
+        let changed_value = self.value != value;
+        self.value = value;
+        if changed_value {
+            integer.call_method(
+                CallableIdentifier::Event("ONCHANGED"),
+                &vec![CnvValue::Integer(self.value)],
+                context,
+            )?;
+        }
+        integer.call_method(
+            CallableIdentifier::Event("ONBRUTALCHANGED"),
+            &vec![CnvValue::Integer(self.value)],
+            context,
+        )?;
+        Ok(())
+    }
+
+    pub fn setdefault() {
+        // SETDEFAULT
+        todo!()
+    }
+
+    pub fn sub() {
+        // SUB
+        todo!()
+    }
+
+    pub fn switch() {
+        // SWITCH
+        todo!()
+    }
+
+    pub fn xor() {
+        // XOR
+        todo!()
     }
 }

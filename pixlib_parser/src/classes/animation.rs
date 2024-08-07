@@ -3,7 +3,11 @@ use pixlib_formats::file_formats::ann::{parse_ann, LoopingSettings};
 use std::{any::Any, cell::RefCell, sync::Arc};
 use xxhash_rust::xxh3::xxh3_64;
 
-use crate::{ast::IgnorableProgram, runner::RunnerError};
+use crate::{
+    ast::IgnorableProgram,
+    common::DroppableRefMut,
+    runner::{InternalEvent, RunnerError},
+};
 
 use super::*;
 
@@ -161,8 +165,8 @@ impl Animation {
 
     ///
 
-    pub fn tick(&self, context: &mut RunnerContext, duration: f64) -> RunnerResult<()> {
-        self.state.borrow_mut().tick(&self, context, duration)
+    pub fn tick(&self, duration: f64) -> RunnerResult<()> {
+        self.state.borrow_mut().tick(&self, duration)
     }
 
     pub fn get_frame_to_show(
@@ -176,7 +180,13 @@ impl Animation {
         let AnimationFileData::Loaded(loaded_data) = &state.file_data else {
             return Ok(None);
         };
+        if loaded_data.sequences.is_empty() {
+            return Ok(None);
+        }
         let sequence = &loaded_data.sequences[state.current_frame.sequence_idx];
+        if sequence.frames.is_empty() {
+            return Ok(None);
+        }
         let frame = &sequence.frames[state.current_frame.frame_idx];
         let sprite = &loaded_data.sprites[frame.sprite_idx];
         // eprintln!("[ANIMO: {}] [current frame] position: {:?} + {:?}, hash: {:?}", self.parent.name, sprite.0.offset_px, frame.offset_px, sprite.1.hash);
@@ -415,13 +425,13 @@ impl CnvType for Animation {
                 Ok(None)
             }
             CallableIdentifier::Method("PAUSE") => {
-                self.state.borrow_mut().pause(&self, context)?;
+                self.state.borrow_mut().pause(&self)?;
                 Ok(None)
             }
             CallableIdentifier::Method("PLAY") => {
                 self.state
                     .borrow_mut()
-                    .play(&self, context, &arguments[0].to_string())?;
+                    .play(&self, &arguments[0].to_string())?;
                 Ok(None)
             }
             CallableIdentifier::Method("PLAYRAND") => {
@@ -453,7 +463,7 @@ impl CnvType for Animation {
                 Ok(None)
             }
             CallableIdentifier::Method("RESUME") => {
-                self.state.borrow_mut().resume(&self, context)?;
+                self.state.borrow_mut().resume(&self)?;
                 Ok(None)
             }
             CallableIdentifier::Method("SETANCHOR") => {
@@ -1082,23 +1092,27 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn pause(
-        &mut self,
-        animation: &Animation,
-        context: &mut RunnerContext,
-    ) -> RunnerResult<()> {
+    pub fn pause(&mut self, animation: &Animation) -> RunnerResult<()> {
         // PAUSE
         self.is_paused = true;
-        animation.call_method(CallableIdentifier::Event("ONPAUSED"), &Vec::new(), context)?;
+        animation
+            .parent
+            .parent
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    script_path: animation.parent.parent.path.clone(),
+                    object_name: animation.parent.name.clone(),
+                    event_name: "ONPAUSED".into(),
+                    arguments: Vec::new(),
+                })
+            });
         Ok(())
     }
 
-    pub fn play(
-        &mut self,
-        animation: &Animation,
-        context: &mut RunnerContext,
-        sequence_name: &str,
-    ) -> RunnerResult<()> {
+    pub fn play(&mut self, animation: &Animation, sequence_name: &str) -> RunnerResult<()> {
         // PLAY (STRING)
         let AnimationFileData::Loaded(loaded_data) = &self.file_data else {
             return Err(RunnerError::NoDataLoaded);
@@ -1109,7 +1123,20 @@ impl AnimationState {
         {
             // TODO: check if applicable
             self.is_paused = false;
-            animation.call_method(CallableIdentifier::Event("ONRESUMED"), &Vec::new(), context)?;
+            animation
+                .parent
+                .parent
+                .runner
+                .internal_events
+                .borrow_mut()
+                .use_and_drop_mut(|events| {
+                    events.push_back(InternalEvent {
+                        script_path: animation.parent.parent.path.clone(),
+                        object_name: animation.parent.name.clone(),
+                        event_name: "ONRESUMED".into(),
+                        arguments: Vec::new(),
+                    })
+                });
         } else {
             self.current_frame = FrameIdentifier {
                 sequence_idx: loaded_data
@@ -1124,12 +1151,26 @@ impl AnimationState {
             self.is_playing = true;
             self.is_paused = false;
             self.is_reversed = false;
-            animation.call_method(CallableIdentifier::Event("ONSTARTED"), &Vec::new(), context)?;
-            animation.call_method(
-                CallableIdentifier::Event("ONFIRSTFRAME"),
-                &Vec::new(),
-                context,
-            )?;
+            animation
+                .parent
+                .parent
+                .runner
+                .internal_events
+                .borrow_mut()
+                .use_and_drop_mut(|events| {
+                    events.push_back(InternalEvent {
+                        script_path: animation.parent.parent.path.clone(),
+                        object_name: animation.parent.name.clone(),
+                        event_name: "ONSTARTED".into(),
+                        arguments: Vec::new(),
+                    });
+                    events.push_back(InternalEvent {
+                        script_path: animation.parent.parent.path.clone(),
+                        object_name: animation.parent.name.clone(),
+                        event_name: "ONFIRSTFRAME".into(),
+                        arguments: Vec::new(),
+                    })
+                });
         }
         Ok(())
     }
@@ -1164,14 +1205,23 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn resume(
-        &mut self,
-        animation: &Animation,
-        context: &mut RunnerContext,
-    ) -> RunnerResult<()> {
+    pub fn resume(&mut self, animation: &Animation) -> RunnerResult<()> {
         // RESUME
         self.is_paused = false;
-        animation.call_method(CallableIdentifier::Event("ONRESUMED"), &Vec::new(), context)?;
+        animation
+            .parent
+            .parent
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    script_path: animation.parent.parent.path.clone(),
+                    object_name: animation.parent.name.clone(),
+                    event_name: "ONRESUMED".into(),
+                    arguments: Vec::new(),
+                })
+            });
         Ok(())
     }
 
@@ -1266,12 +1316,7 @@ impl AnimationState {
         1f64 / (self.fps as f64)
     }
 
-    pub fn tick(
-        &mut self,
-        animation: &Animation,
-        context: &mut RunnerContext,
-        duration: f64,
-    ) -> RunnerResult<()> {
+    pub fn tick(&mut self, animation: &Animation, duration: f64) -> RunnerResult<()> {
         let AnimationFileData::Loaded(loaded_data) = &self.file_data else {
             return Ok(());
         };
@@ -1311,17 +1356,35 @@ impl AnimationState {
                 self.is_playing = false;
                 self.is_paused = false;
                 self.is_reversed = false;
-                animation.call_method(
-                    CallableIdentifier::Event("ONFINISHED"),
-                    &Vec::new(),
-                    context,
-                )?;
+                animation
+                    .parent
+                    .parent
+                    .runner
+                    .internal_events
+                    .borrow_mut()
+                    .use_and_drop_mut(|events| {
+                        events.push_back(InternalEvent {
+                            script_path: animation.parent.parent.path.clone(),
+                            object_name: animation.parent.name.clone(),
+                            event_name: "ONFINISHED".into(),
+                            arguments: Vec::new(),
+                        })
+                    });
             } else {
-                animation.call_method(
-                    CallableIdentifier::Event("ONFRAMECHANGED"),
-                    &Vec::new(),
-                    context,
-                )?;
+                animation
+                    .parent
+                    .parent
+                    .runner
+                    .internal_events
+                    .borrow_mut()
+                    .use_and_drop_mut(|events| {
+                        events.push_back(InternalEvent {
+                            script_path: animation.parent.parent.path.clone(),
+                            object_name: animation.parent.name.clone(),
+                            event_name: "ONFRAMECHANGED".into(),
+                            arguments: Vec::new(),
+                        })
+                    });
             }
         }
         // eprintln!("Moved animation {} to frame: {:?}", animation.parent.name, self.current_frame);

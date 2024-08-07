@@ -1,5 +1,13 @@
 use std::{cell::RefCell, collections::VecDeque, path::Path, sync::Arc};
 
+#[derive(Debug, Clone)]
+pub struct InternalEvent {
+    pub script_path: Arc<Path>,
+    pub object_name: String,
+    pub event_name: String,
+    pub arguments: Vec<CnvValue>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct IncomingEvents {
     pub timer: RefCell<VecDeque<TimerEvent>>,
@@ -19,6 +27,8 @@ pub enum MouseEvent {
 }
 
 pub use keyboard_types::Code as KeyboardKey;
+
+use super::CnvValue;
 
 #[derive(Debug, Clone)]
 pub enum KeyboardEvent {

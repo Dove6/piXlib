@@ -1,4 +1,9 @@
-use std::{error::Error, fmt::Display, ops::Add};
+use std::{
+    cell::{Ref, RefMut},
+    error::Error,
+    fmt::Display,
+    ops::Add,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub struct Position {
@@ -182,3 +187,26 @@ impl<I: Issue> IssueManager<I> {
 }
 
 pub type Spanned<Tok, Loc, Error> = Result<(Loc, Tok, Loc), Error>;
+
+pub trait DroppableRefMut {
+    fn use_and_drop<R>(self, mut f: impl FnMut(&Self) -> R) -> R
+    where
+        Self: Sized,
+    {
+        let r = f(&self);
+        std::mem::drop(self);
+        r
+    }
+
+    fn use_and_drop_mut<R>(mut self, mut f: impl FnMut(&mut Self) -> R) -> R
+    where
+        Self: Sized,
+    {
+        let ret = f(&mut self);
+        std::mem::drop(self);
+        ret
+    }
+}
+
+impl<T> DroppableRefMut for RefMut<'_, T> {}
+impl<T> DroppableRefMut for Ref<'_, T> {}

@@ -55,7 +55,10 @@ impl CnvStatement for Statement {
         // println!("Statement::run: {:?}", self);
         match self {
             Statement::Invocation(invocation) => {
-                invocation.calculate(context).unwrap();
+                invocation
+                    .calculate(context)
+                    .inspect_err(|e| eprintln!("Error: {:?}", e))
+                    .unwrap();
             }
             Statement::ExpressionStatement(expression) => {
                 expression.calculate(context).unwrap();

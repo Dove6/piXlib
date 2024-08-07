@@ -30,7 +30,6 @@ pub struct Str {
     parent: Arc<CnvObject>,
     state: RefCell<StringState>,
     initial_properties: StrInit,
-    value: String,
 }
 
 impl Str {
@@ -38,8 +37,7 @@ impl Str {
         let value = initial_properties.value.clone().unwrap_or(String::new());
         Self {
             parent,
-            state: RefCell::new(StringState::default()),
-            value,
+            state: RefCell::new(StringState { value }),
             initial_properties,
         }
     }
@@ -87,7 +85,9 @@ impl CnvType for Str {
                     .set(self, context, &arguments[0].to_string())?;
                 Ok(None)
             }
-            CallableIdentifier::Method("GET") => Ok(Some(CnvValue::String(self.value.clone()))),
+            CallableIdentifier::Method("GET") => {
+                Ok(Some(CnvValue::String(self.state.borrow().get()?)))
+            }
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.initial_properties.on_init.as_ref() {
                     v.run(context)
@@ -204,9 +204,9 @@ impl StringState {
         todo!()
     }
 
-    pub fn get() {
+    pub fn get(&self) -> RunnerResult<String> {
         // GET
-        todo!()
+        Ok(self.value.clone())
     }
 
     pub fn insertat() {

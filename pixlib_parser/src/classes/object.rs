@@ -142,11 +142,14 @@ impl CnvObject {
         context: &mut RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         println!("Calling method: {:?} of: {:?}", identifier, self.name);
-        self.content
+        let result = self
+            .content
             .borrow()
             .as_ref()
             .unwrap()
-            .call_method(identifier, arguments, context)
+            .call_method(identifier, arguments, context);
+        println!("Result is {:?}", result);
+        result
     }
 
     pub fn get_property(&self, name: &str) -> Option<PropertyValue> {

@@ -3,6 +3,7 @@
 pub mod anchors;
 pub mod arguments;
 pub mod components;
+pub mod events_plugin;
 pub mod graphics_plugin;
 pub mod image;
 pub mod inputs_plugin;
@@ -27,6 +28,7 @@ use bevy::{
     winit::WinitSettings,
     DefaultPlugins,
 };
+use events_plugin::EventsPlugin;
 use graphics_plugin::GraphicsPlugin;
 use inputs_plugin::InputsPlugin;
 use pixlib_parser::{
@@ -105,6 +107,7 @@ fn main() {
         .add_systems(OnExit(AppState::SceneViewer), cleanup_root)
         .add_plugins(GraphicsPlugin)
         .add_plugins(InputsPlugin)
+        .add_plugins(EventsPlugin)
         .add_systems(
             Update,
             step_script_runner.run_if(in_state(AppState::SceneViewer)),

@@ -7,7 +7,10 @@ mod script_container;
 mod statement;
 mod value;
 
-pub use events::{KeyboardEvent, KeyboardKey, MouseEvent, ScriptEvent, TimerEvent};
+pub use events::{
+    ApplicationEvent, FileEvent, GraphicsEvent, InternalEvent, KeyboardEvent, KeyboardKey,
+    MouseEvent, ObjectEvent, ScriptEvent, SoundEvent, TimerEvent,
+};
 pub use expression::CnvExpression;
 pub use filesystem::FileSystem;
 pub use filesystem::GamePaths;
@@ -17,12 +20,14 @@ pub use statement::CnvStatement;
 use thiserror::Error;
 pub use value::CnvValue;
 
+use std::collections::VecDeque;
 use std::{cell::RefCell, collections::HashMap, path::Path, sync::Arc};
 
 use events::{IncomingEvents, OutgoingEvents};
 
 use crate::classes::Animation;
 use crate::classes::Scene;
+use crate::common::DroppableRefMut;
 use crate::common::IssueKind;
 use crate::scanner::parse_cnv;
 use crate::{
@@ -65,6 +70,15 @@ pub enum RunnerError {
     ObjectNotFound { name: String },
     NoDataLoaded,
     SequenceNameNotFound { name: String },
+
+    ScriptNotFound { path: Arc<Path> },
+    RootScriptAlreadyLoaded,
+    ApplicationScriptAlreadyLoaded,
+    EpisodeScriptAlreadyLoaded,
+    SceneScriptAlreadyLoaded,
+
+    ParserError(ParserFatal),
+
     IoError { source: std::io::Error },
     Other,
 }
@@ -76,7 +90,7 @@ pub struct CnvRunner {
     pub scripts: RefCell<ScriptContainer>,
     pub events_in: IncomingEvents,
     pub events_out: OutgoingEvents,
-    pub current_scene: RefCell<Option<Arc<CnvObject>>>,
+    pub internal_events: RefCell<VecDeque<InternalEvent>>,
     pub filesystem: Arc<RefCell<dyn FileSystem>>,
     pub game_paths: Arc<GamePaths>,
     pub issue_manager: Arc<RefCell<IssueManager<RunnerIssue>>>,
@@ -96,7 +110,6 @@ impl core::fmt::Debug for CnvRunner {
             )
             .field("events_in", &self.events_in)
             .field("events_out", &self.events_out)
-            .field("current_scene", &self.current_scene)
             .field("filesystem", &self.filesystem)
             .field("game_paths", &self.game_paths)
             .field("issue_manager", &self.issue_manager)
@@ -129,9 +142,9 @@ impl CnvRunner {
         Self {
             scripts: RefCell::new(ScriptContainer::default()),
             filesystem,
-            current_scene: RefCell::new(None),
             events_in: IncomingEvents::default(),
             events_out: OutgoingEvents::default(),
+            internal_events: RefCell::new(VecDeque::new()),
             game_paths,
             issue_manager: Arc::new(RefCell::new(issue_manager)),
         }
@@ -155,12 +168,7 @@ impl CnvRunner {
                             .as_any_mut()
                             .downcast_mut::<Animation>()
                             .unwrap();
-                        let mut context = RunnerContext {
-                            current_object: animation_object.name.clone(),
-                            self_object: animation_object.name.clone(),
-                            runner: Arc::clone(self),
-                        };
-                        animation.tick(&mut context, seconds)?;
+                        animation.tick(seconds)?;
                     }
                 }
             }
@@ -190,6 +198,33 @@ impl CnvRunner {
             )?;
             *object.initialized.borrow_mut() = true;
         }
+        while let Some(evt) = self
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| events.pop_front())
+        {
+            let Some(script) = self.get_script(&evt.script_path) else {
+                eprintln!("Script with path {:?} not found", evt.script_path);
+                continue;
+            };
+            let Some(object) = script.get_object(&evt.object_name) else {
+                eprintln!(
+                    "Object with name {} not found for script {:?}",
+                    evt.object_name, evt.script_path
+                );
+                continue;
+            };
+            let mut context = RunnerContext {
+                current_object: evt.object_name.clone(),
+                self_object: evt.object_name.clone(),
+                runner: Arc::clone(self),
+            };
+            object.call_method(
+                CallableIdentifier::Event(&evt.event_name),
+                &evt.arguments,
+                &mut context,
+            )?;
+        }
         Ok(())
     }
 
@@ -199,7 +234,7 @@ impl CnvRunner {
         contents: impl Iterator<Item = declarative_parser::ParserInput>,
         parent_object: Option<Arc<CnvObject>>,
         source_kind: ScriptSource,
-    ) -> Result<(), ParserFatal> {
+    ) -> RunnerResult<()> {
         let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
         parser_issue_manager.set_handler(Box::new(IssuePrinter));
         let mut issue_manager: IssueManager<ObjectBuilderError> = Default::default();
@@ -247,7 +282,7 @@ impl CnvRunner {
             }
         }
         if let Some(Err(err)) = dec_parser.next_if(|result| result.is_err()) {
-            return Err(err);
+            return Err(RunnerError::ParserError(err));
         }
         script
             .objects
@@ -262,27 +297,10 @@ impl CnvRunner {
                             None
                         }
                     }),
-            )
-            .map_err(|_e| ParserFatal::Other)?;
+            )?;
 
         let mut container = self.scripts.borrow_mut();
-        container
-            .push_script(script)
-            .map_err(|_| ParserFatal::Other)?; // TODO: err if present
-        if let Some(parent_object) = parent_object.as_ref() {
-            if parent_object
-                .content
-                .borrow()
-                .as_ref()
-                .unwrap()
-                .get_type_id()
-                == "SCENE"
-            {
-                self.current_scene
-                    .borrow_mut()
-                    .replace(Arc::clone(&parent_object));
-            }
-        }
+        container.push_script(script)?; // TODO: err if present
         self.events_out
             .script
             .borrow_mut()
@@ -317,7 +335,7 @@ impl CnvRunner {
         self.scripts.borrow_mut().remove_all_scripts();
     }
 
-    pub fn unload_script(&self, path: &Path) -> Result<(), ()> {
+    pub fn unload_script(&self, path: &Path) -> RunnerResult<()> {
         self.scripts.borrow_mut().remove_script(path)
     }
 
@@ -391,10 +409,12 @@ impl CnvRunner {
         Ok(None)
     }
 
-    pub fn change_scene(self: &Arc<Self>, scene_name: &str) -> Result<(), ()> {
+    pub fn change_scene(self: &Arc<Self>, scene_name: &str) -> RunnerResult<()> {
         self.scripts.borrow_mut().remove_scene_script()?;
         let Some(scene_object) = self.get_object(scene_name) else {
-            return Err(());
+            return Err(RunnerError::ObjectNotFound {
+                name: scene_name.to_owned(),
+            });
         };
         let scene_guard = scene_object.content.borrow();
         let scene = scene_guard
@@ -416,12 +436,19 @@ impl CnvRunner {
             )
             .unwrap();
         let contents = parse_cnv(&contents);
-        self.load_script(path, contents.as_parser_input(), None, ScriptSource::Scene)
-            .map_err(|_| ())
+        self.load_script(
+            path,
+            contents.as_parser_input(),
+            Some(Arc::clone(&scene_object)),
+            ScriptSource::Scene,
+        )
     }
 
     pub fn get_current_scene(&self) -> Option<Arc<CnvObject>> {
-        self.current_scene.borrow().as_ref().map(Arc::clone)
+        self.scripts
+            .borrow()
+            .get_scene_script()
+            .and_then(|s| s.parent_object.as_ref().cloned())
     }
 }
 

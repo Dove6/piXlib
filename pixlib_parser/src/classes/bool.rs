@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_bool, parse_program};
 
@@ -20,11 +20,16 @@ pub struct BoolInit {
     pub on_signal: Option<Arc<IgnorableProgram>>,         // ONSIGNAL signal
 }
 
+#[derive(Debug, Clone, Default)]
+struct BoolState {
+    value: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct Bool {
     parent: Arc<CnvObject>,
+    state: RefCell<BoolState>,
     initial_properties: BoolInit,
-    value: bool,
 }
 
 impl Bool {
@@ -32,79 +37,9 @@ impl Bool {
         let value = initial_properties.value.unwrap_or(false);
         Self {
             parent,
-            value,
+            state: RefCell::new(BoolState { value }),
             initial_properties,
         }
-    }
-
-    pub fn and() {
-        // AND
-        todo!()
-    }
-
-    pub fn clear() {
-        // CLEAR
-        todo!()
-    }
-
-    pub fn copy_file() {
-        // COPYFILE
-        todo!()
-    }
-
-    pub fn dec() {
-        // DEC
-        todo!()
-    }
-
-    pub fn get() {
-        // GET
-        todo!()
-    }
-
-    pub fn inc() {
-        // INC
-        todo!()
-    }
-
-    pub fn not() {
-        // NOT
-        todo!()
-    }
-
-    pub fn or() {
-        // OR
-        todo!()
-    }
-
-    pub fn random() {
-        // RANDOM
-        todo!()
-    }
-
-    pub fn reset_ini() {
-        // RESETINI
-        todo!()
-    }
-
-    pub fn set() {
-        // SET
-        todo!()
-    }
-
-    pub fn set_default() {
-        // SETDEFAULT
-        todo!()
-    }
-
-    pub fn switch() {
-        // SWITCH
-        todo!()
-    }
-
-    pub fn xor() {
-        // XOR
-        todo!()
     }
 }
 
@@ -121,8 +56,11 @@ impl CnvType for Bool {
         "BOOL"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
+    fn has_event(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "ONBRUTALCHANGED" | "ONCHANGED" | "ONDONE" | "ONINIT" | "ONNETCHANGED" | "ONSIGNAL"
+        )
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -135,11 +73,41 @@ impl CnvType for Bool {
 
     fn call_method(
         &self,
-        _name: CallableIdentifier,
-        _arguments: &[CnvValue],
-        _context: &mut RunnerContext,
+        name: CallableIdentifier,
+        arguments: &[CnvValue],
+        context: &mut RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
-        todo!()
+        match name {
+            CallableIdentifier::Method("SET") => {
+                assert!(arguments.len() == 1);
+                self.state
+                    .borrow_mut()
+                    .set(self, context, arguments[0].to_boolean())?;
+                Ok(None)
+            }
+            CallableIdentifier::Method("GET") => {
+                Ok(Some(CnvValue::Boolean(self.state.borrow().get()?)))
+            }
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.initial_properties.on_init.as_ref() {
+                    v.run(context)
+                }
+                Ok(None)
+            }
+            CallableIdentifier::Event("ONCHANGED") => {
+                if let Some(v) = self.initial_properties.on_changed.as_ref() {
+                    v.run(context)
+                }
+                Ok(None)
+            }
+            CallableIdentifier::Event("ONBRUTALCHANGED") => {
+                if let Some(v) = self.initial_properties.on_brutal_changed.as_ref() {
+                    v.run(context)
+                }
+                Ok(None)
+            }
+            _ => todo!(),
+        }
     }
 
     fn get_property(&self, _name: &str) -> Option<PropertyValue> {
@@ -215,5 +183,96 @@ impl CnvType for Bool {
                 on_signal,
             },
         ))
+    }
+}
+
+impl BoolState {
+    pub fn and() {
+        // AND
+        todo!()
+    }
+
+    pub fn clear() {
+        // CLEAR
+        todo!()
+    }
+
+    pub fn copy_file() {
+        // COPYFILE
+        todo!()
+    }
+
+    pub fn dec() {
+        // DEC
+        todo!()
+    }
+
+    pub fn get(&self) -> RunnerResult<bool> {
+        // GET
+        Ok(self.value)
+    }
+
+    pub fn inc() {
+        // INC
+        todo!()
+    }
+
+    pub fn not() {
+        // NOT
+        todo!()
+    }
+
+    pub fn or() {
+        // OR
+        todo!()
+    }
+
+    pub fn random() {
+        // RANDOM
+        todo!()
+    }
+
+    pub fn reset_ini() {
+        // RESETINI
+        todo!()
+    }
+
+    pub fn set(
+        &mut self,
+        boolean: &Bool,
+        context: &mut RunnerContext,
+        value: bool,
+    ) -> RunnerResult<()> {
+        // SET
+        let changed_value = self.value != value;
+        self.value = value;
+        if changed_value {
+            boolean.call_method(
+                CallableIdentifier::Event("ONCHANGED"),
+                &vec![CnvValue::Boolean(self.value)],
+                context,
+            )?;
+        }
+        boolean.call_method(
+            CallableIdentifier::Event("ONBRUTALCHANGED"),
+            &vec![CnvValue::Boolean(self.value)],
+            context,
+        )?;
+        Ok(())
+    }
+
+    pub fn set_default() {
+        // SETDEFAULT
+        todo!()
+    }
+
+    pub fn switch() {
+        // SWITCH
+        todo!()
+    }
+
+    pub fn xor() {
+        // XOR
+        todo!()
     }
 }

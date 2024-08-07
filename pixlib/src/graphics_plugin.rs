@@ -6,8 +6,9 @@ use bevy::{
     log::{error, info},
     math::Vec3,
     prelude::{
-        in_state, BuildChildren, Bundle, Commands, Component, DespawnRecursiveExt, Entity, Image,
-        IntoSystemConfigs, NonSend, Query, ResMut, SpatialBundle, Transform, Visibility,
+        in_state, BuildChildren, Bundle, Commands, Component, Condition, DespawnRecursiveExt,
+        Entity, EventReader, Image, IntoSystemConfigs, NonSend, Query, ResMut, SpatialBundle,
+        Transform, Visibility,
     },
     sprite::{Anchor, Sprite, SpriteBundle},
 };
@@ -16,6 +17,7 @@ use pixlib_parser::{classes::Scene, runner::ScriptEvent};
 
 use crate::{
     anchors::add_tuples,
+    events_plugin::PixlibScriptEvent,
     resources::ScriptRunner,
     states::AppState,
     util::{animation_data_to_handle, image_data_to_handle},
@@ -28,8 +30,6 @@ pub struct GraphicsPlugin;
 
 impl Plugin for GraphicsPlugin {
     fn build(&self, app: &mut App) {
-        // app.init_resource::<MyOtherResource>();
-        // app.add_event::<MyEvent>();
         app.add_systems(Startup, create_pool)
             .add_systems(
                 Update,
@@ -43,7 +43,12 @@ impl Plugin for GraphicsPlugin {
                 Update,
                 update_animations.run_if(in_state(AppState::SceneViewer)),
             )
-            .add_systems(Update, assign_pool.run_if(in_state(AppState::SceneViewer)));
+            .add_systems(
+                Update,
+                (reset_pool, assign_pool)
+                    .chain()
+                    .run_if(in_state(AppState::SceneViewer).and_then(run_if_any_script_loaded)),
+            );
     }
 }
 
@@ -90,6 +95,17 @@ pub fn create_pool(mut commands: Commands) {
     info!("Created a pool of {} graphics objects", POOL_SIZE);
 }
 
+fn run_if_any_script_loaded(mut reader: EventReader<PixlibScriptEvent>) -> bool {
+    let mut any_script_loaded = false;
+    for evt in reader.read() {
+        info!("Popped event: {:?}", evt);
+        if matches!(evt.0, ScriptEvent::ScriptLoaded { .. }) {
+            any_script_loaded = true;
+        }
+    }
+    any_script_loaded
+}
+
 pub fn reset_pool(
     mut query: Query<(
         &mut GraphicsMarker,
@@ -118,24 +134,15 @@ pub fn reset_pool(
 }
 
 pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<ScriptRunner>) {
-    let mut out_events = runner.events_out.script.borrow_mut();
-    let mut any_script_loaded = false;
-    while let Some(ScriptEvent::ScriptLoaded { .. }) = out_events.front() {
-        info!("Popped event: {:?}", out_events.pop_front());
-        any_script_loaded = true;
-    }
-    if !any_script_loaded {
-        return;
-    }
-    let mut all_objects = Vec::new();
-    runner.find_objects(|_| true, &mut all_objects);
+    // let mut all_objects = Vec::new();
+    // runner.find_objects(|_| true, &mut all_objects);
     // let all_objects: Vec<String> = all_objects.iter().map(|o| o.name.clone()).collect();
     // info!("All loaded objects: {:?}", all_objects);
     let mut background_assigned = false;
     let mut image_counter = 0;
     let mut animation_counter = 0;
     let mut iter = query.iter_mut();
-    // info!("Current scene: {:?}", runner.get_current_scene());
+    info!("Current scene: {:?}", runner.get_current_scene());
     if let Some(current_scene) = runner.get_current_scene() {
         if current_scene.get_property("BACKGROUND").is_some() {
             *iter.next().unwrap() = GraphicsMarker::BackgroundImage;
@@ -198,6 +205,7 @@ pub fn update_background(
         if !matches!(*marker, GraphicsMarker::BackgroundImage) {
             continue;
         }
+        // info!("Current scene: {:?}", runner.get_current_scene());
         let Some(scene_object) = runner.get_current_scene() else {
             continue;
         };

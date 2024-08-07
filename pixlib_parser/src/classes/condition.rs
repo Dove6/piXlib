@@ -49,16 +49,20 @@ impl Condition {
         let left = context
             .runner
             .get_object(left)
-            .map(|o| o.call_method(CallableIdentifier::Method("GET"), &Vec::new(), context))
+            .and_then(|o| {
+                o.call_method(CallableIdentifier::Method("GET"), &Vec::new(), context)
+                    .transpose()
+            })
             .transpose()?
-            .unwrap()
             .unwrap_or_else(|| CnvValue::String(left.clone()));
         let right = context
             .runner
             .get_object(right)
-            .map(|o| o.call_method(CallableIdentifier::Method("GET"), &Vec::new(), context))
+            .and_then(|o| {
+                o.call_method(CallableIdentifier::Method("GET"), &Vec::new(), context)
+                    .transpose()
+            })
             .transpose()?
-            .unwrap()
             .unwrap_or_else(|| CnvValue::String(right.clone()));
         let Some(operator) = &self.initial_properties.operator else {
             return Err(RunnerError::MissingOperator);
@@ -123,6 +127,10 @@ impl CnvType for Condition {
         _arguments: &[CnvValue],
         context: &mut RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
+        eprintln!(
+            "Calling method {:?} of condition {}",
+            name, self.parent.name
+        );
         match name {
             CallableIdentifier::Method("CHECK") => {
                 self.check(context).map(|v| Some(CnvValue::Boolean(v)))

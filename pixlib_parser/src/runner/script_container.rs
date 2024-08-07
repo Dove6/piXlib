@@ -1,6 +1,11 @@
-use std::{collections::HashMap, path::Path, slice::Iter, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    path::Path,
+    slice::Iter,
+    sync::Arc,
+};
 
-use super::{CnvScript, ScriptSource};
+use super::{CnvScript, RunnerError, RunnerResult, ScriptSource};
 
 #[derive(Debug, Clone, Default)]
 pub struct ScriptContainer {
@@ -44,21 +49,51 @@ impl ScriptContainer {
         self.vec.len()
     }
 
-    pub fn remove_script(&mut self, path: &Path) -> Result<(), ()> {
+    pub fn remove_script(&mut self, path: &Path) -> RunnerResult<()> {
         let Some(index) = self.vec.iter().position(|s| *s.path == *path) else {
-            return Err(());
+            return Err(RunnerError::ScriptNotFound { path: path.into() });
         };
         self.remove_script_at(index)
     }
 
-    pub fn remove_script_at(&mut self, index: usize) -> Result<(), ()> {
-        for script in self.vec.drain(index..) {
+    pub fn remove_script_at(&mut self, index: usize) -> RunnerResult<()> {
+        let mut to_remove = VecDeque::new();
+        to_remove.push_back(self.vec.remove(index));
+        while let Some(script) = to_remove.pop_front() {
+            if self
+                .application_script
+                .as_ref()
+                .is_some_and(|s| s.path == script.path)
+            {
+                self.application_script = None;
+            }
+            if self
+                .episode_script
+                .as_ref()
+                .is_some_and(|s| s.path == script.path)
+            {
+                self.episode_script = None;
+            }
+            if self
+                .scene_script
+                .as_ref()
+                .is_some_and(|s| s.path == script.path)
+            {
+                self.scene_script = None;
+            }
             self.map.remove(&script.path);
+            for child in self.vec.iter().filter(|s| {
+                s.parent_object
+                    .as_ref()
+                    .is_some_and(|o| o.parent.path == script.path)
+            }) {
+                to_remove.push_back(child.clone());
+            }
         }
         Ok(())
     }
 
-    pub fn remove_scene_script(&mut self) -> Result<Option<()>, ()> {
+    pub fn remove_scene_script(&mut self) -> RunnerResult<Option<()>> {
         let Some(ref current_scene) = self.scene_script else {
             return Ok(None);
         };
@@ -68,7 +103,7 @@ impl ScriptContainer {
         self.remove_script_at(index).map(|_| Some(()))
     }
 
-    pub fn remove_episode_script(&mut self) -> Result<Option<()>, ()> {
+    pub fn remove_episode_script(&mut self) -> RunnerResult<Option<()>> {
         let Some(ref current_episode) = self.episode_script else {
             return Ok(None);
         };
@@ -78,7 +113,7 @@ impl ScriptContainer {
         self.remove_script_at(index).map(|_| Some(()))
     }
 
-    pub fn remove_application_script(&mut self) -> Result<Option<()>, ()> {
+    pub fn remove_application_script(&mut self) -> RunnerResult<Option<()>> {
         let Some(ref current_application) = self.application_script else {
             return Ok(None);
         };
@@ -95,16 +130,27 @@ impl ScriptContainer {
     pub fn remove_all_scripts(&mut self) {
         self.vec.clear();
         self.map.clear();
+        self.scene_script = None;
+        self.episode_script = None;
+        self.application_script = None;
     }
 
-    pub fn push_script(&mut self, script: Arc<CnvScript>) -> Result<(), ()> {
+    pub fn push_script(&mut self, script: Arc<CnvScript>) -> RunnerResult<()> {
         match script.source_kind {
-            ScriptSource::Root if !self.vec.is_empty() => return Err(()),
-            ScriptSource::Application if self.application_script.is_some() => return Err(()),
+            ScriptSource::Root if !self.vec.is_empty() => {
+                return Err(RunnerError::RootScriptAlreadyLoaded)
+            }
+            ScriptSource::Application if self.application_script.is_some() => {
+                return Err(RunnerError::ApplicationScriptAlreadyLoaded)
+            }
             ScriptSource::Application => self.application_script = Some(Arc::clone(&script)),
-            ScriptSource::Episode if self.episode_script.is_some() => return Err(()),
+            ScriptSource::Episode if self.episode_script.is_some() => {
+                return Err(RunnerError::EpisodeScriptAlreadyLoaded)
+            }
             ScriptSource::Episode => self.episode_script = Some(Arc::clone(&script)),
-            ScriptSource::Scene if self.scene_script.is_some() => return Err(()),
+            ScriptSource::Scene if self.scene_script.is_some() => {
+                return Err(RunnerError::SceneScriptAlreadyLoaded)
+            }
             ScriptSource::Scene => self.scene_script = Some(Arc::clone(&script)),
             _ => {}
         }

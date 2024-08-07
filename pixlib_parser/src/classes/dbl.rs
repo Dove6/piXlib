@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_bool, parse_f64, parse_program};
 
@@ -20,11 +20,16 @@ pub struct DblInit {
     pub on_signal: Option<Arc<IgnorableProgram>>,         // ONSIGNAL signal
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct DoubleState {
+    value: f64,
+}
+
 #[derive(Debug, Clone)]
 pub struct Dbl {
     parent: Arc<CnvObject>,
+    state: RefCell<DoubleState>,
     initial_properties: DblInit,
-    value: f64,
 }
 
 impl Dbl {
@@ -32,149 +37,9 @@ impl Dbl {
         let value = initial_properties.value.unwrap_or(0f64);
         Self {
             parent,
-            value,
+            state: RefCell::new(DoubleState { value }),
             initial_properties,
         }
-    }
-
-    pub fn add() {
-        // ADD
-        todo!()
-    }
-
-    pub fn arctan() {
-        // ARCTAN
-        todo!()
-    }
-
-    pub fn arctanex() {
-        // ARCTANEX
-        todo!()
-    }
-
-    pub fn clamp() {
-        // CLAMP
-        todo!()
-    }
-
-    pub fn clear() {
-        // CLEAR
-        todo!()
-    }
-
-    pub fn copyfile() {
-        // COPYFILE
-        todo!()
-    }
-
-    pub fn cosinus() {
-        // COSINUS
-        todo!()
-    }
-
-    pub fn dec() {
-        // DEC
-        todo!()
-    }
-
-    pub fn div() {
-        // DIV
-        todo!()
-    }
-
-    pub fn get() {
-        // GET
-        todo!()
-    }
-
-    pub fn inc() {
-        // INC
-        todo!()
-    }
-
-    pub fn length() {
-        // LENGTH
-        todo!()
-    }
-
-    pub fn log() {
-        // LOG
-        todo!()
-    }
-
-    pub fn maxa() {
-        // MAXA
-        todo!()
-    }
-
-    pub fn mina() {
-        // MINA
-        todo!()
-    }
-
-    pub fn modulus() {
-        // MOD
-        todo!()
-    }
-
-    pub fn mul() {
-        // MUL
-        todo!()
-    }
-
-    pub fn power() {
-        // POWER
-        todo!()
-    }
-
-    pub fn random() {
-        // RANDOM
-        todo!()
-    }
-
-    pub fn resetini() {
-        // RESETINI
-        todo!()
-    }
-
-    pub fn round() {
-        // ROUND
-        todo!()
-    }
-
-    pub fn set() {
-        // SET
-        todo!()
-    }
-
-    pub fn setdefault() {
-        // SETDEFAULT
-        todo!()
-    }
-
-    pub fn sgn() {
-        // SGN
-        todo!()
-    }
-
-    pub fn sinus() {
-        // SINUS
-        todo!()
-    }
-
-    pub fn sqrt() {
-        // SQRT
-        todo!()
-    }
-
-    pub fn sub() {
-        // SUB
-        todo!()
-    }
-
-    pub fn switch() {
-        // SWITCH
-        todo!()
     }
 }
 
@@ -191,8 +56,11 @@ impl CnvType for Dbl {
         "DOUBLE"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
+    fn has_event(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "ONBRUTALCHANGED" | "ONCHANGED" | "ONDONE" | "ONINIT" | "ONNETCHANGED" | "ONSIGNAL"
+        )
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -205,11 +73,41 @@ impl CnvType for Dbl {
 
     fn call_method(
         &self,
-        _name: CallableIdentifier,
-        _arguments: &[CnvValue],
-        _context: &mut RunnerContext,
+        name: CallableIdentifier,
+        arguments: &[CnvValue],
+        context: &mut RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
-        todo!()
+        match name {
+            CallableIdentifier::Method("SET") => {
+                assert!(arguments.len() == 1);
+                self.state
+                    .borrow_mut()
+                    .set(self, context, arguments[0].to_double())?;
+                Ok(None)
+            }
+            CallableIdentifier::Method("GET") => {
+                Ok(Some(CnvValue::Double(self.state.borrow().get()?)))
+            }
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.initial_properties.on_init.as_ref() {
+                    v.run(context)
+                }
+                Ok(None)
+            }
+            CallableIdentifier::Event("ONCHANGED") => {
+                if let Some(v) = self.initial_properties.on_changed.as_ref() {
+                    v.run(context)
+                }
+                Ok(None)
+            }
+            CallableIdentifier::Event("ONBRUTALCHANGED") => {
+                if let Some(v) = self.initial_properties.on_brutal_changed.as_ref() {
+                    v.run(context)
+                }
+                Ok(None)
+            }
+            _ => todo!(),
+        }
     }
 
     fn get_property(&self, _name: &str) -> Option<PropertyValue> {
@@ -285,5 +183,166 @@ impl CnvType for Dbl {
                 on_signal,
             },
         ))
+    }
+}
+
+impl DoubleState {
+    pub fn add() {
+        // ADD
+        todo!()
+    }
+
+    pub fn arctan() {
+        // ARCTAN
+        todo!()
+    }
+
+    pub fn arctanex() {
+        // ARCTANEX
+        todo!()
+    }
+
+    pub fn clamp() {
+        // CLAMP
+        todo!()
+    }
+
+    pub fn clear() {
+        // CLEAR
+        todo!()
+    }
+
+    pub fn copyfile() {
+        // COPYFILE
+        todo!()
+    }
+
+    pub fn cosinus() {
+        // COSINUS
+        todo!()
+    }
+
+    pub fn dec() {
+        // DEC
+        todo!()
+    }
+
+    pub fn div() {
+        // DIV
+        todo!()
+    }
+
+    pub fn get(&self) -> RunnerResult<f64> {
+        // GET
+        Ok(self.value)
+    }
+
+    pub fn inc() {
+        // INC
+        todo!()
+    }
+
+    pub fn length() {
+        // LENGTH
+        todo!()
+    }
+
+    pub fn log() {
+        // LOG
+        todo!()
+    }
+
+    pub fn maxa() {
+        // MAXA
+        todo!()
+    }
+
+    pub fn mina() {
+        // MINA
+        todo!()
+    }
+
+    pub fn modulus() {
+        // MOD
+        todo!()
+    }
+
+    pub fn mul() {
+        // MUL
+        todo!()
+    }
+
+    pub fn power() {
+        // POWER
+        todo!()
+    }
+
+    pub fn random() {
+        // RANDOM
+        todo!()
+    }
+
+    pub fn resetini() {
+        // RESETINI
+        todo!()
+    }
+
+    pub fn round() {
+        // ROUND
+        todo!()
+    }
+
+    pub fn set(
+        &mut self,
+        double: &Dbl,
+        context: &mut RunnerContext,
+        value: f64,
+    ) -> RunnerResult<()> {
+        // SET
+        let changed_value = self.value != value;
+        self.value = value;
+        if changed_value {
+            double.call_method(
+                CallableIdentifier::Event("ONCHANGED"),
+                &vec![CnvValue::Double(self.value)],
+                context,
+            )?;
+        }
+        double.call_method(
+            CallableIdentifier::Event("ONBRUTALCHANGED"),
+            &vec![CnvValue::Double(self.value)],
+            context,
+        )?;
+        Ok(())
+    }
+
+    pub fn setdefault() {
+        // SETDEFAULT
+        todo!()
+    }
+
+    pub fn sgn() {
+        // SGN
+        todo!()
+    }
+
+    pub fn sinus() {
+        // SINUS
+        todo!()
+    }
+
+    pub fn sqrt() {
+        // SQRT
+        todo!()
+    }
+
+    pub fn sub() {
+        // SUB
+        todo!()
+    }
+
+    pub fn switch() {
+        // SWITCH
+        todo!()
     }
 }
