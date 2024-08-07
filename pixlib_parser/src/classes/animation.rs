@@ -56,7 +56,7 @@ struct AnimationState {
     pub is_visible: bool,
 
     // general graphics state
-    pub position: (i32, i32),
+    pub position: (isize, isize),
     pub opacity: usize,
     // anchor: ???,
     pub is_flipped_horizontally: bool,
@@ -159,11 +159,19 @@ impl Animation {
         animation
     }
 
-    pub fn is_visible(&self) -> bool {
+    pub fn is_visible(&self) -> RunnerResult<bool> {
         self.state.borrow().is_visible()
     }
 
+    pub fn get_priority(&self) -> RunnerResult<isize> {
+        self.state.borrow().get_priority()
+    }
+
     ///
+
+    pub fn get_position(&self) -> RunnerResult<(isize, isize)> {
+        Ok(self.state.borrow().position)
+    }
 
     pub fn tick(&self, duration: f64) -> RunnerResult<()> {
         self.state.borrow_mut().tick(&self, duration)
@@ -240,7 +248,7 @@ impl CnvType for Animation {
         &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
-        context: &mut RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
@@ -362,10 +370,11 @@ impl CnvType for Animation {
                 self.state.borrow_mut().get_position_y();
                 Ok(None)
             }
-            CallableIdentifier::Method("GETPRIORITY") => {
-                self.state.borrow_mut().get_priority();
-                Ok(None)
-            }
+            CallableIdentifier::Method("GETPRIORITY") => self
+                .state
+                .borrow_mut()
+                .get_priority()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
             CallableIdentifier::Method("GETWIDTH") => {
                 self.state.borrow_mut().get_width();
                 Ok(None)
@@ -394,10 +403,11 @@ impl CnvType for Animation {
                 self.state.borrow_mut().is_playing();
                 Ok(None)
             }
-            CallableIdentifier::Method("ISVISIBLE") => {
-                self.state.borrow_mut().is_visible();
-                Ok(None)
-            }
+            CallableIdentifier::Method("ISVISIBLE") => self
+                .state
+                .borrow_mut()
+                .is_visible()
+                .map(|v| Some(CnvValue::Boolean(v))),
             CallableIdentifier::Method("LOAD") => {
                 self.state
                     .borrow_mut()
@@ -413,7 +423,10 @@ impl CnvType for Animation {
                 Ok(None)
             }
             CallableIdentifier::Method("MOVE") => {
-                self.state.borrow_mut().move_to();
+                self.state.borrow_mut().move_by(
+                    arguments[0].to_integer() as isize,
+                    arguments[0].to_integer() as isize,
+                )?;
                 Ok(None)
             }
             CallableIdentifier::Method("NEXTFRAME") => {
@@ -496,13 +509,25 @@ impl CnvType for Animation {
                     .set_fps(arguments[0].to_integer() as usize);
                 Ok(None)
             }
-            CallableIdentifier::Method("SETFRAME") => {
-                self.state.borrow_mut().set_frame(
-                    &arguments[0].to_string(),
+            CallableIdentifier::Method("SETFRAME") => match arguments.len() {
+                1 => self
+                    .state
+                    .borrow_mut()
+                    .set_frame(None, arguments[0].to_integer() as usize),
+                2 => self.state.borrow_mut().set_frame(
+                    Some(&arguments[0].to_string()),
                     arguments[1].to_integer() as usize,
-                );
-                Ok(None)
+                ),
+                0 => Err(RunnerError::TooFewArguments {
+                    expected_min: 1,
+                    actual: 0,
+                }),
+                arg_count => Err(RunnerError::TooManyArguments {
+                    expected_max: 2,
+                    actual: arg_count,
+                }),
             }
+            .map(|_| None),
             CallableIdentifier::Method("SETFRAMENAME") => {
                 self.state.borrow_mut().set_frame_name();
                 Ok(None)
@@ -637,7 +662,7 @@ impl CnvType for Animation {
                 }
                 Ok(None)
             }
-            _ => todo!(),
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
         }
     }
 
@@ -957,9 +982,9 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn get_priority(&self) -> isize {
+    pub fn get_priority(&self) -> RunnerResult<isize> {
         // GETPRIORITY
-        self.priority
+        Ok(self.priority)
     }
 
     pub fn get_width(&self) {
@@ -997,9 +1022,9 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn is_visible(&self) -> bool {
+    pub fn is_visible(&self) -> RunnerResult<bool> {
         // ISVISIBLE
-        self.is_visible
+        Ok(self.is_visible)
     }
 
     pub fn load(&mut self, animation: &Animation, filename: &str) -> RunnerResult<()> {
@@ -1077,9 +1102,10 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn move_to(&self) {
+    pub fn move_by(&mut self, x: isize, y: isize) -> RunnerResult<()> {
         // MOVE
-        todo!()
+        self.position = (self.position.0 + x, self.position.1 + y);
+        Ok(())
     }
 
     pub fn next_frame(&self) {
@@ -1255,9 +1281,14 @@ impl AnimationState {
         self.fps = fps;
     }
 
-    pub fn set_frame(&self, _sequence_name: &str, _frame_no: usize) {
-        // SETFRAME (STRING, INTEGER)
-        todo!()
+    pub fn set_frame(&mut self, sequence_name: Option<&str>, frame_no: usize) -> RunnerResult<()> {
+        // SETFRAME ([STRING], INTEGER)
+        if let Some(_sequence_name) = sequence_name {
+            todo!()
+        } else {
+            self.current_frame.frame_idx = frame_no;
+        }
+        Ok(())
     }
 
     pub fn set_frame_name(&self) {

@@ -156,7 +156,7 @@ impl CnvType for Button {
         &self,
         name: CallableIdentifier,
         _arguments: &[CnvValue],
-        context: &mut RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
@@ -166,7 +166,7 @@ impl CnvType for Button {
                 }
                 Ok(None)
             }
-            _ => todo!(),
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
         }
     }
 

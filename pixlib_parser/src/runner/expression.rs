@@ -6,11 +6,11 @@ use crate::{
 use super::{value::CnvValue, RunnerContext, RunnerResult};
 
 pub trait CnvExpression {
-    fn calculate(&self, context: &mut RunnerContext) -> RunnerResult<Option<CnvValue>>;
+    fn calculate(&self, context: RunnerContext) -> RunnerResult<Option<CnvValue>>;
 }
 
 impl CnvExpression for Invocation {
-    fn calculate(&self, context: &mut RunnerContext) -> RunnerResult<Option<CnvValue>> {
+    fn calculate(&self, context: RunnerContext) -> RunnerResult<Option<CnvValue>> {
         // println!("Invocation::calculate: {:?}", self);
         if self.parent.is_none() {
             Ok(None) // TODO: match &self.name
@@ -19,19 +19,21 @@ impl CnvExpression for Invocation {
                 .parent
                 .as_ref()
                 .unwrap()
-                .calculate(context)?
+                .calculate(context.clone())?
                 .expect("Invalid invocation parent");
             let arguments = self
                 .arguments
                 .iter()
-                .map(|e| e.calculate(context))
+                .map(|e| e.calculate(context.clone()))
                 .collect::<RunnerResult<Vec<_>>>()?;
             let arguments: Vec<_> = arguments.into_iter().map(|e| e.unwrap()).collect();
             // println!("Calling method: {:?} of: {:?}", self.name, self.parent);
             match parent {
-                CnvValue::Reference(obj) => {
-                    obj.call_method(CallableIdentifier::Method(&self.name), &arguments, context)
-                }
+                CnvValue::Reference(obj) => obj.call_method(
+                    CallableIdentifier::Method(&self.name),
+                    &arguments,
+                    Some(context),
+                ),
                 _ => panic!(
                     "Expected invocation parent to be an object, got {:?}",
                     parent
@@ -42,7 +44,7 @@ impl CnvExpression for Invocation {
 }
 
 impl CnvExpression for Expression {
-    fn calculate(&self, context: &mut RunnerContext) -> RunnerResult<Option<CnvValue>> {
+    fn calculate(&self, context: RunnerContext) -> RunnerResult<Option<CnvValue>> {
         // println!("Expression::calculate: {:?}", self);
         match self {
             Expression::LiteralBool(b) => Ok(Some(CnvValue::Boolean(*b))),
@@ -57,7 +59,7 @@ impl CnvExpression for Expression {
                 .map(CnvValue::Reference)), // error
             Expression::Parameter(_name) => Ok(None), // access function scope and retrieve arguments
             Expression::NameResolution(expression) => {
-                let _name = &expression.calculate(context);
+                let _name = &expression.calculate(context.clone());
                 let name = String::new(); // TODO: stringify
                 Ok(context
                     .runner
@@ -67,11 +69,11 @@ impl CnvExpression for Expression {
             Expression::FieldAccess(_expression, _field) => todo!(),
             Expression::Operation(expression, operations) => {
                 let mut result = expression
-                    .calculate(context)?
+                    .calculate(context.clone())?
                     .expect("Expected non-void argument in operation");
                 for (operation, argument) in operations {
                     let argument = argument
-                        .calculate(context)?
+                        .calculate(context.clone())?
                         .expect("Expected non-void argument in operation");
                     result = match operation {
                         Operation::Addition => &result + &argument,

@@ -26,7 +26,7 @@ pub trait CnvType: std::fmt::Debug {
         &self,
         identifier: CallableIdentifier,
         arguments: &[CnvValue],
-        context: &mut RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>>;
 
     fn new(
@@ -79,11 +79,13 @@ impl CnvType for DummyCnvType {
 
     fn call_method(
         &self,
-        _identifier: CallableIdentifier,
+        name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _context: &mut RunnerContext,
+        _context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
-        Ok(None)
+        match name {
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
+        }
     }
 
     fn new(

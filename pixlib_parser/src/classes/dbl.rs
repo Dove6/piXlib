@@ -75,14 +75,14 @@ impl CnvType for Dbl {
         &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
-        context: &mut RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("SET") => {
                 assert!(arguments.len() == 1);
                 self.state
                     .borrow_mut()
-                    .set(self, context, arguments[0].to_double())?;
+                    .set(self, arguments[0].to_double())?;
                 Ok(None)
             }
             CallableIdentifier::Method("GET") => {
@@ -106,7 +106,7 @@ impl CnvType for Dbl {
                 }
                 Ok(None)
             }
-            _ => todo!(),
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
         }
     }
 
@@ -292,20 +292,20 @@ impl DoubleState {
         todo!()
     }
 
-    pub fn set(
-        &mut self,
-        double: &Dbl,
-        context: &mut RunnerContext,
-        value: f64,
-    ) -> RunnerResult<()> {
+    pub fn set(&mut self, double: &Dbl, value: f64) -> RunnerResult<()> {
         // SET
         let changed_value = self.value != value;
         self.value = value;
+        let context = RunnerContext {
+            runner: Arc::clone(&double.parent.parent.runner),
+            self_object: double.parent.name.clone(),
+            current_object: double.parent.name.clone(),
+        };
         if changed_value {
             double.call_method(
                 CallableIdentifier::Event("ONCHANGED"),
                 &vec![CnvValue::Double(self.value)],
-                context,
+                context.clone(),
             )?;
         }
         double.call_method(

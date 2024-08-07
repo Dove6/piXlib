@@ -126,7 +126,7 @@ impl Issue for RunnerIssue {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RunnerContext {
     pub runner: Arc<CnvRunner>,
     pub self_object: String,
@@ -186,16 +186,7 @@ impl CnvRunner {
                 *object.initialized.borrow_mut() = true;
                 continue;
             }
-            let mut context = RunnerContext {
-                current_object: object.name.clone(),
-                self_object: object.name.clone(),
-                runner: Arc::clone(self),
-            };
-            object.call_method(
-                CallableIdentifier::Event("ONINIT"),
-                &Vec::new(),
-                &mut context,
-            )?;
+            object.call_method(CallableIdentifier::Event("ONINIT"), &Vec::new(), None)?;
             *object.initialized.borrow_mut() = true;
         }
         while let Some(evt) = self
@@ -214,15 +205,10 @@ impl CnvRunner {
                 );
                 continue;
             };
-            let mut context = RunnerContext {
-                current_object: evt.object_name.clone(),
-                self_object: evt.object_name.clone(),
-                runner: Arc::clone(self),
-            };
             object.call_method(
                 CallableIdentifier::Event(&evt.event_name),
                 &evt.arguments,
-                &mut context,
+                None,
             )?;
         }
         Ok(())
@@ -398,13 +384,8 @@ impl CnvRunner {
         {
             return Err(BehaviorRunningError::InvalidType);
         };
-        let mut context = RunnerContext {
-            runner: Arc::clone(self),
-            self_object: init_beh_obj.name.clone(),
-            current_object: init_beh_obj.name.clone(),
-        };
         init_beh_obj
-            .call_method(CallableIdentifier::Method("RUN"), &Vec::new(), &mut context)
+            .call_method(CallableIdentifier::Method("RUN"), &Vec::new(), None)
             .map_err(|e| BehaviorRunningError::RunnerError(e))?;
         Ok(None)
     }

@@ -10,7 +10,7 @@ pub fn setup(window_config: Res<WindowConfiguration>, mut commands: Commands) {
         transform: Transform::from_xyz(
             window_config.size.0 as f32 / 2.0,
             window_config.size.1 as f32 / 2.0,
-            0.0,
+            1.0,
         )
         .with_scale(Vec3::new(1f32, -1f32, 1f32)),
         ..default()

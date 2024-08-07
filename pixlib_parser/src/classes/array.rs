@@ -313,8 +313,8 @@ impl CnvType for Array {
         "ARRAY"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
+    fn has_event(&self, name: &str) -> bool {
+        matches!(name, "ONCHANGE" | "ONDONE" | "ONINIT" | "ONSIGNAL")
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -327,11 +327,19 @@ impl CnvType for Array {
 
     fn call_method(
         &self,
-        _name: CallableIdentifier,
+        name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _context: &mut RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
-        todo!()
+        match name {
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.initial_properties.on_init.as_ref() {
+                    v.run(context)
+                }
+                Ok(None)
+            }
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
+        }
     }
 
     fn get_property(&self, _name: &str) -> Option<PropertyValue> {

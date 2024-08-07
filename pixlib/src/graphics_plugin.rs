@@ -7,8 +7,8 @@ use bevy::{
     math::Vec3,
     prelude::{
         in_state, BuildChildren, Bundle, Commands, Component, Condition, DespawnRecursiveExt,
-        Entity, EventReader, Image, IntoSystemConfigs, NonSend, Query, ResMut, SpatialBundle,
-        Transform, Visibility,
+        Entity, EventReader, Image, IntoSystemConfigs, NonSend, OnExit, Query, ResMut,
+        SpatialBundle, Transform, Visibility,
     },
     sprite::{Anchor, Sprite, SpriteBundle},
 };
@@ -48,7 +48,8 @@ impl Plugin for GraphicsPlugin {
                 (reset_pool, assign_pool)
                     .chain()
                     .run_if(in_state(AppState::SceneViewer).and_then(run_if_any_script_loaded)),
-            );
+            )
+            .add_systems(OnExit(AppState::SceneViewer), reset_pool);
     }
 }
 
@@ -221,10 +222,6 @@ pub fn update_background(
             *visibility = Visibility::Hidden;
             continue;
         };
-        if ident.0.is_some_and(|h| h == image_data.hash) {
-            continue;
-        }
-        ident.0 = Some(image_data.hash);
         sprite.flip_x = false;
         sprite.flip_y = false;
         sprite.anchor = Anchor::TopLeft;
@@ -232,14 +229,17 @@ pub fn update_background(
         *transform = Transform::from_xyz(
             image_definition.offset_px.0 as f32,
             image_definition.offset_px.1 as f32,
-            -100f32,
+            -995f32,
         )
         .with_scale(Vec3::new(1f32, -1f32, 1f32));
-        *handle = image_data_to_handle(&mut textures, image_definition, image_data);
-        info!(
-            "Updated background for scene {:?} / {:?}",
-            scene_script_path, scene_object.name
-        );
+        if !ident.0.is_some_and(|h| h == image_data.hash) {
+            *handle = image_data_to_handle(&mut textures, image_definition, image_data);
+            ident.0 = Some(image_data.hash);
+            info!(
+                "Updated background for scene {:?} / {:?}",
+                scene_script_path, scene_object.name
+            );
+        }
     }
 }
 
@@ -287,11 +287,7 @@ pub fn update_images(
             *visibility = Visibility::Hidden;
             continue;
         };
-        if ident.0.is_some_and(|h| h == image_data.hash) {
-            continue;
-        }
-        ident.0 = Some(image_data.hash);
-        *visibility = if image.is_visible() {
+        *visibility = if image.is_visible().unwrap() {
             Visibility::Visible
         } else {
             Visibility::Hidden
@@ -299,14 +295,24 @@ pub fn update_images(
         sprite.flip_x = false;
         sprite.flip_y = false;
         sprite.anchor = Anchor::TopLeft;
+        let base_position = image.get_position().unwrap();
         *transform = Transform::from_xyz(
-            image_definition.offset_px.0 as f32,
-            image_definition.offset_px.1 as f32,
-            *script_index as f32 + (*object_index as f32) / 10000f32,
+            base_position.0 as f32 + image_definition.offset_px.0 as f32,
+            base_position.1 as f32 + image_definition.offset_px.1 as f32,
+            image.get_priority().unwrap() as f32
+                + (*script_index as f32) / 100f32
+                + (*object_index as f32) / 100000f32,
         )
         .with_scale(Vec3::new(1f32, -1f32, 1f32));
-        *handle = image_data_to_handle(&mut textures, &image_definition, &image_data);
-        info!("Updated image {}", &object.name);
+        if !ident.0.is_some_and(|h| h == image_data.hash) {
+            *handle = image_data_to_handle(&mut textures, &image_definition, &image_data);
+            ident.0 = Some(image_data.hash);
+            info!(
+                "Updated image {} with priority {}",
+                &object.name,
+                image.get_priority().unwrap()
+            );
+        }
     }
 }
 
@@ -360,11 +366,7 @@ pub fn update_animations(
             *visibility = Visibility::Hidden;
             continue;
         };
-        if ident.0.is_some_and(|h| h == sprite_data.hash) {
-            continue;
-        }
-        ident.0 = Some(sprite_data.hash);
-        *visibility = if animation.is_visible() {
+        *visibility = if animation.is_visible().unwrap() {
             Visibility::Visible
         } else {
             Visibility::Hidden
@@ -373,14 +375,24 @@ pub fn update_animations(
         sprite.flip_x = false;
         sprite.flip_y = false;
         sprite.anchor = Anchor::TopLeft;
+        let base_position = animation.get_position().unwrap();
         *transform = Transform::from_xyz(
-            total_offset.0 as f32,
-            total_offset.1 as f32,
-            *script_index as f32 + (*object_index as f32) / 10000f32,
+            base_position.0 as f32 + total_offset.0 as f32,
+            base_position.1 as f32 + total_offset.1 as f32,
+            animation.get_priority().unwrap() as f32
+                + (*script_index as f32) / 100f32
+                + (*object_index as f32) / 100000f32,
         )
         .with_scale(Vec3::new(1f32, -1f32, 1f32));
-        *handle = animation_data_to_handle(&mut textures, &sprite_definition, &sprite_data);
-        info!("Updated animation {}", &object.name);
+        if !ident.0.is_some_and(|h| h == sprite_data.hash) {
+            *handle = animation_data_to_handle(&mut textures, &sprite_definition, &sprite_data);
+            ident.0 = Some(sprite_data.hash);
+            info!(
+                "Updated animation {} with priority {}",
+                &object.name,
+                animation.get_priority().unwrap()
+            );
+        }
     }
 }
 

@@ -44,7 +44,7 @@ impl CnvType for Expression {
     }
 
     fn has_event(&self, _name: &str) -> bool {
-        todo!()
+        false
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -57,11 +57,13 @@ impl CnvType for Expression {
 
     fn call_method(
         &self,
-        _name: CallableIdentifier,
+        name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _context: &mut RunnerContext,
+        _context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
-        todo!()
+        match name {
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
+        }
     }
 
     fn get_property(&self, _name: &str) -> Option<PropertyValue> {

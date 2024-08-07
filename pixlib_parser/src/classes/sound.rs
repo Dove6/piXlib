@@ -111,7 +111,7 @@ impl CnvType for Sound {
         &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
-        context: &mut RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
@@ -126,7 +126,7 @@ impl CnvType for Sound {
                 // TODO: play sound
                 Ok(None)
             }
-            _ => todo!(),
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
         }
     }
 

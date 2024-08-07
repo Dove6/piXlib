@@ -39,28 +39,40 @@ impl Condition {
         todo!()
     }
 
-    pub fn check(&self, context: &mut RunnerContext) -> RunnerResult<bool> {
+    pub fn check(&self) -> RunnerResult<bool> {
         let Some(left) = &self.initial_properties.operand1 else {
             return Err(RunnerError::MissingLeftOperand);
         };
         let Some(right) = &self.initial_properties.operand2 else {
             return Err(RunnerError::MissingRightOperand);
         };
-        let left = context
-            .runner
+        let runner = Arc::clone(&self.parent.parent.runner);
+        let context = RunnerContext {
+            runner: Arc::clone(&runner),
+            self_object: self.parent.name.clone(),
+            current_object: self.parent.name.clone(),
+        };
+        let left = runner
             .get_object(left)
             .and_then(|o| {
-                o.call_method(CallableIdentifier::Method("GET"), &Vec::new(), context)
-                    .transpose()
+                o.call_method(
+                    CallableIdentifier::Method("GET"),
+                    &Vec::new(),
+                    Some(context.clone()),
+                )
+                .transpose()
             })
             .transpose()?
             .unwrap_or_else(|| CnvValue::String(left.clone()));
-        let right = context
-            .runner
+        let right = runner
             .get_object(right)
             .and_then(|o| {
-                o.call_method(CallableIdentifier::Method("GET"), &Vec::new(), context)
-                    .transpose()
+                o.call_method(
+                    CallableIdentifier::Method("GET"),
+                    &Vec::new(),
+                    Some(context.clone()),
+                )
+                .transpose()
             })
             .transpose()?
             .unwrap_or_else(|| CnvValue::String(right.clone()));
@@ -125,16 +137,14 @@ impl CnvType for Condition {
         &self,
         name: CallableIdentifier,
         _arguments: &[CnvValue],
-        context: &mut RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
-        eprintln!(
-            "Calling method {:?} of condition {}",
-            name, self.parent.name
-        );
+        // eprintln!(
+        //     "Calling method {:?} of condition {}",
+        //     name, self.parent.name
+        // );
         match name {
-            CallableIdentifier::Method("CHECK") => {
-                self.check(context).map(|v| Some(CnvValue::Boolean(v)))
-            }
+            CallableIdentifier::Method("CHECK") => self.check().map(|v| Some(CnvValue::Boolean(v))),
             CallableIdentifier::Event("ONRUNTIMEFAILED") => {
                 if let Some(v) = self.initial_properties.on_runtime_failed.as_ref() {
                     v.run(context)
@@ -147,7 +157,7 @@ impl CnvType for Condition {
                 }
                 Ok(None)
             }
-            _ => todo!(),
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
         }
     }
 

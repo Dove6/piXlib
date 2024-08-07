@@ -102,7 +102,7 @@ impl CnvType for Episode {
         &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
-        _context: &mut RunnerContext,
+        _context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
@@ -113,7 +113,7 @@ impl CnvType for Episode {
                     .change_scene(&arguments[0].to_string())?;
                 Ok(None)
             }
-            _ => todo!(),
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
         }
     }
 

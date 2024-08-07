@@ -53,19 +53,24 @@ impl Behavior {
         todo!()
     }
 
-    pub fn run(&self, context: &mut RunnerContext) -> RunnerResult<()> {
+    pub fn run(&self) -> RunnerResult<()> {
+        let context = RunnerContext {
+            runner: Arc::clone(&self.parent.parent.runner),
+            self_object: self.parent.name.clone(),
+            current_object: self.parent.name.clone(),
+        };
         if let Some(condition) = self.initial_properties.condition.as_ref() {
             let condition = context.runner.get_object(condition).unwrap();
             match condition.call_method(
                 CallableIdentifier::Method("CHECK"),
                 &Vec::new(),
-                context,
+                Some(context.clone()),
             )? {
                 Some(CnvValue::Boolean(false)) => {
                     condition.call_method(
                         CallableIdentifier::Event("ONRUNTIMEFAILED"),
                         &Vec::new(),
-                        context,
+                        Some(context.clone()),
                     )?;
                     return Ok(());
                 }
@@ -73,7 +78,7 @@ impl Behavior {
                     condition.call_method(
                         CallableIdentifier::Event("ONRUNTIMESUCCESS"),
                         &Vec::new(),
-                        context,
+                        Some(context.clone()),
                     )?;
                 }
                 _ => todo!(),
@@ -123,7 +128,7 @@ impl CnvType for Behavior {
         &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
-        context: &mut RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
@@ -136,7 +141,7 @@ impl CnvType for Behavior {
                 Ok(None)
             }
             CallableIdentifier::Method("RUN") => {
-                self.run(context)?;
+                self.run()?;
                 Ok(None)
             }
             CallableIdentifier::Method("RUNC") => {
@@ -170,7 +175,7 @@ impl CnvType for Behavior {
                 }
                 Ok(None)
             }
-            _ => todo!(),
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
         }
     }
 

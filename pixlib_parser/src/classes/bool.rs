@@ -75,7 +75,7 @@ impl CnvType for Bool {
         &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
-        context: &mut RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("SET") => {
@@ -106,7 +106,7 @@ impl CnvType for Bool {
                 }
                 Ok(None)
             }
-            _ => todo!(),
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
         }
     }
 
@@ -237,12 +237,7 @@ impl BoolState {
         todo!()
     }
 
-    pub fn set(
-        &mut self,
-        boolean: &Bool,
-        context: &mut RunnerContext,
-        value: bool,
-    ) -> RunnerResult<()> {
+    pub fn set(&mut self, boolean: &Bool, context: RunnerContext, value: bool) -> RunnerResult<()> {
         // SET
         let changed_value = self.value != value;
         self.value = value;
@@ -250,7 +245,7 @@ impl BoolState {
             boolean.call_method(
                 CallableIdentifier::Event("ONCHANGED"),
                 &vec![CnvValue::Boolean(self.value)],
-                context,
+                context.clone(),
             )?;
         }
         boolean.call_method(

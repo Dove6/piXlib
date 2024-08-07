@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::classes::CnvObject;
+use crate::classes::{CallableIdentifier, CnvObject};
 
 #[derive(Debug, Clone)]
 pub enum CnvValue {
@@ -26,8 +26,12 @@ impl CnvValue {
                     0
                 }
             }
-            CnvValue::String(_) => 0,
-            CnvValue::Reference(_) => todo!(),
+            CnvValue::String(s) => s.parse().unwrap(),
+            CnvValue::Reference(object) => object
+                .call_method(CallableIdentifier::Method("GET"), &Vec::new(), None)
+                .unwrap()
+                .unwrap()
+                .to_integer(),
         }
     }
 

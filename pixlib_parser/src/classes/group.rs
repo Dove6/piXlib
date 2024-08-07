@@ -131,12 +131,15 @@ impl CnvType for Group {
         &self,
         name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _context: &mut RunnerContext,
+        _context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         eprintln!(
             "Skipping method call {:?} for GROUP {:?}",
             name, self.parent.name
         ); // TODO: fill in
+           // match name {
+           //     ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
+           // }
         Ok(None)
     }
 

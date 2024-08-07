@@ -45,7 +45,7 @@ struct ImageState {
     pub is_visible: bool,
 
     // general graphics state
-    pub position: (i32, i32),
+    pub position: (isize, isize),
     pub opacity: usize,
     // anchor: ???,
     pub is_flipped_horizontally: bool,
@@ -119,11 +119,19 @@ impl Image {
         image
     }
 
-    pub fn is_visible(&self) -> bool {
+    pub fn is_visible(&self) -> RunnerResult<bool> {
         self.state.borrow().is_visible()
     }
 
+    pub fn get_priority(&self) -> RunnerResult<isize> {
+        self.state.borrow().get_priority()
+    }
+
     ///
+
+    pub fn get_position(&self) -> RunnerResult<(isize, isize)> {
+        Ok(self.state.borrow().position)
+    }
 
     pub fn get_image_to_show(&self) -> RunnerResult<Option<(ImageDefinition, ImageData)>> {
         let state = self.state.borrow();
@@ -178,7 +186,7 @@ impl CnvType for Image {
         &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
-        context: &mut RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
@@ -246,10 +254,11 @@ impl CnvType for Image {
                 self.state.borrow_mut().get_position_y();
                 Ok(None)
             }
-            CallableIdentifier::Method("GETPRIORITY") => {
-                self.state.borrow_mut().get_priority();
-                Ok(None)
-            }
+            CallableIdentifier::Method("GETPRIORITY") => self
+                .state
+                .borrow_mut()
+                .get_priority()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
             CallableIdentifier::Method("GETSLIDECOMPS") => {
                 self.state.borrow_mut().get_slide_comps();
                 Ok(None)
@@ -278,10 +287,11 @@ impl CnvType for Image {
                 self.state.borrow_mut().is_near();
                 Ok(None)
             }
-            CallableIdentifier::Method("ISVISIBLE") => {
-                self.state.borrow_mut().is_visible();
-                Ok(None)
-            }
+            CallableIdentifier::Method("ISVISIBLE") => self
+                .state
+                .borrow_mut()
+                .is_visible()
+                .map(|v| Some(CnvValue::Boolean(v))),
             CallableIdentifier::Method("LINK") => {
                 self.state.borrow_mut().link();
                 Ok(None)
@@ -418,7 +428,7 @@ impl CnvType for Image {
                 }
                 Ok(None)
             }
-            _ => todo!(),
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
         }
     }
 
@@ -615,8 +625,8 @@ impl ImageState {
         todo!()
     }
 
-    pub fn get_priority(&self) {
-        todo!()
+    pub fn get_priority(&self) -> RunnerResult<isize> {
+        Ok(self.priority)
     }
 
     pub fn get_slide_comps(&self) {
@@ -647,8 +657,8 @@ impl ImageState {
         todo!()
     }
 
-    pub fn is_visible(&self) -> bool {
-        self.is_visible
+    pub fn is_visible(&self) -> RunnerResult<bool> {
+        Ok(self.is_visible)
     }
 
     pub fn link(&self) {

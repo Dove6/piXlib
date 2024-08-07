@@ -75,7 +75,7 @@ impl CnvType for Int {
         &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
-        context: &mut RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("SET") => {
@@ -106,7 +106,7 @@ impl CnvType for Int {
                 }
                 Ok(None)
             }
-            _ => todo!(),
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
         }
     }
 
@@ -272,12 +272,7 @@ impl IntegerState {
         todo!()
     }
 
-    pub fn set(
-        &mut self,
-        integer: &Int,
-        context: &mut RunnerContext,
-        value: i32,
-    ) -> RunnerResult<()> {
+    pub fn set(&mut self, integer: &Int, context: RunnerContext, value: i32) -> RunnerResult<()> {
         // SET
         let changed_value = self.value != value;
         self.value = value;
@@ -285,7 +280,7 @@ impl IntegerState {
             integer.call_method(
                 CallableIdentifier::Event("ONCHANGED"),
                 &vec![CnvValue::Integer(self.value)],
-                context,
+                context.clone(),
             )?;
         }
         integer.call_method(

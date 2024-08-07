@@ -75,14 +75,14 @@ impl CnvType for Str {
         &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
-        context: &mut RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("SET") => {
                 assert!(arguments.len() == 1);
                 self.state
                     .borrow_mut()
-                    .set(self, context, &arguments[0].to_string())?;
+                    .set(self, &arguments[0].to_string())?;
                 Ok(None)
             }
             CallableIdentifier::Method("GET") => {
@@ -106,7 +106,7 @@ impl CnvType for Str {
                 }
                 Ok(None)
             }
-            _ => todo!(),
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
         }
     }
 
@@ -254,20 +254,20 @@ impl StringState {
         todo!()
     }
 
-    pub fn set(
-        &mut self,
-        string: &Str,
-        context: &mut RunnerContext,
-        value: &str,
-    ) -> RunnerResult<()> {
+    pub fn set(&mut self, string: &Str, value: &str) -> RunnerResult<()> {
         // SET
         let changed_value = self.value != value;
         self.value = value.to_owned();
+        let context = RunnerContext {
+            runner: Arc::clone(&string.parent.parent.runner),
+            self_object: string.parent.name.clone(),
+            current_object: string.parent.name.clone(),
+        };
         if changed_value {
             string.call_method(
                 CallableIdentifier::Event("ONCHANGED"),
                 &vec![CnvValue::String(self.value.clone())],
-                context,
+                context.clone(),
             )?;
         }
         string.call_method(

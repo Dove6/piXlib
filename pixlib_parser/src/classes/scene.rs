@@ -286,7 +286,7 @@ impl CnvType for Scene {
         &self,
         name: CallableIdentifier,
         _arguments: &[CnvValue],
-        context: &mut RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
             CallableIdentifier::Event("ONINIT") => {
@@ -295,7 +295,7 @@ impl CnvType for Scene {
                 }
                 Ok(None)
             }
-            _ => todo!(),
+            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
         }
     }
 
