@@ -14,17 +14,17 @@ use super::*;
 #[derive(Debug, Clone)]
 pub struct AnimationProperties {
     // ANIMO
-    pub as_button: Option<bool>,               // ASBUTTON [s]
-    pub filename: Option<String>,              // FILENAME [s]
-    pub flush_after_played: Option<bool>,      // FLUSHAFTERPLAYED []
-    pub fps: Option<i32>,                      // FPS [gs]
-    pub monitor_collision: Option<bool>,       // MONITORCOLLISION [ss]
-    pub monitor_collision_alpha: Option<bool>, // MONITORCOLLISIONALPHA []
-    pub preload: Option<bool>,                 // PRELOAD []
-    pub priority: Option<i32>,                 // PRIORITY [gs]
-    pub release: Option<bool>,                 // RELEASE []
-    pub to_canvas: Option<bool>,               // TOCANVAS []
-    pub visible: Option<bool>,                 // VISIBLE [gss]
+    pub as_button: Option<bool>,               // ASBUTTON
+    pub filename: Option<String>,              // FILENAME
+    pub flush_after_played: Option<bool>,      // FLUSHAFTERPLAYED
+    pub fps: Option<i32>,                      // FPS
+    pub monitor_collision: Option<bool>,       // MONITORCOLLISION
+    pub monitor_collision_alpha: Option<bool>, // MONITORCOLLISIONALPHA
+    pub preload: Option<bool>,                 // PRELOAD
+    pub priority: Option<i32>,                 // PRIORITY
+    pub release: Option<bool>,                 // RELEASE
+    pub to_canvas: Option<bool>,               // TOCANVAS
+    pub visible: Option<bool>,                 // VISIBLE
 
     pub on_click: Option<Arc<IgnorableProgram>>, // ONCLICK signal
     pub on_collision: Option<Arc<IgnorableProgram>>, // ONCOLLISION signal
@@ -173,8 +173,8 @@ impl Animation {
         Ok(self.state.borrow().position)
     }
 
-    pub fn tick(&self, duration: f64) -> RunnerResult<()> {
-        self.state.borrow_mut().tick(&self, duration)
+    pub fn step(&self, seconds: f64) -> RunnerResult<()> {
+        self.state.borrow_mut().step(&self, seconds)
     }
 
     pub fn get_frame_to_show(
@@ -1347,7 +1347,7 @@ impl AnimationState {
         1f64 / (self.fps as f64)
     }
 
-    pub fn tick(&mut self, animation: &Animation, duration: f64) -> RunnerResult<()> {
+    pub fn step(&mut self, animation: &Animation, seconds: f64) -> RunnerResult<()> {
         let AnimationFileData::Loaded(loaded_data) = &self.file_data else {
             return Ok(());
         };
@@ -1358,7 +1358,7 @@ impl AnimationState {
         let sequence = &loaded_data.sequences[self.current_frame.sequence_idx];
         let sequence_looping = sequence.looping;
         let sequence_length = sequence.frames.len();
-        self.current_frame_duration += duration;
+        self.current_frame_duration += seconds;
         let max_frame_duration = self.get_max_frame_duration();
         while self.current_frame_duration >= max_frame_duration {
             // eprintln!("{} / {}", self.current_frame_duration, max_frame_duration);

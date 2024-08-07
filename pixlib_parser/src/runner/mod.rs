@@ -177,7 +177,7 @@ impl CnvRunner {
                             .as_any_mut()
                             .downcast_mut::<Animation>()
                             .unwrap();
-                        animation.tick(seconds)?;
+                        animation.step(seconds)?;
                     }
                 }
             }
