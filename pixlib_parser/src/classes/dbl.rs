@@ -106,7 +106,7 @@ impl CnvType for Dbl {
                 }
                 Ok(None)
             }
-            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
+            ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }
 

@@ -187,7 +187,7 @@ impl CnvType for System {
         _context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
-            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
+            ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }
 

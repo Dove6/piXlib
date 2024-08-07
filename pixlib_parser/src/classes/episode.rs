@@ -113,7 +113,7 @@ impl CnvType for Episode {
                     .change_scene(&arguments[0].to_string())?;
                 Ok(None)
             }
-            ident => todo!("{:?}.call_method for {:?}", self.get_type_id(), ident),
+            ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }
 
