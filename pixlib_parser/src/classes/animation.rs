@@ -559,10 +559,14 @@ impl CnvType for Animation {
                 self.state.borrow_mut().set_opacity();
                 Ok(None)
             }
-            CallableIdentifier::Method("SETPOSITION") => {
-                self.state.borrow_mut().set_position();
-                Ok(None)
-            }
+            CallableIdentifier::Method("SETPOSITION") => self
+                .state
+                .borrow_mut()
+                .set_position(
+                    arguments[0].to_integer() as isize,
+                    arguments[1].to_integer() as isize,
+                )
+                .map(|_| None),
             CallableIdentifier::Method("SETPRIORITY") => {
                 self.state.borrow_mut().set_priority();
                 Ok(None)
@@ -1348,9 +1352,10 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn set_position(&self) {
+    pub fn set_position(&mut self, x: isize, y: isize) -> RunnerResult<()> {
         // SETPOSITION
-        todo!()
+        self.position = (x, y);
+        Ok(())
     }
 
     pub fn set_priority(&self) {

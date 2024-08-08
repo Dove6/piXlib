@@ -43,6 +43,10 @@ impl Dbl {
             initial_properties,
         }
     }
+
+    pub fn get(&self) -> RunnerResult<f64> {
+        self.state.borrow().get()
+    }
 }
 
 impl CnvType for Dbl {

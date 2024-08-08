@@ -3,7 +3,9 @@ use std::{
     sync::Arc,
 };
 
-use crate::classes::{CallableIdentifier, CnvObject};
+use crate::classes::{CallableIdentifier, CnvContent, CnvObject};
+
+use super::RunnerResult;
 
 #[derive(Debug, Clone)]
 pub enum CnvValue {
@@ -27,11 +29,7 @@ impl CnvValue {
                 }
             }
             CnvValue::String(s) => s.parse().unwrap(),
-            CnvValue::Reference(object) => object
-                .call_method(CallableIdentifier::Method("GET"), &Vec::new(), None)
-                .unwrap()
-                .unwrap()
-                .to_integer(),
+            CnvValue::Reference(r) => get_reference_value(r).unwrap().to_integer(),
         }
     }
 
@@ -50,11 +48,7 @@ impl CnvValue {
                 .parse()
                 // .inspect_err(|e| eprintln!("{} for string->double {}", e, s))
                 .unwrap(),
-            CnvValue::Reference(r) => r
-                .call_method(CallableIdentifier::Method("GET"), &Vec::new(), None)
-                .unwrap()
-                .unwrap()
-                .to_double(),
+            CnvValue::Reference(r) => get_reference_value(r).unwrap().to_double(),
         }
     }
 
@@ -64,11 +58,7 @@ impl CnvValue {
             CnvValue::Double(d) => *d != 0.0, // TODO: check
             CnvValue::Boolean(b) => *b,
             CnvValue::String(s) => !s.is_empty(), // TODO: check
-            CnvValue::Reference(r) => r
-                .call_method(CallableIdentifier::Method("GET"), &Vec::new(), None)
-                .unwrap()
-                .unwrap()
-                .to_boolean(),
+            CnvValue::Reference(r) => get_reference_value(r).unwrap().to_boolean(),
         }
     }
 
@@ -81,6 +71,17 @@ impl CnvValue {
             CnvValue::String(s) => s.clone(),
             CnvValue::Reference(r) => r.name.clone(), // TODO: not always
         }
+    }
+}
+
+fn get_reference_value(r: &Arc<CnvObject>) -> RunnerResult<CnvValue> {
+    match &*r.content.borrow() {
+        CnvContent::Expression(e) => e.calculate(),
+        CnvContent::Integer(i) => i.get().map(|v| CnvValue::Integer(v)),
+        CnvContent::Double(d) => d.get().map(|v| CnvValue::Double(v)),
+        CnvContent::Bool(b) => b.get().map(|v| CnvValue::Boolean(v)),
+        CnvContent::String(s) => s.get().map(|v| CnvValue::String(v)),
+        _ => todo!(),
     }
 }
 

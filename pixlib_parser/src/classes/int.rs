@@ -43,6 +43,10 @@ impl Int {
             initial_properties,
         }
     }
+
+    pub fn get(&self) -> RunnerResult<i32> {
+        self.state.borrow().get()
+    }
 }
 
 impl CnvType for Int {

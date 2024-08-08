@@ -43,6 +43,11 @@ impl Condition {
     }
 
     pub fn check(&self) -> RunnerResult<bool> {
+        let Some(operator) = &self.initial_properties.operator else {
+            return Err(RunnerError::MissingOperator {
+                object_name: self.parent.name.clone(),
+            });
+        };
         let Some(left) = &self.initial_properties.operand1 else {
             return Err(RunnerError::MissingLeftOperand {
                 object_name: self.parent.name.clone(),
@@ -61,11 +66,6 @@ impl Condition {
         };
         let left = left.calculate(context.clone())?.unwrap();
         let right = right.calculate(context.clone())?.unwrap();
-        let Some(operator) = &self.initial_properties.operator else {
-            return Err(RunnerError::MissingOperator {
-                object_name: self.parent.name.clone(),
-            });
-        };
         let result = match operator {
             ConditionOperator::Equal => Ok(&left == &right),
             ConditionOperator::NotEqual => Ok(&left != &right),

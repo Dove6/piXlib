@@ -43,6 +43,10 @@ impl Str {
             initial_properties,
         }
     }
+
+    pub fn get(&self) -> RunnerResult<String> {
+        self.state.borrow().get()
+    }
 }
 
 impl CnvType for Str {

@@ -43,6 +43,10 @@ impl Bool {
             initial_properties,
         }
     }
+
+    pub fn get(&self) -> RunnerResult<bool> {
+        self.state.borrow().get()
+    }
 }
 
 impl CnvType for Bool {
