@@ -4,7 +4,7 @@ use std::{any::Any, cell::RefCell, sync::Arc};
 use xxhash_rust::xxh3::xxh3_64;
 
 use crate::{
-    ast::IgnorableProgram,
+    ast::ParsedScript,
     common::DroppableRefMut,
     runner::{InternalEvent, RunnerError},
 };
@@ -26,21 +26,21 @@ pub struct AnimationProperties {
     pub to_canvas: Option<bool>,               // TOCANVAS
     pub visible: Option<bool>,                 // VISIBLE
 
-    pub on_click: Option<Arc<IgnorableProgram>>, // ONCLICK signal
-    pub on_collision: Option<Arc<IgnorableProgram>>, // ONCOLLISION signal
-    pub on_collision_finished: Option<Arc<IgnorableProgram>>, // ONCOLLISIONFINISHED signal
-    pub on_done: Option<Arc<IgnorableProgram>>,  // ONDONE signal
-    pub on_finished: Option<Arc<IgnorableProgram>>, // ONFINISHED signal
-    pub on_first_frame: Option<Arc<IgnorableProgram>>, // ONFIRSTFRAME signal
-    pub on_focus_off: Option<Arc<IgnorableProgram>>, // ONFOCUSOFF signal
-    pub on_focus_on: Option<Arc<IgnorableProgram>>, // ONFOCUSON signal
-    pub on_frame_changed: Option<Arc<IgnorableProgram>>, // ONFRAMECHANGED signal
-    pub on_init: Option<Arc<IgnorableProgram>>,  // ONINIT signal
-    pub on_paused: Option<Arc<IgnorableProgram>>, // ONPAUSED signal
-    pub on_release: Option<Arc<IgnorableProgram>>, // ONRELEASE signal
-    pub on_resumed: Option<Arc<IgnorableProgram>>, // ONRESUMED signal
-    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
-    pub on_started: Option<Arc<IgnorableProgram>>, // ONSTARTED signal
+    pub on_click: Option<Arc<ParsedScript>>, // ONCLICK signal
+    pub on_collision: Option<Arc<ParsedScript>>, // ONCOLLISION signal
+    pub on_collision_finished: Option<Arc<ParsedScript>>, // ONCOLLISIONFINISHED signal
+    pub on_done: Option<Arc<ParsedScript>>,  // ONDONE signal
+    pub on_finished: Option<Arc<ParsedScript>>, // ONFINISHED signal
+    pub on_first_frame: Option<Arc<ParsedScript>>, // ONFIRSTFRAME signal
+    pub on_focus_off: Option<Arc<ParsedScript>>, // ONFOCUSOFF signal
+    pub on_focus_on: Option<Arc<ParsedScript>>, // ONFOCUSON signal
+    pub on_frame_changed: Option<Arc<ParsedScript>>, // ONFRAMECHANGED signal
+    pub on_init: Option<Arc<ParsedScript>>,  // ONINIT signal
+    pub on_paused: Option<Arc<ParsedScript>>, // ONPAUSED signal
+    pub on_release: Option<Arc<ParsedScript>>, // ONRELEASE signal
+    pub on_resumed: Option<Arc<ParsedScript>>, // ONRESUMED signal
+    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
+    pub on_started: Option<Arc<ParsedScript>>, // ONSTARTED signal
 }
 
 #[derive(Debug, Clone, Default)]
@@ -77,21 +77,21 @@ struct AnimationState {
 
 #[derive(Debug, Clone)]
 pub struct AnimationEventHandlers {
-    pub on_click: Option<Arc<IgnorableProgram>>, // ONCLICK signal
-    pub on_collision: Option<Arc<IgnorableProgram>>, // ONCOLLISION signal
-    pub on_collision_finished: Option<Arc<IgnorableProgram>>, // ONCOLLISIONFINISHED signal
-    pub on_done: Option<Arc<IgnorableProgram>>,  // ONDONE signal
-    pub on_finished: Option<Arc<IgnorableProgram>>, // ONFINISHED signal
-    pub on_first_frame: Option<Arc<IgnorableProgram>>, // ONFIRSTFRAME signal
-    pub on_focus_off: Option<Arc<IgnorableProgram>>, // ONFOCUSOFF signal
-    pub on_focus_on: Option<Arc<IgnorableProgram>>, // ONFOCUSON signal
-    pub on_frame_changed: Option<Arc<IgnorableProgram>>, // ONFRAMECHANGED signal
-    pub on_init: Option<Arc<IgnorableProgram>>,  // ONINIT signal
-    pub on_paused: Option<Arc<IgnorableProgram>>, // ONPAUSED signal
-    pub on_release: Option<Arc<IgnorableProgram>>, // ONRELEASE signal
-    pub on_resumed: Option<Arc<IgnorableProgram>>, // ONRESUMED signal
-    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
-    pub on_started: Option<Arc<IgnorableProgram>>, // ONSTARTED signal
+    pub on_click: Option<Arc<ParsedScript>>,     // ONCLICK signal
+    pub on_collision: Option<Arc<ParsedScript>>, // ONCOLLISION signal
+    pub on_collision_finished: Option<Arc<ParsedScript>>, // ONCOLLISIONFINISHED signal
+    pub on_done: Option<Arc<ParsedScript>>,      // ONDONE signal
+    pub on_finished: Option<Arc<ParsedScript>>,  // ONFINISHED signal
+    pub on_first_frame: Option<Arc<ParsedScript>>, // ONFIRSTFRAME signal
+    pub on_focus_off: Option<Arc<ParsedScript>>, // ONFOCUSOFF signal
+    pub on_focus_on: Option<Arc<ParsedScript>>,  // ONFOCUSON signal
+    pub on_frame_changed: Option<Arc<ParsedScript>>, // ONFRAMECHANGED signal
+    pub on_init: Option<Arc<ParsedScript>>,      // ONINIT signal
+    pub on_paused: Option<Arc<ParsedScript>>,    // ONPAUSED signal
+    pub on_release: Option<Arc<ParsedScript>>,   // ONRELEASE signal
+    pub on_resumed: Option<Arc<ParsedScript>>,   // ONRESUMED signal
+    pub on_signal: Option<Arc<ParsedScript>>,    // ONSIGNAL signal
+    pub on_started: Option<Arc<ParsedScript>>,   // ONSTARTED signal
 }
 
 #[derive(Debug, Clone)]
@@ -269,114 +269,116 @@ impl CnvType for Animation {
                 Ok(None)
             }
             CallableIdentifier::Method("GETALPHA") => {
-                self.state.borrow_mut().get_alpha();
+                self.state.borrow().get_alpha();
                 Ok(None)
             }
             CallableIdentifier::Method("GETANCHOR") => {
-                self.state.borrow_mut().get_anchor();
+                self.state.borrow().get_anchor();
                 Ok(None)
             }
             CallableIdentifier::Method("GETCENTERX") => {
-                self.state.borrow_mut().get_center_x();
+                self.state.borrow().get_center_x();
                 Ok(None)
             }
             CallableIdentifier::Method("GETCENTERY") => {
-                self.state.borrow_mut().get_center_y();
+                self.state.borrow().get_center_y();
                 Ok(None)
             }
             CallableIdentifier::Method("GETCFRAMEINEVENT") => {
-                self.state.borrow_mut().get_cframe_in_event();
+                self.state.borrow().get_cframe_in_event();
                 Ok(None)
             }
             CallableIdentifier::Method("GETCURRFRAMEPOSX") => {
-                self.state.borrow_mut().get_curr_frame_pos_x();
+                self.state.borrow().get_curr_frame_pos_x();
                 Ok(None)
             }
             CallableIdentifier::Method("GETCURRFRAMEPOSY") => {
-                self.state.borrow_mut().get_curr_frame_pos_y();
+                self.state.borrow().get_curr_frame_pos_y();
                 Ok(None)
             }
             CallableIdentifier::Method("GETENDX") => {
-                self.state.borrow_mut().get_end_x();
+                self.state.borrow().get_end_x();
                 Ok(None)
             }
             CallableIdentifier::Method("GETENDY") => {
-                self.state.borrow_mut().get_end_y();
+                self.state.borrow().get_end_y();
                 Ok(None)
             }
             CallableIdentifier::Method("GETEVENTNAME") => {
-                self.state.borrow_mut().get_event_name();
+                self.state.borrow().get_event_name();
                 Ok(None)
             }
             CallableIdentifier::Method("GETEVENTNUMBER") => {
-                self.state.borrow_mut().get_event_number();
+                self.state.borrow().get_event_number();
                 Ok(None)
             }
             CallableIdentifier::Method("GETFPS") => {
-                self.state.borrow_mut().get_fps();
+                self.state.borrow().get_fps();
                 Ok(None)
             }
             CallableIdentifier::Method("GETFRAME") => {
-                self.state.borrow_mut().get_frame();
+                self.state.borrow().get_frame();
                 Ok(None)
             }
             CallableIdentifier::Method("GETFRAMENAME") => {
-                self.state.borrow_mut().get_frame_name();
+                self.state.borrow().get_frame_name();
                 Ok(None)
             }
             CallableIdentifier::Method("GETFRAMENO") => {
-                self.state.borrow_mut().get_frame_no();
+                self.state.borrow().get_frame_no();
                 Ok(None)
             }
             CallableIdentifier::Method("GETHEIGHT") => {
-                self.state.borrow_mut().get_height();
+                self.state.borrow().get_height();
                 Ok(None)
             }
             CallableIdentifier::Method("GETMAXHEIGHT") => {
-                self.state.borrow_mut().get_max_height();
+                self.state.borrow().get_max_height();
                 Ok(None)
             }
             CallableIdentifier::Method("GETMAXWIDTH") => {
-                self.state.borrow_mut().get_max_width();
+                self.state.borrow().get_max_width();
                 Ok(None)
             }
             CallableIdentifier::Method("GETNOE") => {
-                self.state.borrow_mut().get_noe();
+                self.state.borrow().get_noe();
                 Ok(None)
             }
             CallableIdentifier::Method("GETNOF") => {
-                self.state.borrow_mut().get_nof();
+                self.state.borrow().get_nof();
                 Ok(None)
             }
             CallableIdentifier::Method("GETNOFINEVENT") => {
                 self.state
-                    .borrow_mut()
+                    .borrow()
                     .get_nof_in_event(&arguments[0].to_string());
                 Ok(None)
             }
             CallableIdentifier::Method("GETOPACITY") => {
-                self.state.borrow_mut().get_opacity();
+                self.state.borrow().get_opacity();
                 Ok(None)
             }
             CallableIdentifier::Method("GETPIXEL") => {
-                self.state.borrow_mut().get_pixel();
+                self.state.borrow().get_pixel();
                 Ok(None)
             }
-            CallableIdentifier::Method("GETPOSITIONX") => {
-                self.state.borrow_mut().get_position_x();
-                Ok(None)
-            }
-            CallableIdentifier::Method("GETPOSITIONY") => {
-                self.state.borrow_mut().get_position_y();
-                Ok(None)
-            }
+            CallableIdentifier::Method("GETPOSITIONX") => self
+                .state
+                .borrow()
+                .get_position_x()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
+            CallableIdentifier::Method("GETPOSITIONY") => self
+                .state
+                .borrow()
+                .get_position_y()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
             CallableIdentifier::Method("GETPRIORITY") => self
                 .state
-                .borrow_mut()
+                .borrow()
                 .get_priority()
                 .map(|v| Some(CnvValue::Integer(v as i32))),
             CallableIdentifier::Method("GETWIDTH") => {
-                self.state.borrow_mut().get_width();
+                self.state.borrow().get_width();
                 Ok(None)
             }
             CallableIdentifier::Method("HIDE") => {
@@ -388,24 +390,37 @@ impl CnvType for Animation {
                 Ok(None)
             }
             CallableIdentifier::Method("ISAT") => {
-                self.state.borrow_mut().is_at();
+                self.state.borrow().is_at();
                 Ok(None)
             }
             CallableIdentifier::Method("ISINSIDE") => {
-                self.state.borrow_mut().is_inside();
+                self.state.borrow().is_inside();
                 Ok(None)
             }
             CallableIdentifier::Method("ISNEAR") => {
-                self.state.borrow_mut().is_near();
-                Ok(None)
+                let other = match &arguments[0] {
+                    CnvValue::Reference(r) => Arc::clone(r),
+                    any_type => {
+                        let name = any_type.to_string();
+                        self.parent
+                            .parent
+                            .runner
+                            .get_object(&name)
+                            .ok_or(RunnerError::ObjectNotFound { name })?
+                    }
+                };
+                self.state
+                    .borrow()
+                    .is_near(other, arguments[1].to_integer() as usize)
+                    .map(|v| Some(CnvValue::Boolean(v)))
             }
             CallableIdentifier::Method("ISPLAYING") => {
-                self.state.borrow_mut().is_playing();
+                self.state.borrow().is_playing();
                 Ok(None)
             }
             CallableIdentifier::Method("ISVISIBLE") => self
                 .state
-                .borrow_mut()
+                .borrow()
                 .is_visible()
                 .map(|v| Some(CnvValue::Boolean(v))),
             CallableIdentifier::Method("LOAD") => {
@@ -574,93 +589,108 @@ impl CnvType for Animation {
             }
             CallableIdentifier::Event("ONCLICK") => {
                 if let Some(v) = self.event_handlers.on_click.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONCOLLISION") => {
                 if let Some(v) = self.event_handlers.on_collision.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONCOLLISIONFINISHED") => {
                 if let Some(v) = self.event_handlers.on_collision_finished.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONDONE") => {
                 if let Some(v) = self.event_handlers.on_done.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONFINISHED") => {
                 if let Some(v) = self.event_handlers.on_finished.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONFIRSTFRAME") => {
                 if let Some(v) = self.event_handlers.on_first_frame.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONFOCUSOFF") => {
                 if let Some(v) = self.event_handlers.on_focus_off.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONFOCUSON") => {
                 if let Some(v) = self.event_handlers.on_focus_on.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONFRAMECHANGED") => {
                 if let Some(v) = self.event_handlers.on_frame_changed.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.event_handlers.on_init.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONPAUSED") => {
                 if let Some(v) = self.event_handlers.on_paused.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONRELEASE") => {
                 if let Some(v) = self.event_handlers.on_release.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONRESUMED") => {
                 if let Some(v) = self.event_handlers.on_resumed.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONSIGNAL") => {
                 if let Some(v) = self.event_handlers.on_signal.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONSTARTED") => {
                 if let Some(v) = self.event_handlers.on_started.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
@@ -972,14 +1002,14 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn get_position_x(&self) {
+    pub fn get_position_x(&self) -> RunnerResult<isize> {
         // GETPOSITIONX
-        todo!()
+        Ok(self.position.0)
     }
 
-    pub fn get_position_y(&self) {
+    pub fn get_position_y(&self) -> RunnerResult<isize> {
         // GETPOSITIONY
-        todo!()
+        Ok(self.position.1)
     }
 
     pub fn get_priority(&self) -> RunnerResult<isize> {
@@ -1012,9 +1042,20 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn is_near(&self) {
+    pub fn is_near(&self, other: Arc<CnvObject>, range: usize) -> RunnerResult<bool> {
         // ISNEAR
-        todo!()
+        let other_guard = other.content.borrow();
+        let other = other_guard
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<Animation>()
+            .unwrap();
+        let self_position = self.position;
+        let other_position = other.get_position()?;
+        Ok(self_position.0.abs_diff(other_position.0).pow(2)
+            + self_position.1.abs_diff(other_position.1).pow(2)
+            < range.pow(2))
     }
 
     pub fn is_playing(&self) -> bool {

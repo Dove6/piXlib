@@ -161,7 +161,12 @@ impl PartialEq for &CnvValue {
             CnvValue::Double(d) => *d == other.to_double(),
             CnvValue::Boolean(b) => *b == other.to_boolean(),
             CnvValue::String(s) => *s == other.to_string(),
-            CnvValue::Reference(_) => todo!(),
+            CnvValue::Reference(r) => {
+                &r.call_method(CallableIdentifier::Method("GET"), &Vec::new(), None)
+                    .unwrap()
+                    .unwrap()
+                    == other
+            }
         }
     }
 }

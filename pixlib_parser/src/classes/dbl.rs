@@ -2,6 +2,8 @@ use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_bool, parse_f64, parse_program};
 
+use crate::ast::ParsedScript;
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -12,12 +14,12 @@ pub struct DblInit {
     pub to_ini: Option<bool>,    // TOINI
     pub value: Option<f64>,      // VALUE
 
-    pub on_brutal_changed: Option<Arc<IgnorableProgram>>, // ONBRUTALCHANGED signal
-    pub on_changed: Option<Arc<IgnorableProgram>>,        // ONCHANGED signal
-    pub on_done: Option<Arc<IgnorableProgram>>,           // ONDONE signal
-    pub on_init: Option<Arc<IgnorableProgram>>,           // ONINIT signal
-    pub on_net_changed: Option<Arc<IgnorableProgram>>,    // ONNETCHANGED signal
-    pub on_signal: Option<Arc<IgnorableProgram>>,         // ONSIGNAL signal
+    pub on_brutal_changed: Option<Arc<ParsedScript>>, // ONBRUTALCHANGED signal
+    pub on_changed: Option<Arc<ParsedScript>>,        // ONCHANGED signal
+    pub on_done: Option<Arc<ParsedScript>>,           // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>,           // ONINIT signal
+    pub on_net_changed: Option<Arc<ParsedScript>>,    // ONNETCHANGED signal
+    pub on_signal: Option<Arc<ParsedScript>>,         // ONSIGNAL signal
 }
 
 #[derive(Debug, Clone, Default)]
@@ -90,21 +92,24 @@ impl CnvType for Dbl {
             }
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.initial_properties.on_init.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONCHANGED") => {
                 if let Some(v) = self.initial_properties.on_changed.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONBRUTALCHANGED") => {
                 if let Some(v) = self.initial_properties.on_brutal_changed.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

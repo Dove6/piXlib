@@ -2,14 +2,16 @@ use std::any::Any;
 
 use parsers::{discard_if_empty, parse_program};
 
+use crate::ast::ParsedScript;
+
 use super::*;
 
 #[derive(Debug, Clone)]
 pub struct GroupInit {
     // GROUP
-    pub on_done: Option<Arc<IgnorableProgram>>, // ONDONE signal
-    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
-    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
+    pub on_done: Option<Arc<ParsedScript>>,   // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>,   // ONINIT signal
+    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
 }
 
 #[derive(Debug, Clone)]

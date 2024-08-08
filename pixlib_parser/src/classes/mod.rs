@@ -7,10 +7,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 use crate::runner::RunnerResult;
-use crate::{
-    ast::IgnorableProgram,
-    runner::{CnvStatement, CnvValue, RunnerContext},
-};
+use crate::runner::{CnvStatement, CnvValue, RunnerContext};
 
 pub trait CnvType: std::fmt::Debug {
     fn get_type_id(&self) -> &'static str;

@@ -2,19 +2,22 @@ use std::any::Any;
 
 use parsers::{discard_if_empty, parse_program, ConditionOperator};
 
-use crate::runner::RunnerError;
+use crate::{
+    ast::ParsedScript,
+    runner::{CnvExpression, RunnerError},
+};
 
 use super::*;
 
 #[derive(Debug, Clone)]
 pub struct ConditionInit {
     // CONDITION
-    pub operand1: Option<VariableName>,      // OPERAND1
-    pub operand2: Option<VariableName>,      // OPERAND2
+    pub operand1: Option<Arc<ParsedScript>>, // OPERAND1
+    pub operand2: Option<Arc<ParsedScript>>, // OPERAND2
     pub operator: Option<ConditionOperator>, // OPERATOR
 
-    pub on_runtime_failed: Option<Arc<IgnorableProgram>>, // ONRUNTIMEFAILED signal
-    pub on_runtime_success: Option<Arc<IgnorableProgram>>, // ONRUNTIMESUCCESS signal
+    pub on_runtime_failed: Option<Arc<ParsedScript>>, // ONRUNTIMEFAILED signal
+    pub on_runtime_success: Option<Arc<ParsedScript>>, // ONRUNTIMESUCCESS signal
 }
 
 #[derive(Debug, Clone)]
@@ -56,30 +59,8 @@ impl Condition {
             self_object: self.parent.name.clone(),
             current_object: self.parent.name.clone(),
         };
-        let left = runner
-            .get_object(left)
-            .and_then(|o| {
-                o.call_method(
-                    CallableIdentifier::Method("GET"),
-                    &Vec::new(),
-                    Some(context.clone()),
-                )
-                .transpose()
-            })
-            .transpose()?
-            .unwrap_or_else(|| CnvValue::String(left.clone()));
-        let right = runner
-            .get_object(right)
-            .and_then(|o| {
-                o.call_method(
-                    CallableIdentifier::Method("GET"),
-                    &Vec::new(),
-                    Some(context.clone()),
-                )
-                .transpose()
-            })
-            .transpose()?
-            .unwrap_or_else(|| CnvValue::String(right.clone()));
+        let left = left.calculate(context.clone())?.unwrap();
+        let right = right.calculate(context.clone())?.unwrap();
         let Some(operator) = &self.initial_properties.operator else {
             return Err(RunnerError::MissingOperator {
                 object_name: self.parent.name.clone(),
@@ -157,15 +138,17 @@ impl CnvType for Condition {
             CallableIdentifier::Method("CHECK") => self.check().map(|v| Some(CnvValue::Boolean(v))),
             CallableIdentifier::Event("ONRUNTIMEFAILED") => {
                 if let Some(v) = self.initial_properties.on_runtime_failed.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONRUNTIMESUCCESS") => {
                 if let Some(v) = self.initial_properties.on_runtime_success.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
@@ -191,8 +174,16 @@ impl CnvType for Condition {
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<Self, TypeParsingError> {
-        let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);
-        let operand2 = properties.remove("OPERAND2").and_then(discard_if_empty);
+        let operand1 = properties
+            .remove("OPERAND1")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
+        let operand2 = properties
+            .remove("OPERAND2")
+            .and_then(discard_if_empty)
+            .map(parse_program)
+            .transpose()?;
         let map = properties
             .remove("OPERATOR")
             .and_then(discard_if_empty)

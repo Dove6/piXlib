@@ -2,6 +2,8 @@ use std::any::Any;
 
 use parsers::{discard_if_empty, parse_program};
 
+use crate::ast::ParsedScript;
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -9,11 +11,11 @@ pub struct SequenceInit {
     // SEQUENCE
     pub filename: Option<String>, // FILENAME
 
-    pub on_done: Option<Arc<IgnorableProgram>>, // ONDONE signal
-    pub on_finished: Option<Arc<IgnorableProgram>>, // ONFINISHED signal
-    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
-    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
-    pub on_started: Option<Arc<IgnorableProgram>>, // ONSTARTED signal
+    pub on_done: Option<Arc<ParsedScript>>, // ONDONE signal
+    pub on_finished: Option<Arc<ParsedScript>>, // ONFINISHED signal
+    pub on_init: Option<Arc<ParsedScript>>, // ONINIT signal
+    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
+    pub on_started: Option<Arc<ParsedScript>>, // ONSTARTED signal
 }
 
 #[derive(Debug, Clone)]
@@ -133,9 +135,10 @@ impl CnvType for Sequence {
         match name {
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.initial_properties.on_init.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

@@ -2,6 +2,8 @@ use std::any::Any;
 
 use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program, parse_rect, Rect};
 
+use crate::ast::ParsedScript;
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -19,11 +21,11 @@ pub struct TextInit {
     pub visible: Option<bool>,                 // VISIBLE
     pub vertical_justify: Option<bool>,        // VJUSTIFY
 
-    pub on_collision: Option<Arc<IgnorableProgram>>, // ONCOLLISION signal
-    pub on_collision_finished: Option<Arc<IgnorableProgram>>, // ONCOLLISIONFINISHED signal
-    pub on_done: Option<Arc<IgnorableProgram>>,      // ONDONE signal
-    pub on_init: Option<Arc<IgnorableProgram>>,      // ONINIT signal
-    pub on_signal: Option<Arc<IgnorableProgram>>,    // ONSIGNAL signal
+    pub on_collision: Option<Arc<ParsedScript>>, // ONCOLLISION signal
+    pub on_collision_finished: Option<Arc<ParsedScript>>, // ONCOLLISIONFINISHED signal
+    pub on_done: Option<Arc<ParsedScript>>,      // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>,      // ONINIT signal
+    pub on_signal: Option<Arc<ParsedScript>>,    // ONSIGNAL signal
 }
 
 #[derive(Debug, Clone)]
@@ -204,8 +206,11 @@ impl CnvType for Text {
         "TEXT"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
+    fn has_event(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "ONCOLLISION" | "ONCOLLISIONFINISHED" | "ONDONE" | "ONINIT" | "ONSIGNAL"
+        )
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -220,9 +225,16 @@ impl CnvType for Text {
         &self,
         name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _context: RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.initial_properties.on_init.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }

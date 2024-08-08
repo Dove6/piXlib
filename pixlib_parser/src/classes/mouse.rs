@@ -2,6 +2,8 @@ use std::any::Any;
 
 use parsers::{discard_if_empty, parse_i32, parse_program};
 
+use crate::ast::ParsedScript;
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -10,13 +12,13 @@ pub struct MouseInit {
     pub mouse: Option<String>, // MOUSE
     pub raw: Option<i32>,      // RAW
 
-    pub on_click: Option<Arc<IgnorableProgram>>, // ONCLICK signal
-    pub on_dbl_click: Option<Arc<IgnorableProgram>>, // ONDBLCLICK signal
-    pub on_done: Option<Arc<IgnorableProgram>>,  // ONDONE signal
-    pub on_init: Option<Arc<IgnorableProgram>>,  // ONINIT signal
-    pub on_move: Option<Arc<IgnorableProgram>>,  // ONMOVE signal
-    pub on_release: Option<Arc<IgnorableProgram>>, // ONRELEASE signal
-    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
+    pub on_click: Option<Arc<ParsedScript>>, // ONCLICK signal
+    pub on_dbl_click: Option<Arc<ParsedScript>>, // ONDBLCLICK signal
+    pub on_done: Option<Arc<ParsedScript>>,  // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>,  // ONINIT signal
+    pub on_move: Option<Arc<ParsedScript>>,  // ONMOVE signal
+    pub on_release: Option<Arc<ParsedScript>>, // ONRELEASE signal
+    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
 }
 
 #[derive(Debug, Clone)]
@@ -172,9 +174,10 @@ impl CnvType for Mouse {
         match name {
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.initial_properties.on_init.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

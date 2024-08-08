@@ -2,20 +2,22 @@ use std::any::Any;
 
 use parsers::{discard_if_empty, parse_program};
 
+use crate::ast::ParsedScript;
+
 use super::*;
 
 #[derive(Debug, Clone)]
 pub struct CanvasObserverInit {
     // CANVAS_OBSERVER
-    pub on_done: Option<Arc<IgnorableProgram>>, // ONDONE signal
-    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
-    pub on_initial_update: Option<Arc<IgnorableProgram>>, // ONINITIALUPDATE signal
-    pub on_initial_updated: Option<Arc<IgnorableProgram>>, // ONINITIALUPDATED signal
-    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
-    pub on_update: Option<Arc<IgnorableProgram>>, // ONUPDATE signal
-    pub on_updated: Option<Arc<IgnorableProgram>>, // ONUPDATED signal
-    pub on_window_focus_off: Option<Arc<IgnorableProgram>>, // ONWINDOWFOCUSOFF signal
-    pub on_window_focus_on: Option<Arc<IgnorableProgram>>, // ONWINDOWFOCUSON signal
+    pub on_done: Option<Arc<ParsedScript>>, // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>, // ONINIT signal
+    pub on_initial_update: Option<Arc<ParsedScript>>, // ONINITIALUPDATE signal
+    pub on_initial_updated: Option<Arc<ParsedScript>>, // ONINITIALUPDATED signal
+    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
+    pub on_update: Option<Arc<ParsedScript>>, // ONUPDATE signal
+    pub on_updated: Option<Arc<ParsedScript>>, // ONUPDATED signal
+    pub on_window_focus_off: Option<Arc<ParsedScript>>, // ONWINDOWFOCUSOFF signal
+    pub on_window_focus_on: Option<Arc<ParsedScript>>, // ONWINDOWFOCUSON signal
 }
 
 #[derive(Debug, Clone)]
@@ -147,9 +149,10 @@ impl CnvType for CanvasObserver {
         match name {
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.initial_properties.on_init.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

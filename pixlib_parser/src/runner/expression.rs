@@ -1,57 +1,48 @@
+use std::sync::Arc;
+
 use crate::{
-    ast::{Expression, Invocation, Operation},
+    ast::{Expression, IgnorableExpression, Invocation, Operation},
     classes::CallableIdentifier,
+    runner::RunnerError,
 };
 
-use super::{value::CnvValue, RunnerContext, RunnerResult};
+use super::{value::CnvValue, CnvStatement, RunnerContext, RunnerResult};
 
 pub trait CnvExpression {
     fn calculate(&self, context: RunnerContext) -> RunnerResult<Option<CnvValue>>;
 }
 
-impl CnvExpression for Invocation {
+impl CnvExpression for IgnorableExpression {
     fn calculate(&self, context: RunnerContext) -> RunnerResult<Option<CnvValue>> {
-        // println!("Invocation::calculate: {:?}", self);
-        if self.parent.is_none() {
-            Ok(None) // TODO: match &self.name
-        } else {
-            let parent = self
-                .parent
-                .as_ref()
-                .unwrap()
-                .calculate(context.clone())?
-                .expect("Invalid invocation parent");
-            let arguments = self
-                .arguments
-                .iter()
-                .map(|e| e.calculate(context.clone()))
-                .collect::<RunnerResult<Vec<_>>>()?;
-            let arguments: Vec<_> = arguments.into_iter().map(|e| e.unwrap()).collect();
-            // println!("Calling method: {:?} of: {:?}", self.name, self.parent);
-            match parent {
-                CnvValue::Reference(obj) => obj.call_method(
-                    CallableIdentifier::Method(&self.name),
-                    &arguments,
-                    Some(context),
-                ),
-                _ => panic!(
-                    "Expected invocation parent to be an object, got {:?}",
-                    parent
-                ),
-            }
+        println!("IgnorableExpression::calculate: {:?}", self);
+        if self.ignored {
+            return Ok(None);
         }
+        self.value.calculate(context)
     }
 }
 
 impl CnvExpression for Expression {
     fn calculate(&self, context: RunnerContext) -> RunnerResult<Option<CnvValue>> {
-        // println!("Expression::calculate: {:?}", self);
+        println!("Expression::calculate: {:?}", self);
         match self {
             Expression::LiteralBool(b) => Ok(Some(CnvValue::Boolean(*b))),
             Expression::Identifier(name) => Ok(context
                 .runner
                 .get_object(name[..].trim_matches('\"'))
-                .map(CnvValue::Reference)
+                .and_then(|o| {
+                    if o.content.borrow().as_ref().unwrap().get_type_id() == "BEHAVIOUR" {
+                        o.call_method(
+                            CallableIdentifier::Method("RUN"),
+                            &Vec::new(),
+                            Some(context),
+                        )
+                    } else {
+                        Ok(Some(CnvValue::Reference(Arc::clone(&o))))
+                    }
+                    .transpose()
+                })
+                .transpose()?
                 .or_else(|| Some(CnvValue::String(name.trim_matches('\"').to_owned())))),
             Expression::Invocation(invocation) => invocation.calculate(context.clone()),
             Expression::SelfReference => Ok(context
@@ -60,8 +51,8 @@ impl CnvExpression for Expression {
                 .map(CnvValue::Reference)), // error
             Expression::Parameter(_name) => Ok(None), // access function scope and retrieve arguments
             Expression::NameResolution(expression) => {
-                let _name = &expression.calculate(context.clone());
-                let name = String::new(); // TODO: stringify
+                let name = &expression.calculate(context.clone())?.unwrap();
+                let name = name.to_string();
                 Ok(context
                     .runner
                     .get_object(&name[..])
@@ -86,7 +77,56 @@ impl CnvExpression for Expression {
                 }
                 Ok(Some(result))
             }
-            Expression::Block(_block) => todo!(), // create a temporary function
+            Expression::Block(block) => {
+                // TODO: create an anonymous function object
+                // TODO: handle arguments and return
+                for statement in block {
+                    statement.run(context.clone())?;
+                }
+                Ok(None)
+            }
+        }
+    }
+}
+
+impl CnvExpression for Invocation {
+    fn calculate(&self, context: RunnerContext) -> RunnerResult<Option<CnvValue>> {
+        println!("Invocation::calculate: {:?}", self);
+        if self.parent.is_none() {
+            Ok(None) // TODO: match &self.name
+        } else {
+            let parent = self
+                .parent
+                .as_ref()
+                .unwrap()
+                .calculate(context.clone())?
+                .expect("Invalid invocation parent");
+            let arguments = self
+                .arguments
+                .iter()
+                .map(|e| e.calculate(context.clone()))
+                .collect::<RunnerResult<Vec<_>>>()?;
+            let arguments: Vec<_> = arguments.into_iter().map(|e| e.unwrap()).collect();
+            // println!("Calling method: {:?} of: {:?}", self.name, self.parent);
+            match parent {
+                CnvValue::Reference(obj) => obj.call_method(
+                    CallableIdentifier::Method(&self.name),
+                    &arguments,
+                    Some(context),
+                ),
+                any_type => {
+                    let name = any_type.to_string();
+                    context
+                        .runner
+                        .get_object(&name)
+                        .ok_or(RunnerError::ObjectNotFound { name })?
+                        .call_method(
+                            CallableIdentifier::Method(&self.name),
+                            &arguments,
+                            Some(context),
+                        )
+                }
+            }
         }
     }
 }

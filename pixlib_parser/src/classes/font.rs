@@ -2,6 +2,8 @@ use std::any::Any;
 
 use parsers::{discard_if_empty, parse_program, FontDef};
 
+use crate::ast::ParsedScript;
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -9,9 +11,9 @@ pub struct FontInit {
     // FONT
     pub defs: HashMap<FontDef, Option<String>>,
 
-    pub on_done: Option<Arc<IgnorableProgram>>, // ONDONE signal
-    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
-    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
+    pub on_done: Option<Arc<ParsedScript>>,   // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>,   // ONINIT signal
+    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
 }
 
 #[derive(Debug, Clone)]
@@ -92,21 +94,24 @@ impl CnvType for Font {
         match name {
             CallableIdentifier::Event("ONDONE") => {
                 if let Some(v) = self.initial_properties.on_done.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.initial_properties.on_init.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONSIGNAL") => {
                 if let Some(v) = self.initial_properties.on_signal.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

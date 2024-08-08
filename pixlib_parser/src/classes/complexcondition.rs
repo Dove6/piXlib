@@ -2,7 +2,7 @@ use std::any::Any;
 
 use parsers::{discard_if_empty, parse_program, ComplexConditionOperator};
 
-use crate::runner::RunnerError;
+use crate::{ast::ParsedScript, runner::RunnerError};
 
 use super::*;
 
@@ -13,8 +13,8 @@ pub struct ComplexConditionInit {
     pub operand2: Option<ConditionName>,            // OPERAND2
     pub operator: Option<ComplexConditionOperator>, // OPERATOR
 
-    pub on_runtime_failed: Option<Arc<IgnorableProgram>>, // ONRUNTIMEFAILED signal
-    pub on_runtime_success: Option<Arc<IgnorableProgram>>, // ONRUNTIMESUCCESS signal
+    pub on_runtime_failed: Option<Arc<ParsedScript>>, // ONRUNTIMEFAILED signal
+    pub on_runtime_success: Option<Arc<ParsedScript>>, // ONRUNTIMESUCCESS signal
 }
 
 #[derive(Debug, Clone)]
@@ -154,15 +154,17 @@ impl CnvType for ComplexCondition {
             CallableIdentifier::Method("CHECK") => self.check().map(|v| Some(CnvValue::Boolean(v))),
             CallableIdentifier::Event("ONRUNTIMEFAILED") => {
                 if let Some(v) = self.initial_properties.on_runtime_failed.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONRUNTIMESUCCESS") => {
                 if let Some(v) = self.initial_properties.on_runtime_success.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

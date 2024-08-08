@@ -13,7 +13,7 @@ use regex::Regex;
 use thiserror::Error;
 
 use crate::{
-    ast::{IgnorableProgram, ParserFatal, ParserIssue},
+    ast::{ParsedScript, ParserFatal, ParserIssue},
     common::{Issue, IssueHandler, IssueManager, Position},
     lexer::{CnvLexer, CnvToken},
     parser::CodeParser,
@@ -29,7 +29,7 @@ pub enum PropertyValue {
     List(Vec<String>),
     Rect(Rect),
     Time(DateTime<Utc>),
-    Code(Arc<IgnorableProgram>),
+    Code(Arc<ParsedScript>),
 }
 
 impl From<bool> for PropertyValue {
@@ -74,8 +74,8 @@ impl From<DateTime<Utc>> for PropertyValue {
     }
 }
 
-impl From<Arc<IgnorableProgram>> for PropertyValue {
-    fn from(value: Arc<IgnorableProgram>) -> Self {
+impl From<Arc<ParsedScript>> for PropertyValue {
+    fn from(value: Arc<ParsedScript>) -> Self {
         PropertyValue::Code(value)
     }
 }
@@ -251,7 +251,7 @@ impl<I: Issue> IssueHandler<I> for IssuePrinter {
     }
 }
 
-pub fn parse_program(s: String) -> Result<Arc<IgnorableProgram>, TypeParsingError> {
+pub fn parse_program(s: String) -> Result<Arc<ParsedScript>, TypeParsingError> {
     let scanner = CnvScanner::<IntoIter<_>>::new(s.chars().map(Ok).collect::<Vec<_>>().into_iter());
     let lexer = CnvLexer::new(scanner, Default::default(), Default::default());
     let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();

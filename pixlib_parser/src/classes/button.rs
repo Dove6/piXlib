@@ -2,6 +2,8 @@ use std::any::Any;
 
 use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program, parse_rect, Rect};
 
+use crate::ast::ParsedScript;
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -20,18 +22,18 @@ pub struct ButtonInit {
     pub snd_on_move: Option<SoundName>,  // SNDONMOVE
     pub snd_standard: Option<SoundName>, // SNDSTANDARD
 
-    pub on_action: Option<Arc<IgnorableProgram>>, // ONACTION signal
-    pub on_clicked: Option<Arc<IgnorableProgram>>, // ONCLICKED signal
-    pub on_done: Option<Arc<IgnorableProgram>>,   // ONDONE signal
-    pub on_dragging: Option<Arc<IgnorableProgram>>, // ONDRAGGING signal
-    pub on_end_dragging: Option<Arc<IgnorableProgram>>, // ONENDDRAGGING signal
-    pub on_focus_off: Option<Arc<IgnorableProgram>>, // ONFOCUSOFF signal
-    pub on_focus_on: Option<Arc<IgnorableProgram>>, // ONFOCUSON signal
-    pub on_init: Option<Arc<IgnorableProgram>>,   // ONINIT signal
-    pub on_paused: Option<Arc<IgnorableProgram>>, // ONPAUSED signal
-    pub on_released: Option<Arc<IgnorableProgram>>, // ONRELEASED signal
-    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
-    pub on_start_dragging: Option<Arc<IgnorableProgram>>, // ONSTARTDRAGGING signal
+    pub on_action: Option<Arc<ParsedScript>>, // ONACTION signal
+    pub on_clicked: Option<Arc<ParsedScript>>, // ONCLICKED signal
+    pub on_done: Option<Arc<ParsedScript>>,   // ONDONE signal
+    pub on_dragging: Option<Arc<ParsedScript>>, // ONDRAGGING signal
+    pub on_end_dragging: Option<Arc<ParsedScript>>, // ONENDDRAGGING signal
+    pub on_focus_off: Option<Arc<ParsedScript>>, // ONFOCUSOFF signal
+    pub on_focus_on: Option<Arc<ParsedScript>>, // ONFOCUSON signal
+    pub on_init: Option<Arc<ParsedScript>>,   // ONINIT signal
+    pub on_paused: Option<Arc<ParsedScript>>, // ONPAUSED signal
+    pub on_released: Option<Arc<ParsedScript>>, // ONRELEASED signal
+    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
+    pub on_start_dragging: Option<Arc<ParsedScript>>, // ONSTARTDRAGGING signal
 }
 
 #[derive(Debug, Clone)]
@@ -162,9 +164,10 @@ impl CnvType for Button {
         match name {
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.initial_properties.on_init.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

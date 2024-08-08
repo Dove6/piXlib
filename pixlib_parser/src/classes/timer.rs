@@ -2,7 +2,7 @@ use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
 
-use crate::{common::DroppableRefMut, runner::InternalEvent};
+use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
 use super::*;
 
@@ -13,10 +13,10 @@ pub struct TimerInit {
     pub enabled: Option<bool>, // ENABLED
     pub ticks: Option<i32>,    // TICKS
 
-    pub on_done: Option<Arc<IgnorableProgram>>, // ONDONE signal
-    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
-    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
-    pub on_tick: Option<Arc<IgnorableProgram>>, // ONTICK signal
+    pub on_done: Option<Arc<ParsedScript>>,   // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>,   // ONINIT signal
+    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
+    pub on_tick: Option<Arc<ParsedScript>>,   // ONTICK signal
 }
 
 #[derive(Debug, Clone, Default)]
@@ -35,10 +35,10 @@ struct TimerState {
 
 #[derive(Debug, Clone)]
 pub struct TimerEventHandlers {
-    pub on_done: Option<Arc<IgnorableProgram>>, // ONDONE signal
-    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
-    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
-    pub on_tick: Option<Arc<IgnorableProgram>>, // ONTICK signal
+    pub on_done: Option<Arc<ParsedScript>>,   // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>,   // ONINIT signal
+    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
+    pub on_tick: Option<Arc<ParsedScript>>,   // ONTICK signal
 }
 
 #[derive(Debug, Clone)]
@@ -137,9 +137,10 @@ impl CnvType for Timer {
                 .map(|_| None),
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.event_handlers.on_init.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

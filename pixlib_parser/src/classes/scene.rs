@@ -4,7 +4,7 @@ use parsers::{discard_if_empty, parse_bool, parse_comma_separated, parse_datetim
 use pixlib_formats::file_formats::img::parse_img;
 use xxhash_rust::xxh3::xxh3_64;
 
-use crate::runner::RunnerError;
+use crate::{ast::ParsedScript, runner::RunnerError};
 
 use super::*;
 
@@ -23,14 +23,14 @@ pub struct SceneInit {
     pub path: Option<String>,                    // PATH
     pub version: Option<String>,                 // VERSION
 
-    pub on_activate: Option<Arc<IgnorableProgram>>, // ONACTIVATE signal
-    pub on_deactivate: Option<Arc<IgnorableProgram>>, // ONDEACTIVATE signal
-    pub on_do_modal: Option<Arc<IgnorableProgram>>, // ONDOMODAL signal
-    pub on_done: Option<Arc<IgnorableProgram>>,     // ONDONE signal
-    pub on_init: Option<Arc<IgnorableProgram>>,     // ONINIT signal
-    pub on_music_looped: Option<Arc<IgnorableProgram>>, // ONMUSICLOOPED signal
-    pub on_restart: Option<Arc<IgnorableProgram>>,  // ONRESTART signal
-    pub on_signal: Option<Arc<IgnorableProgram>>,   // ONSIGNAL signal
+    pub on_activate: Option<Arc<ParsedScript>>, // ONACTIVATE signal
+    pub on_deactivate: Option<Arc<ParsedScript>>, // ONDEACTIVATE signal
+    pub on_do_modal: Option<Arc<ParsedScript>>, // ONDOMODAL signal
+    pub on_done: Option<Arc<ParsedScript>>,     // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>,     // ONINIT signal
+    pub on_music_looped: Option<Arc<ParsedScript>>, // ONMUSICLOOPED signal
+    pub on_restart: Option<Arc<ParsedScript>>,  // ONRESTART signal
+    pub on_signal: Option<Arc<ParsedScript>>,   // ONSIGNAL signal
 }
 
 #[derive(Debug, Clone)]
@@ -291,9 +291,10 @@ impl CnvType for Scene {
         match name {
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.initial_properties.on_init.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

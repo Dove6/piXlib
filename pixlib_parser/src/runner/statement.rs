@@ -1,69 +1,27 @@
-use crate::{
-    ast::{IgnorableProgram, IgnorableStatement, Program, Statement},
-    classes::CallableIdentifier,
-};
+use crate::ast::{ParsedScript, Statement};
 
-use super::{CnvExpression, RunnerContext};
+use super::{CnvExpression, RunnerContext, RunnerResult};
 
 pub trait CnvStatement {
-    fn run(&self, context: RunnerContext);
-}
-
-impl CnvStatement for IgnorableProgram {
-    fn run(&self, context: RunnerContext) {
-        // println!("IgnorableProgram::run: {:?}", self);
-        if self.ignored {
-            return;
-        }
-        self.value.run(context);
-    }
-}
-
-impl CnvStatement for Program {
-    fn run(&self, context: RunnerContext) {
-        // println!("Program::run: {:?}", self);
-        match self {
-            Program::Identifier(identifier) => {
-                let Some(obj) = context.runner.get_object(identifier) else {
-                    eprintln!(
-                        "[PROGRAM RUN ERROR] Expected existing object named {}",
-                        &identifier
-                    );
-                    return;
-                };
-                obj.call_method(
-                    CallableIdentifier::Method("RUN"),
-                    &Vec::new(),
-                    Some(context),
-                )
-                .unwrap();
-            }
-            Program::Block(ignorable_statements) => {
-                for ignorable_statement in ignorable_statements {
-                    ignorable_statement.run(context.clone());
-                }
-            }
-        }
-    }
-}
-
-impl CnvStatement for IgnorableStatement {
-    fn run(&self, context: RunnerContext) {
-        // println!("IgnorableStatement::run: {:?}", self);
-        if self.ignored {
-            return;
-        }
-        self.value.run(context);
-    }
+    fn run(&self, context: RunnerContext) -> RunnerResult<()>;
 }
 
 impl CnvStatement for Statement {
-    fn run(&self, context: RunnerContext) {
-        // println!("Statement::run: {:?}", self);
+    fn run(&self, context: RunnerContext) -> RunnerResult<()> {
+        println!("Statement::run: {:?}", self);
         match self {
             Statement::ExpressionStatement(expression) => {
-                expression.calculate(context).unwrap();
+                expression.calculate(context)?;
             }
         }
+        Ok(())
+    }
+}
+
+impl CnvStatement for ParsedScript {
+    fn run(&self, context: RunnerContext) -> RunnerResult<()> {
+        println!("ParsedScript::run: {:?}", self);
+        self.calculate(context)?;
+        Ok(())
     }
 }

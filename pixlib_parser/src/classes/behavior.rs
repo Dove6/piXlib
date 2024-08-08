@@ -2,17 +2,19 @@ use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_program};
 
+use crate::ast::ParsedScript;
+
 use super::*;
 
 #[derive(Debug, Clone)]
 pub struct BehaviorInit {
     // BEHAVIOUR
-    pub code: Option<Arc<IgnorableProgram>>, // CODE
-    pub condition: Option<ConditionName>,    // CONDITION
+    pub code: Option<Arc<ParsedScript>>,  // CODE
+    pub condition: Option<ConditionName>, // CONDITION
 
-    pub on_done: Option<Arc<IgnorableProgram>>, // ONDONE signal
-    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
-    pub on_signal: HashMap<String, Arc<IgnorableProgram>>, // ONSIGNAL signal
+    pub on_done: Option<Arc<ParsedScript>>, // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>, // ONINIT signal
+    pub on_signal: HashMap<String, Arc<ParsedScript>>, // ONSIGNAL signal
 }
 
 #[derive(Debug, Clone, Default)]
@@ -81,8 +83,9 @@ impl Behavior {
         }
         if let Some(v) = self.initial_properties.code.as_ref() {
             v.run(context)
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     pub fn runc(&self) {
@@ -150,15 +153,17 @@ impl CnvType for Behavior {
             }
             CallableIdentifier::Event("ONDONE") => {
                 if let Some(v) = self.initial_properties.on_done.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.initial_properties.on_init.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONSIGNAL") => {
                 if let Some(v) = self
@@ -167,9 +172,10 @@ impl CnvType for Behavior {
                     .get(&arguments[0].to_string())
                     .as_ref()
                 {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

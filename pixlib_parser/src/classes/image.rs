@@ -4,7 +4,7 @@ use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
 use pixlib_formats::file_formats::img::parse_img;
 use xxhash_rust::xxh3::xxh3_64;
 
-use crate::runner::RunnerError;
+use crate::{ast::ParsedScript, runner::RunnerError};
 
 use super::*;
 
@@ -22,15 +22,15 @@ pub struct ImageInit {
     pub to_canvas: Option<bool>,               // TOCANVAS
     pub visible: Option<bool>,                 // VISIBLE
 
-    pub on_click: Option<Arc<IgnorableProgram>>, // ONCLICK signal
-    pub on_collision: Option<Arc<IgnorableProgram>>, // ONCOLLISION signal
-    pub on_collision_finished: Option<Arc<IgnorableProgram>>, // ONCOLLISIONFINISHED signal
-    pub on_done: Option<Arc<IgnorableProgram>>,  // ONDONE signal
-    pub on_focus_off: Option<Arc<IgnorableProgram>>, // ONFOCUSOFF signal
-    pub on_focus_on: Option<Arc<IgnorableProgram>>, // ONFOCUSON signal
-    pub on_init: Option<Arc<IgnorableProgram>>,  // ONINIT signal
-    pub on_release: Option<Arc<IgnorableProgram>>, // ONRELEASE signal
-    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
+    pub on_click: Option<Arc<ParsedScript>>, // ONCLICK signal
+    pub on_collision: Option<Arc<ParsedScript>>, // ONCOLLISION signal
+    pub on_collision_finished: Option<Arc<ParsedScript>>, // ONCOLLISIONFINISHED signal
+    pub on_done: Option<Arc<ParsedScript>>,  // ONDONE signal
+    pub on_focus_off: Option<Arc<ParsedScript>>, // ONFOCUSOFF signal
+    pub on_focus_on: Option<Arc<ParsedScript>>, // ONFOCUSON signal
+    pub on_init: Option<Arc<ParsedScript>>,  // ONINIT signal
+    pub on_release: Option<Arc<ParsedScript>>, // ONRELEASE signal
+    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
 }
 
 #[derive(Debug, Clone, Default)]
@@ -54,15 +54,15 @@ struct ImageState {
 
 #[derive(Debug, Clone)]
 pub struct ImageEventHandlers {
-    pub on_click: Option<Arc<IgnorableProgram>>, // ONCLICK signal
-    pub on_collision: Option<Arc<IgnorableProgram>>, // ONCOLLISION signal
-    pub on_collision_finished: Option<Arc<IgnorableProgram>>, // ONCOLLISIONFINISHED signal
-    pub on_done: Option<Arc<IgnorableProgram>>,  // ONDONE signal
-    pub on_focus_off: Option<Arc<IgnorableProgram>>, // ONFOCUSOFF signal
-    pub on_focus_on: Option<Arc<IgnorableProgram>>, // ONFOCUSON signal
-    pub on_init: Option<Arc<IgnorableProgram>>,  // ONINIT signal
-    pub on_release: Option<Arc<IgnorableProgram>>, // ONRELEASE signal
-    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
+    pub on_click: Option<Arc<ParsedScript>>,     // ONCLICK signal
+    pub on_collision: Option<Arc<ParsedScript>>, // ONCOLLISION signal
+    pub on_collision_finished: Option<Arc<ParsedScript>>, // ONCOLLISIONFINISHED signal
+    pub on_done: Option<Arc<ParsedScript>>,      // ONDONE signal
+    pub on_focus_off: Option<Arc<ParsedScript>>, // ONFOCUSOFF signal
+    pub on_focus_on: Option<Arc<ParsedScript>>,  // ONFOCUSON signal
+    pub on_init: Option<Arc<ParsedScript>>,      // ONINIT signal
+    pub on_release: Option<Arc<ParsedScript>>,   // ONRELEASE signal
+    pub on_signal: Option<Arc<ParsedScript>>,    // ONSIGNAL signal
 }
 
 #[derive(Debug, Clone)]
@@ -376,57 +376,66 @@ impl CnvType for Image {
             }
             CallableIdentifier::Event("ONCLICK") => {
                 if let Some(v) = self.event_handlers.on_click.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONCOLLISION") => {
                 if let Some(v) = self.event_handlers.on_collision.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONCOLLISIONFINISHED") => {
                 if let Some(v) = self.event_handlers.on_collision_finished.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONDONE") => {
                 if let Some(v) = self.event_handlers.on_done.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONFOCUSOFF") => {
                 if let Some(v) = self.event_handlers.on_focus_off.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONFOCUSON") => {
                 if let Some(v) = self.event_handlers.on_focus_on.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.event_handlers.on_init.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONRELEASE") => {
                 if let Some(v) = self.event_handlers.on_release.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             CallableIdentifier::Event("ONSIGNAL") => {
                 if let Some(v) = self.event_handlers.on_signal.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

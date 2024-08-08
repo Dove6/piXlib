@@ -2,6 +2,8 @@ use std::any::Any;
 
 use parsers::{discard_if_empty, parse_program};
 
+use crate::ast::ParsedScript;
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -9,12 +11,12 @@ pub struct KeyboardInit {
     // KEYBOARD
     pub keyboard: Option<String>, // KEYBOARD
 
-    pub on_char: Option<Arc<IgnorableProgram>>, // ONCHAR signal
-    pub on_done: Option<Arc<IgnorableProgram>>, // ONDONE signal
-    pub on_init: Option<Arc<IgnorableProgram>>, // ONINIT signal
-    pub on_key_down: Option<Arc<IgnorableProgram>>, // ONKEYDOWN signal
-    pub on_key_up: Option<Arc<IgnorableProgram>>, // ONKEYUP signal
-    pub on_signal: Option<Arc<IgnorableProgram>>, // ONSIGNAL signal
+    pub on_char: Option<Arc<ParsedScript>>, // ONCHAR signal
+    pub on_done: Option<Arc<ParsedScript>>, // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>, // ONINIT signal
+    pub on_key_down: Option<Arc<ParsedScript>>, // ONKEYDOWN signal
+    pub on_key_up: Option<Arc<ParsedScript>>, // ONKEYUP signal
+    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
 }
 
 #[derive(Debug, Clone)]
@@ -107,9 +109,10 @@ impl CnvType for Keyboard {
         match name {
             CallableIdentifier::Event("ONINIT") => {
                 if let Some(v) = self.initial_properties.on_init.as_ref() {
-                    v.run(context)
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

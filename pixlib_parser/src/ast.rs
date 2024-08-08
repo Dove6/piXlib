@@ -5,27 +5,17 @@ use crate::{
     lexer::LexerFatal,
 };
 
-#[derive(Debug, Clone)]
-pub struct IgnorableProgram {
-    pub ignored: bool,
-    pub value: Program,
-}
+pub type ParsedScript = IgnorableExpression;
 
 #[derive(Debug, Clone)]
-pub enum Program {
-    Identifier(String),
-    Block(Vec<IgnorableStatement>),
-}
-
-#[derive(Debug, Clone)]
-pub struct IgnorableStatement {
+pub struct IgnorableExpression {
     pub ignored: bool,
-    pub value: Statement,
+    pub value: Expression,
 }
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    ExpressionStatement(Expression),
+    ExpressionStatement(IgnorableExpression),
 }
 
 #[derive(Debug, Clone)]
@@ -45,7 +35,7 @@ pub enum Expression {
     NameResolution(Box<Expression>),
     FieldAccess(Box<Expression>, String),
     Operation(Box<Expression>, Vec<(Operation, Expression)>),
-    Block(Vec<IgnorableStatement>),
+    Block(Vec<Statement>),
 }
 
 #[derive(Debug, Clone)]
