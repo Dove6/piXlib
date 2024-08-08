@@ -24,10 +24,13 @@ impl CnvStatement for Program {
         // println!("Program::run: {:?}", self);
         match self {
             Program::Identifier(identifier) => {
-                let obj = context
-                    .runner
-                    .get_object(identifier)
-                    .unwrap_or_else(|| panic!("Expected existing object named {}", &identifier));
+                let Some(obj) = context.runner.get_object(identifier) else {
+                    eprintln!(
+                        "[PROGRAM RUN ERROR] Expected existing object named {}",
+                        &identifier
+                    );
+                    return;
+                };
                 obj.call_method(
                     CallableIdentifier::Method("RUN"),
                     &Vec::new(),

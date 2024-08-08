@@ -78,6 +78,10 @@ impl CnvType for Int {
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
+            CallableIdentifier::Method("DEC") => {
+                self.state.borrow_mut().dec()?;
+                Ok(None)
+            }
             CallableIdentifier::Method("SET") => {
                 assert!(arguments.len() == 1);
                 self.state
@@ -217,9 +221,10 @@ impl IntegerState {
         todo!()
     }
 
-    pub fn dec() {
+    pub fn dec(&mut self) -> RunnerResult<()> {
         // DEC
-        todo!()
+        self.value -= 1;
+        Ok(())
     }
 
     pub fn div() {

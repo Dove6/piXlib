@@ -41,10 +41,14 @@ impl Condition {
 
     pub fn check(&self) -> RunnerResult<bool> {
         let Some(left) = &self.initial_properties.operand1 else {
-            return Err(RunnerError::MissingLeftOperand);
+            return Err(RunnerError::MissingLeftOperand {
+                object_name: self.parent.name.clone(),
+            });
         };
         let Some(right) = &self.initial_properties.operand2 else {
-            return Err(RunnerError::MissingRightOperand);
+            return Err(RunnerError::MissingRightOperand {
+                object_name: self.parent.name.clone(),
+            });
         };
         let runner = Arc::clone(&self.parent.parent.runner);
         let context = RunnerContext {
@@ -77,11 +81,17 @@ impl Condition {
             .transpose()?
             .unwrap_or_else(|| CnvValue::String(right.clone()));
         let Some(operator) = &self.initial_properties.operator else {
-            return Err(RunnerError::MissingOperator);
+            return Err(RunnerError::MissingOperator {
+                object_name: self.parent.name.clone(),
+            });
         };
         let result = match operator {
             ConditionOperator::Equal => Ok(&left == &right),
-            _ => todo!(),
+            ConditionOperator::NotEqual => Ok(&left != &right),
+            ConditionOperator::Less => Ok(left.to_double() < right.to_double()), // TODO: handle integers
+            ConditionOperator::LessEqual => Ok(left.to_double() <= right.to_double()),
+            ConditionOperator::Greater => Ok(left.to_double() > right.to_double()),
+            ConditionOperator::GreaterEqual => Ok(left.to_double() >= right.to_double()),
         };
         match result {
             Ok(false) => {

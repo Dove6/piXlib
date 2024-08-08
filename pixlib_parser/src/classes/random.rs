@@ -1,5 +1,9 @@
 use std::any::Any;
 
+use rand::Rng;
+
+use crate::runner::RunnerError;
+
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -21,9 +25,10 @@ impl Random {
         }
     }
 
-    pub fn get() {
+    pub fn get(&self, max_exclusive: usize, offset: isize) -> RunnerResult<isize> {
         // GET
-        todo!()
+        let mut rng = rand::thread_rng();
+        Ok(rng.gen_range(0..max_exclusive) as isize + offset)
     }
 
     pub fn get_plenty() {
@@ -46,7 +51,7 @@ impl CnvType for Random {
     }
 
     fn has_event(&self, _name: &str) -> bool {
-        todo!()
+        false
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -60,10 +65,26 @@ impl CnvType for Random {
     fn call_method(
         &self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
+        arguments: &[CnvValue],
         _context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
+            CallableIdentifier::Method("GET") => match arguments.len() {
+                0 => Err(RunnerError::TooFewArguments {
+                    expected_min: 1,
+                    actual: 0,
+                }),
+                1 => self.get(arguments[0].to_integer() as usize, 0),
+                2 => self.get(
+                    arguments[1].to_integer() as usize,
+                    arguments[0].to_integer() as isize,
+                ),
+                arg_count => Err(RunnerError::TooManyArguments {
+                    expected_max: 2,
+                    actual: arg_count,
+                }),
+            }
+            .map(|v| Some(CnvValue::Integer(v as i32))),
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }

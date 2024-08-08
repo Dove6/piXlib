@@ -14,6 +14,7 @@ pub use events::{
 pub use expression::CnvExpression;
 pub use filesystem::FileSystem;
 pub use filesystem::GamePaths;
+use object_container::ObjectContainer;
 pub use script::{CnvScript, ScriptSource};
 use script_container::ScriptContainer;
 pub use statement::CnvStatement;
@@ -21,6 +22,7 @@ use thiserror::Error;
 pub use value::CnvValue;
 
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use std::{cell::RefCell, collections::HashMap, path::Path, sync::Arc};
 
 use events::{IncomingEvents, OutgoingEvents};
@@ -64,9 +66,9 @@ where
 pub enum RunnerError {
     TooManyArguments { expected_max: usize, actual: usize },
     TooFewArguments { expected_min: usize, actual: usize },
-    MissingLeftOperand,
-    MissingRightOperand,
-    MissingOperator,
+    MissingLeftOperand { object_name: String },
+    MissingRightOperand { object_name: String },
+    MissingOperator { object_name: String },
     ObjectNotFound { name: String },
     NoDataLoaded,
     SequenceNameNotFound { name: String },
@@ -94,6 +96,7 @@ pub struct CnvRunner {
     pub filesystem: Arc<RefCell<dyn FileSystem>>,
     pub game_paths: Arc<GamePaths>,
     pub issue_manager: Arc<RefCell<IssueManager<RunnerIssue>>>,
+    pub global_objects: RefCell<ObjectContainer>,
 }
 
 impl core::fmt::Debug for CnvRunner {
@@ -110,9 +113,11 @@ impl core::fmt::Debug for CnvRunner {
             )
             .field("events_in", &self.events_in)
             .field("events_out", &self.events_out)
+            .field("internal_events", &self.internal_events)
             .field("filesystem", &self.filesystem)
             .field("game_paths", &self.game_paths)
             .field("issue_manager", &self.issue_manager)
+            .field("global_objects", &self.global_objects)
             .finish()
     }
 }
@@ -147,8 +152,8 @@ impl CnvRunner {
         filesystem: Arc<RefCell<dyn FileSystem>>,
         game_paths: Arc<GamePaths>,
         issue_manager: IssueManager<RunnerIssue>,
-    ) -> Self {
-        Self {
+    ) -> Arc<Self> {
+        let runner = Arc::new(Self {
             scripts: RefCell::new(ScriptContainer::default()),
             filesystem,
             events_in: IncomingEvents::default(),
@@ -156,7 +161,31 @@ impl CnvRunner {
             internal_events: RefCell::new(VecDeque::new()),
             game_paths,
             issue_manager: Arc::new(RefCell::new(issue_manager)),
-        }
+            global_objects: RefCell::new(ObjectContainer::default()),
+        });
+        let global_script = Arc::new(CnvScript::new(
+            Arc::clone(&runner),
+            PathBuf::from("__GLOBAL__").into(),
+            None,
+            ScriptSource::Root,
+        ));
+        runner
+            .global_objects
+            .borrow_mut()
+            .use_and_drop_mut(|objects| {
+                objects
+                    .push_object({
+                        let mut builder = CnvObjectBuilder::new(
+                            Arc::clone(&global_script),
+                            "RANDOM".to_owned(),
+                            0,
+                        );
+                        builder.add_property("TYPE".into(), "RAND".to_owned());
+                        builder.build().unwrap()
+                    })
+                    .unwrap()
+            });
+        runner
     }
 
     pub fn step(self: &Arc<CnvRunner>) -> Result<(), RunnerError> {
@@ -249,7 +278,6 @@ impl CnvRunner {
                 CnvDeclaration::ObjectInitialization(name) => {
                     objects.push(CnvObjectBuilder::new(
                         Arc::clone(&script),
-                        Arc::clone(&path),
                         name.trim().to_owned(),
                         objects.len(),
                     ));
@@ -336,6 +364,11 @@ impl CnvRunner {
 
     pub fn get_object(&self, name: &str) -> Option<Arc<CnvObject>> {
         // println!("Getting object: {:?}", name);
+        for object in self.global_objects.borrow().iter() {
+            if object.name == name {
+                return Some(Arc::clone(object));
+            }
+        }
         for script in self.scripts.borrow().iter() {
             for object in script.objects.borrow().iter() {
                 if object.name == name {
@@ -347,6 +380,11 @@ impl CnvRunner {
     }
 
     pub fn find_object(&self, predicate: impl Fn(&CnvObject) -> bool) -> Option<Arc<CnvObject>> {
+        for object in self.global_objects.borrow().iter() {
+            if predicate(object) {
+                return Some(Arc::clone(object));
+            }
+        }
         for script in self.scripts.borrow().iter() {
             for object in script.objects.borrow().iter() {
                 if predicate(&object) {
@@ -363,6 +401,11 @@ impl CnvRunner {
         buffer: &mut Vec<Arc<CnvObject>>,
     ) {
         buffer.clear();
+        for object in self.global_objects.borrow().iter() {
+            if predicate(object) {
+                buffer.push(Arc::clone(object));
+            }
+        }
         for script in self.scripts.borrow().iter() {
             for object in script.objects.borrow().iter() {
                 if predicate(&object) {

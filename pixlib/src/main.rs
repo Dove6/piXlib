@@ -79,11 +79,11 @@ fn main() {
         })
         .insert_resource(InsertedDisk::try_from(env::args()).expect("Usage: pixlib path_to_iso"))
         .insert_resource(ChosenScene::default())
-        .insert_non_send_resource(ScriptRunner(Arc::new(CnvRunner::new(
+        .insert_non_send_resource(ScriptRunner(CnvRunner::new(
             Arc::new(RefCell::new(InsertedDisk::try_from(env::args()).unwrap())),
             Arc::new(GamePaths::default()),
             runner_issue_manager,
-        ))))
+        )))
         .insert_resource(ObjectBuilderIssueManager(issue_manager))
         .init_state::<AppState>()
         .add_systems(Startup, setup)

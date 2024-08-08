@@ -2848,6 +2848,7 @@ dependencies = [
  "lazy_static",
  "pixlib_formats",
  "proptest",
+ "rand",
  "regex",
  "string-interner",
  "test-case",

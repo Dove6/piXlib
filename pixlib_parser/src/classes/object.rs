@@ -22,25 +22,24 @@ use super::{
 #[derive(Debug, Clone)]
 pub struct CnvObjectBuilder {
     parent: Arc<CnvScript>,
-    path: Arc<Path>,
     name: String,
     index: usize,
     properties: HashMap<String, String>,
 }
 
 impl CnvObjectBuilder {
-    pub fn new(parent: Arc<CnvScript>, path: Arc<Path>, name: String, index: usize) -> Self {
+    pub fn new(parent: Arc<CnvScript>, name: String, index: usize) -> Self {
         Self {
             parent,
-            path,
             name,
             index,
             properties: HashMap::new(),
         }
     }
 
-    pub fn add_property(&mut self, property: String, value: String) {
+    pub fn add_property(&mut self, property: String, value: String) -> &mut Self {
         self.properties.insert(property, value); // TODO: report duplicates
+        self
     }
 
     pub fn build(self) -> Result<Arc<CnvObject>, ObjectBuilderError> {

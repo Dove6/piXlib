@@ -71,8 +71,8 @@ impl CnvType for Font {
         "FONT"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
+    fn has_event(&self, name: &str) -> bool {
+        matches!(name, "ONDONE" | "ONINIT" | "ONSIGNAL")
     }
 
     fn has_property(&self, _name: &str) -> bool {
@@ -87,9 +87,27 @@ impl CnvType for Font {
         &self,
         name: CallableIdentifier,
         _arguments: &[CnvValue],
-        _context: RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
+            CallableIdentifier::Event("ONDONE") => {
+                if let Some(v) = self.initial_properties.on_done.as_ref() {
+                    v.run(context)
+                }
+                Ok(None)
+            }
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.initial_properties.on_init.as_ref() {
+                    v.run(context)
+                }
+                Ok(None)
+            }
+            CallableIdentifier::Event("ONSIGNAL") => {
+                if let Some(v) = self.initial_properties.on_signal.as_ref() {
+                    v.run(context)
+                }
+                Ok(None)
+            }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }

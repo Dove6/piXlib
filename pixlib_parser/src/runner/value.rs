@@ -46,8 +46,15 @@ impl CnvValue {
                     0.0
                 }
             }
-            CnvValue::String(_) => 0.0,
-            CnvValue::Reference(_) => todo!(),
+            CnvValue::String(s) => s
+                .parse()
+                // .inspect_err(|e| eprintln!("{} for string->double {}", e, s))
+                .unwrap(),
+            CnvValue::Reference(r) => r
+                .call_method(CallableIdentifier::Method("GET"), &Vec::new(), None)
+                .unwrap()
+                .unwrap()
+                .to_double(),
         }
     }
 
@@ -57,7 +64,11 @@ impl CnvValue {
             CnvValue::Double(d) => *d != 0.0, // TODO: check
             CnvValue::Boolean(b) => *b,
             CnvValue::String(s) => !s.is_empty(), // TODO: check
-            CnvValue::Reference(_) => todo!(),
+            CnvValue::Reference(r) => r
+                .call_method(CallableIdentifier::Method("GET"), &Vec::new(), None)
+                .unwrap()
+                .unwrap()
+                .to_boolean(),
         }
     }
 

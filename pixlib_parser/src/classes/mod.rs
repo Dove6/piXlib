@@ -150,7 +150,7 @@ impl CnvTypeFactory {
                 MultiArray::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
             }
             "MUSIC" => Music::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "RANDOM" => Random::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "RAND" => Random::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
             "SCENE" => Scene::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
             "SEQUENCE" => {
                 Sequence::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
