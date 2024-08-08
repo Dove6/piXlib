@@ -143,7 +143,7 @@ impl CnvType for Sound {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let filename = properties.remove("FILENAME").and_then(discard_if_empty);
         let flush_after_played = properties
             .remove("FLUSHAFTERPLAYED")
@@ -185,7 +185,7 @@ impl CnvType for Sound {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Sound(Self::from_initial_properties(
             parent,
             SoundInit {
                 filename,
@@ -198,6 +198,6 @@ impl CnvType for Sound {
                 on_signal,
                 on_started,
             },
-        ))
+        )))
     }
 }

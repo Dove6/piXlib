@@ -246,7 +246,7 @@ impl CnvType for Text {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let font = properties.remove("FONT").and_then(discard_if_empty);
         let horizontal_justify = properties
             .remove("HJUSTIFY")
@@ -319,7 +319,7 @@ impl CnvType for Text {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Text(Self::from_initial_properties(
             parent,
             TextInit {
                 font,
@@ -339,6 +339,6 @@ impl CnvType for Text {
                 on_init,
                 on_signal,
             },
-        ))
+        )))
     }
 }

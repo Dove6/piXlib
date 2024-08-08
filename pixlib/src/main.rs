@@ -32,7 +32,7 @@ use events_plugin::EventsPlugin;
 use graphics_plugin::GraphicsPlugin;
 use inputs_plugin::InputsPlugin;
 use pixlib_parser::{
-    classes::{Application, Episode, ObjectBuilderError, Scene},
+    classes::{Application, CnvContent, Episode, ObjectBuilderError, Scene},
     common::{Issue, IssueHandler, IssueKind, IssueManager},
     runner::{CnvRunner, GamePaths, RunnerIssue, ScriptSource},
     scanner::parse_cnv,
@@ -146,12 +146,8 @@ fn reload_scene_script(script_runner: NonSend<ScriptRunner>, chosen_scene: Res<C
         panic!("Cannot find defined scene object {}", scene_name); // TODO: check if == 1, not >= 1
     };
     let scene_guard = scene_object.content.borrow();
-    let scene = scene_guard
-        .as_ref()
-        .unwrap()
-        .as_any()
-        .downcast_ref::<Scene>()
-        .unwrap();
+    let scene: Option<&Scene> = (&*scene_guard).into();
+    let scene = scene.unwrap();
     let path = scene.get_script_path().unwrap();
     let (contents, path) = script_runner
         .filesystem
@@ -205,19 +201,15 @@ fn reload_main_script(
         .unwrap();
     //#endregion
 
-    let Some(application_object) = script_runner
-        .find_object(|o| o.content.borrow().as_ref().unwrap().get_type_id() == "APPLICATION")
+    let Some(application_object) =
+        script_runner.find_object(|o| matches!(&*o.content.borrow(), CnvContent::Application(_)))
     else {
         panic!("Invalid root script - missing application object"); // TODO: check if == 1, not >= 1
     };
     let application_name = application_object.name.clone();
     let application_guard = application_object.content.borrow();
-    let application = application_guard
-        .as_ref()
-        .unwrap()
-        .as_any()
-        .downcast_ref::<Application>()
-        .unwrap();
+    let application: Option<&Application> = (&*application_guard).into();
+    let application = application.unwrap();
 
     //#region Loading application script
     if let Some(application_script_path) = application.get_script_path() {
@@ -256,12 +248,8 @@ fn reload_main_script(
         panic!("Cannot find defined episode object {}", episode_name); // TODO: check if == 1, not >= 1
     };
     let episode_guard = episode_object.content.borrow();
-    let episode = episode_guard
-        .as_ref()
-        .unwrap()
-        .as_any()
-        .downcast_ref::<Episode>()
-        .unwrap();
+    let episode: Option<&Episode> = (&*episode_guard).into();
+    let episode = episode.unwrap();
 
     //#region Loading the first episode script
     if let Some(episode_script_path) = episode.get_script_path() {
@@ -302,12 +290,8 @@ fn reload_main_script(
             panic!("Cannot find defined scene object {}", scene_name); // TODO: check if == 1, not >= 1
         };
         let scene_guard = scene_object.content.borrow();
-        let scene = scene_guard
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<Scene>()
-            .unwrap();
+        let scene: Option<&Scene> = (&*scene_guard).into();
+        let scene = scene.unwrap();
         chosen_scene.list.push(SceneDefinition {
             name: scene_name,
             path: scene.get_script_path().unwrap().into(),

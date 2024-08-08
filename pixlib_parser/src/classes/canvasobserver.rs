@@ -168,7 +168,7 @@ impl CnvType for CanvasObserver {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
@@ -214,7 +214,7 @@ impl CnvType for CanvasObserver {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::CanvasObserver(Self::from_initial_properties(
             parent,
             CanvasObserverInit {
                 on_done,
@@ -227,6 +227,6 @@ impl CnvType for CanvasObserver {
                 on_window_focus_off,
                 on_window_focus_on,
             },
-        ))
+        )))
     }
 }

@@ -352,7 +352,7 @@ impl CnvType for Array {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let send_on_change = properties
             .remove("SENDONCHANGE")
             .and_then(discard_if_empty)
@@ -379,7 +379,7 @@ impl CnvType for Array {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Array(Self::from_initial_properties(
             parent,
             ArrayInit {
                 send_on_change,
@@ -388,6 +388,6 @@ impl CnvType for Array {
                 on_init,
                 on_signal,
             },
-        ))
+        )))
     }
 }

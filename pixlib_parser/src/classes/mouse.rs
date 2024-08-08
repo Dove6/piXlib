@@ -193,7 +193,7 @@ impl CnvType for Mouse {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let mouse = properties.remove("MOUSE").and_then(discard_if_empty);
         let raw = properties
             .remove("RAW")
@@ -235,7 +235,7 @@ impl CnvType for Mouse {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Mouse(Self::from_initial_properties(
             parent,
             MouseInit {
                 mouse,
@@ -248,6 +248,6 @@ impl CnvType for Mouse {
                 on_release,
                 on_signal,
             },
-        ))
+        )))
     }
 }

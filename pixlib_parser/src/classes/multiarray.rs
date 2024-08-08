@@ -106,15 +106,15 @@ impl CnvType for MultiArray {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let dimensions = properties
             .remove("DIMENSIONS")
             .and_then(discard_if_empty)
             .map(parse_i32)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::MultiArray(Self::from_initial_properties(
             parent,
             MultiArrayInit { dimensions },
-        ))
+        )))
     }
 }

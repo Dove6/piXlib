@@ -68,11 +68,11 @@ impl CnvType for Music {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let filename = properties.remove("FILENAME").and_then(discard_if_empty);
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Music(Self::from_initial_properties(
             parent,
             MusicInit { filename },
-        ))
+        )))
     }
 }

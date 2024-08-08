@@ -128,7 +128,7 @@ impl CnvType for Episode {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);
         let creation_time = properties
             .remove("CREATIONTIME")
@@ -149,7 +149,7 @@ impl CnvType for Episode {
             .transpose()?;
         let start_with = properties.remove("STARTWITH").and_then(discard_if_empty);
         let version = properties.remove("VERSION").and_then(discard_if_empty);
-        Ok(Episode::from_initial_properties(
+        Ok(CnvContent::Episode(Episode::from_initial_properties(
             parent,
             EpisodeInit {
                 author,
@@ -161,6 +161,6 @@ impl CnvType for Episode {
                 start_with,
                 version,
             },
-        ))
+        )))
     }
 }

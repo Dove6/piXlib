@@ -154,7 +154,7 @@ impl CnvType for Sequence {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let filename = properties.remove("FILENAME").and_then(discard_if_empty);
         let on_done = properties
             .remove("ONDONE")
@@ -181,7 +181,7 @@ impl CnvType for Sequence {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Sequence(Self::from_initial_properties(
             parent,
             SequenceInit {
                 filename,
@@ -191,6 +191,6 @@ impl CnvType for Sequence {
                 on_signal,
                 on_started,
             },
-        ))
+        )))
     }
 }

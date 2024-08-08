@@ -96,7 +96,10 @@ impl CnvType for Random {
     fn new(
         parent: Arc<CnvObject>,
         _properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
-        Ok(Self::from_initial_properties(parent, RandomInit {}))
+    ) -> Result<CnvContent, TypeParsingError> {
+        Ok(CnvContent::Rand(Random::from_initial_properties(
+            parent,
+            RandomInit {},
+        )))
     }
 }

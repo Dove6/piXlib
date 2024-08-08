@@ -173,7 +173,7 @@ impl CnvType for Condition {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let operand1 = properties
             .remove("OPERAND1")
             .and_then(discard_if_empty)
@@ -199,7 +199,7 @@ impl CnvType for Condition {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Condition::from_initial_properties(
+        Ok(CnvContent::Condition(Condition::from_initial_properties(
             parent,
             ConditionInit {
                 operand1,
@@ -208,6 +208,6 @@ impl CnvType for Condition {
                 on_runtime_failed,
                 on_runtime_success,
             },
-        ))
+        )))
     }
 }

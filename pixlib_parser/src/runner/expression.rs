@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     ast::{Expression, IgnorableExpression, Invocation, Operation},
-    classes::CallableIdentifier,
+    classes::{CallableIdentifier, CnvContent},
     runner::RunnerError,
 };
 
@@ -31,14 +31,9 @@ impl CnvExpression for Expression {
                 .runner
                 .get_object(name[..].trim_matches('\"'))
                 .and_then(|o| {
-                    if o.content.borrow().as_ref().unwrap().get_type_id() == "BEHAVIOUR" {
-                        o.call_method(
-                            CallableIdentifier::Method("RUN"),
-                            &Vec::new(),
-                            Some(context),
-                        )
-                    } else {
-                        Ok(Some(CnvValue::Reference(Arc::clone(&o))))
+                    match &*o.content.borrow() {
+                        CnvContent::Behavior(b) => b.run(context).map(|_| None),
+                        _ => Ok(Some(CnvValue::Reference(Arc::clone(&o)))),
                     }
                     .transpose()
                 })

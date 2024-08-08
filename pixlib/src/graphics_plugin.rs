@@ -13,7 +13,10 @@ use bevy::{
     sprite::{Anchor, Sprite, SpriteBundle},
 };
 
-use pixlib_parser::{classes::Scene, runner::ScriptEvent};
+use pixlib_parser::{
+    classes::{CnvContent, Scene},
+    runner::ScriptEvent,
+};
 
 use crate::{
     anchors::add_tuples,
@@ -152,7 +155,7 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
     }
     for (script_index, script) in runner.scripts.borrow().iter().enumerate() {
         for (object_index, object) in script.objects.borrow().iter().enumerate() {
-            if object.content.borrow().as_ref().unwrap().get_type_id() != "IMAGE" {
+            if !matches!(&*object.content.borrow(), CnvContent::Image(_)) {
                 continue;
             }
             let mut marker = iter.next().unwrap();
@@ -167,7 +170,7 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
     }
     for (script_index, script) in runner.scripts.borrow().iter().enumerate() {
         for (object_index, object) in script.objects.borrow().iter().enumerate() {
-            if object.content.borrow().as_ref().unwrap().get_type_id() != "ANIMO" {
+            if !matches!(&*object.content.borrow(), CnvContent::Animation(_)) {
                 continue;
             }
             let mut marker = iter.next().unwrap();
@@ -211,12 +214,8 @@ pub fn update_background(
             continue;
         };
         let mut scene_guard = scene_object.content.borrow_mut();
-        let scene = scene_guard
-            .as_mut()
-            .unwrap()
-            .as_any_mut()
-            .downcast_mut::<Scene>()
-            .unwrap();
+        let scene: Option<&mut Scene> = (&mut *scene_guard).into();
+        let scene = scene.unwrap();
         let scene_script_path = scene.get_script_path();
         let Some((image_definition, image_data)) = scene.get_background_to_show().unwrap() else {
             *visibility = Visibility::Hidden;
@@ -274,12 +273,8 @@ pub fn update_images(
             continue;
         };
         let image_guard = object.content.borrow();
-        let Some(image) = image_guard
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<pixlib_parser::classes::Image>()
-        else {
+        let image: Option<&pixlib_parser::classes::Image> = (&*image_guard).into();
+        let Some(image) = image else {
             continue;
         };
 
@@ -347,12 +342,8 @@ pub fn update_animations(
             continue;
         };
         let animation_guard = object.content.borrow();
-        let Some(animation) = animation_guard
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<pixlib_parser::classes::Animation>()
-        else {
+        let animation: Option<&pixlib_parser::classes::Animation> = (&*animation_guard).into();
+        let Some(animation) = animation else {
             continue;
         };
 

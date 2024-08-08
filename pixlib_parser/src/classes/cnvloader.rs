@@ -81,11 +81,11 @@ impl CnvType for CnvLoader {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let cnv_loader = properties.remove("CNVLOADER").and_then(discard_if_empty);
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::CnvLoader(Self::from_initial_properties(
             parent,
             CnvLoaderInit { cnv_loader },
-        ))
+        )))
     }
 }

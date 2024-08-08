@@ -176,7 +176,7 @@ impl CnvType for Application {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);
         let bloomoo_version = properties
             .remove("BLOOMOO_VERSION")
@@ -200,7 +200,7 @@ impl CnvType for Application {
         let path = properties.remove("PATH").and_then(discard_if_empty);
         let start_with = properties.remove("STARTWITH").and_then(discard_if_empty);
         let version = properties.remove("VERSION").and_then(discard_if_empty);
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Application(Self::from_initial_properties(
             parent,
             ApplicationInit {
                 author,
@@ -213,6 +213,6 @@ impl CnvType for Application {
                 start_with,
                 version,
             },
-        ))
+        )))
     }
 }

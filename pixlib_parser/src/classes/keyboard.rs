@@ -128,7 +128,7 @@ impl CnvType for Keyboard {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let keyboard = properties.remove("KEYBOARD").and_then(discard_if_empty);
         let on_char = properties
             .remove("ONCHAR")
@@ -160,7 +160,7 @@ impl CnvType for Keyboard {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Keyboard(Self::from_initial_properties(
             parent,
             KeyboardInit {
                 keyboard,
@@ -171,6 +171,6 @@ impl CnvType for Keyboard {
                 on_key_up,
                 on_signal,
             },
-        ))
+        )))
     }
 }

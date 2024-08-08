@@ -450,7 +450,7 @@ impl CnvType for Image {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let as_button = properties
             .remove("ASBUTTON")
             .and_then(discard_if_empty)
@@ -542,7 +542,7 @@ impl CnvType for Image {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Image::from_initial_properties(
+        Ok(CnvContent::Image(Image::from_initial_properties(
             parent,
             ImageInit {
                 as_button,
@@ -565,7 +565,7 @@ impl CnvType for Image {
                 on_release,
                 on_signal,
             },
-        ))
+        )))
     }
 }
 

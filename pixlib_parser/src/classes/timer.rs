@@ -153,7 +153,7 @@ impl CnvType for Timer {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let elapse = properties
             .remove("ELAPSE")
             .and_then(discard_if_empty)
@@ -189,7 +189,7 @@ impl CnvType for Timer {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Timer(Self::from_initial_properties(
             parent,
             TimerInit {
                 elapse,
@@ -200,7 +200,7 @@ impl CnvType for Timer {
                 on_signal,
                 on_tick,
             },
-        ))
+        )))
     }
 }
 

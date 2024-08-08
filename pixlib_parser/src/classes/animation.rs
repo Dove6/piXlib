@@ -705,7 +705,7 @@ impl CnvType for Animation {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let as_button = properties
             .remove("ASBUTTON")
             .and_then(discard_if_empty)
@@ -832,7 +832,7 @@ impl CnvType for Animation {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Animation::from_initial_properties(
+        Ok(CnvContent::Animation(Animation::from_initial_properties(
             parent,
             AnimationProperties {
                 as_button,
@@ -862,7 +862,7 @@ impl CnvType for Animation {
                 on_signal,
                 on_started,
             },
-        ))
+        )))
     }
 }
 
@@ -1045,12 +1045,8 @@ impl AnimationState {
     pub fn is_near(&self, other: Arc<CnvObject>, range: usize) -> RunnerResult<bool> {
         // ISNEAR
         let other_guard = other.content.borrow();
-        let other = other_guard
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<Animation>()
-            .unwrap();
+        let other: Option<&Animation> = (&*other_guard).into();
+        let other = other.unwrap();
         let self_position = self.position;
         let other_position = other.get_position()?;
         Ok(self_position.0.abs_diff(other_position.0).pow(2)

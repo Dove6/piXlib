@@ -89,7 +89,7 @@ impl CnvType for Struct {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let fields = properties
             .remove("FIELDS")
             .and_then(discard_if_empty)
@@ -116,7 +116,7 @@ impl CnvType for Struct {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Struct(Self::from_initial_properties(
             parent,
             StructInit {
                 fields,
@@ -124,6 +124,6 @@ impl CnvType for Struct {
                 on_init,
                 on_signal,
             },
-        ))
+        )))
     }
 }

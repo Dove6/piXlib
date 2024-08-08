@@ -16,7 +16,7 @@ use crate::{
 
 use super::{
     parsers::{discard_if_empty, ProgramParsingError, TypeParsingError},
-    CallableIdentifier, CnvType, CnvTypeFactory, PropertyValue, RunnerResult,
+    CallableIdentifier, CnvContent, CnvTypeFactory, DummyCnvType, PropertyValue, RunnerResult,
 };
 
 #[derive(Debug, Clone)]
@@ -55,13 +55,13 @@ impl CnvObjectBuilder {
             name: self.name.clone(),
             index: self.index,
             initialized: RefCell::new(false),
-            content: RefCell::new(None),
+            content: RefCell::new(CnvContent::None(DummyCnvType {})),
         });
         let content =
             CnvTypeFactory::create(Arc::clone(&object), type_name, properties).map_err(|e| {
                 ObjectBuilderError::new(self.name, ObjectBuildErrorKind::ParsingError(e))
             })?;
-        object.content.replace(Some(content));
+        object.content.replace(content);
         Ok(object)
     }
 }
@@ -110,7 +110,7 @@ pub struct CnvObject {
     pub name: String,
     pub index: usize,
     pub initialized: RefCell<bool>,
-    pub content: RefCell<Option<Box<dyn CnvType>>>,
+    pub content: RefCell<CnvContent>,
 }
 
 impl core::fmt::Debug for CnvObject {
@@ -125,10 +125,7 @@ impl core::fmt::Debug for CnvObject {
             )
             .field("name", &self.name)
             .field("index", &self.index)
-            .field(
-                "content",
-                &self.content.borrow().as_ref().map(|c| c.get_type_id()),
-            )
+            .field("content", &self.content.borrow().get_type_id())
             .finish()
     }
 }
@@ -150,14 +147,12 @@ impl CnvObject {
         }
         self.content
             .borrow()
-            .as_ref()
-            .unwrap()
             .call_method(identifier, arguments, context.unwrap())
         // println!("Result is {:?}", result);
     }
 
     pub fn get_property(&self, name: &str) -> Option<PropertyValue> {
-        let value = self.content.borrow().as_ref().unwrap().get_property(name);
+        let value = self.content.borrow().get_property(name);
         println!("Got property: {:?} of: {:?}: {:?}", name, self.name, value);
         value
     }

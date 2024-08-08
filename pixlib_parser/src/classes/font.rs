@@ -124,7 +124,7 @@ impl CnvType for Font {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
@@ -155,7 +155,7 @@ impl CnvType for Font {
                 })
             })
             .collect();
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Font(Self::from_initial_properties(
             parent,
             FontInit {
                 defs,
@@ -163,6 +163,6 @@ impl CnvType for Font {
                 on_init,
                 on_signal,
             },
-        ))
+        )))
     }
 }

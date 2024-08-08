@@ -73,7 +73,7 @@ impl CnvType for Expression {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let operand1 = properties.remove("OPERAND1").and_then(discard_if_empty);
         let operand2 = properties.remove("OPERAND2").and_then(discard_if_empty);
         let operator = properties
@@ -81,13 +81,13 @@ impl CnvType for Expression {
             .and_then(discard_if_empty)
             .map(ExpressionOperator::parse)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Expression(Self::from_initial_properties(
             parent,
             ExpressionInit {
                 operand1,
                 operand2,
                 operator,
             },
-        ))
+        )))
     }
 }

@@ -152,7 +152,7 @@ impl CnvType for Group {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
@@ -168,13 +168,13 @@ impl CnvType for Group {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Group(Self::from_initial_properties(
             parent,
             GroupInit {
                 on_done,
                 on_init,
                 on_signal,
             },
-        ))
+        )))
     }
 }

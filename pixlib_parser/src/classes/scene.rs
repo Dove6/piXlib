@@ -311,7 +311,7 @@ impl CnvType for Scene {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let author = properties.remove("AUTHOR").and_then(discard_if_empty);
         let background = properties
             .remove("BACKGROUND")
@@ -382,7 +382,7 @@ impl CnvType for Scene {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Scene(Self::from_initial_properties(
             parent,
             SceneInit {
                 author,
@@ -405,6 +405,6 @@ impl CnvType for Scene {
                 on_restart,
                 on_signal,
             },
-        ))
+        )))
     }
 }

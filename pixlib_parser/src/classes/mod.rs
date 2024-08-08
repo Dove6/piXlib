@@ -29,7 +29,7 @@ pub trait CnvType: std::fmt::Debug {
     fn new(
         parent: Arc<CnvObject>,
         properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError>
+    ) -> Result<CnvContent, TypeParsingError>
     where
         Self: Sized;
 }
@@ -88,11 +88,11 @@ impl CnvType for DummyCnvType {
     fn new(
         _parent: Arc<CnvObject>,
         _properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError>
+    ) -> Result<CnvContent, TypeParsingError>
     where
         Self: Sized,
     {
-        Ok(Self {})
+        Ok(CnvContent::None(Self {}))
     }
 }
 
@@ -103,61 +103,39 @@ impl CnvTypeFactory {
         parent: Arc<CnvObject>,
         type_name: String,
         properties: HashMap<String, String>,
-    ) -> Result<Box<dyn CnvType>, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         match type_name.as_ref() {
-            "ANIMO" => Animation::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "APPLICATION" => {
-                Application::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
-            }
-            "ARRAY" => Array::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "BEHAVIOUR" => {
-                Behavior::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
-            }
-            "BOOL" => Bool::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "BUTTON" => Button::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "CANVAS_OBSERVER" => {
-                CanvasObserver::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
-            }
-            "CANVASOBSERVER" => {
-                CanvasObserver::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
-            }
-            "CNVLOADER" => {
-                CnvLoader::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
-            }
-            "CONDITION" => {
-                Condition::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
-            }
-            "COMPLEXCONDITION" => {
-                ComplexCondition::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
-            }
-            "DOUBLE" => Dbl::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "EPISODE" => Episode::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "EXPRESSION" => {
-                Expression::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
-            }
-            "FONT" => Font::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "GROUP" => Group::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "IMAGE" => Image::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "INTEGER" => Int::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "KEYBOARD" => {
-                Keyboard::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
-            }
-            "MOUSE" => Mouse::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "MULTIARRAY" => {
-                MultiArray::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
-            }
-            "MUSIC" => Music::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "RAND" => Random::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "SCENE" => Scene::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "SEQUENCE" => {
-                Sequence::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>)
-            }
-            "SOUND" => Sound::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "STRING" => Str::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "STRUCT" => Struct::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "SYSTEM" => System::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "TEXT" => Text::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
-            "TIMER" => Timer::new(parent, properties).map(|o| Box::new(o) as Box<dyn CnvType>),
+            "ANIMO" => Animation::new(parent, properties),
+            "APPLICATION" => Application::new(parent, properties),
+            "ARRAY" => Array::new(parent, properties),
+            "BEHAVIOUR" => Behavior::new(parent, properties),
+            "BOOL" => Bool::new(parent, properties),
+            "BUTTON" => Button::new(parent, properties),
+            "CANVAS_OBSERVER" => CanvasObserver::new(parent, properties),
+            "CANVASOBSERVER" => CanvasObserver::new(parent, properties),
+            "CNVLOADER" => CnvLoader::new(parent, properties),
+            "CONDITION" => Condition::new(parent, properties),
+            "COMPLEXCONDITION" => ComplexCondition::new(parent, properties),
+            "DOUBLE" => Dbl::new(parent, properties),
+            "EPISODE" => Episode::new(parent, properties),
+            "EXPRESSION" => Expression::new(parent, properties),
+            "FONT" => Font::new(parent, properties),
+            "GROUP" => Group::new(parent, properties),
+            "IMAGE" => Image::new(parent, properties),
+            "INTEGER" => Int::new(parent, properties),
+            "KEYBOARD" => Keyboard::new(parent, properties),
+            "MOUSE" => Mouse::new(parent, properties),
+            "MULTIARRAY" => MultiArray::new(parent, properties),
+            "MUSIC" => Music::new(parent, properties),
+            "RAND" => Random::new(parent, properties),
+            "SCENE" => Scene::new(parent, properties),
+            "SEQUENCE" => Sequence::new(parent, properties),
+            "SOUND" => Sound::new(parent, properties),
+            "STRING" => Str::new(parent, properties),
+            "STRUCT" => Struct::new(parent, properties),
+            "SYSTEM" => System::new(parent, properties),
+            "TEXT" => Text::new(parent, properties),
+            "TIMER" => Timer::new(parent, properties),
             _ => Err(TypeParsingError::UnknownType(type_name)),
         }
     }
@@ -258,6 +236,7 @@ mod canvasobserver;
 mod cnvloader;
 mod complexcondition;
 mod condition;
+mod content;
 mod dbl;
 mod episode;
 mod expression;
@@ -291,6 +270,7 @@ pub use canvasobserver::CanvasObserver;
 pub use cnvloader::CnvLoader;
 pub use complexcondition::ComplexCondition;
 pub use condition::Condition;
+pub use content::CnvContent;
 pub use dbl::Dbl;
 pub use episode::Episode;
 pub use expression::Expression;

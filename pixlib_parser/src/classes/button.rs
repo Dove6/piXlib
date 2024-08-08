@@ -183,7 +183,7 @@ impl CnvType for Button {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let accent = properties
             .remove("ACCENT")
             .and_then(discard_if_empty)
@@ -280,7 +280,7 @@ impl CnvType for Button {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Button::from_initial_properties(
+        Ok(CnvContent::Button(Button::from_initial_properties(
             parent,
             ButtonInit {
                 accent,
@@ -308,6 +308,6 @@ impl CnvType for Button {
                 on_signal,
                 on_start_dragging,
             },
-        ))
+        )))
     }
 }

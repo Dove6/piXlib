@@ -122,7 +122,7 @@ impl CnvType for Str {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let default = properties.remove("DEFAULT").and_then(discard_if_empty);
         let net_notify = properties
             .remove("NETNOTIFY")
@@ -165,7 +165,7 @@ impl CnvType for Str {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::String(Str::from_initial_properties(
             parent,
             StrInit {
                 default,
@@ -179,7 +179,7 @@ impl CnvType for Str {
                 on_net_changed,
                 on_signal,
             },
-        ))
+        )))
     }
 }
 

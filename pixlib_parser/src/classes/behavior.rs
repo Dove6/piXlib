@@ -191,7 +191,7 @@ impl CnvType for Behavior {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let code = properties
             .remove("CODE")
             .and_then(discard_if_empty)
@@ -217,7 +217,7 @@ impl CnvType for Behavior {
             }
         }
         properties.retain(|k, _| k != "ONSIGNAL" && !k.starts_with("ONSIGNAL^"));
-        Ok(Behavior::from_initial_properties(
+        Ok(CnvContent::Behavior(Behavior::from_initial_properties(
             parent,
             BehaviorInit {
                 code,
@@ -226,6 +226,6 @@ impl CnvType for Behavior {
                 on_init,
                 on_signal,
             },
-        ))
+        )))
     }
 }

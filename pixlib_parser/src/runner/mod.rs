@@ -28,6 +28,7 @@ use std::{cell::RefCell, collections::HashMap, path::Path, sync::Arc};
 use events::{IncomingEvents, OutgoingEvents};
 
 use crate::classes::Animation;
+use crate::classes::CnvContent;
 use crate::classes::Scene;
 use crate::common::DroppableRefMut;
 use crate::common::IssueKind;
@@ -195,17 +196,13 @@ impl CnvRunner {
                 TimerEvent::Elapsed { seconds } => {
                     let mut buffer = Vec::new();
                     self.find_objects(
-                        |o| o.content.borrow().as_ref().unwrap().get_type_id() == "ANIMO",
+                        |o| matches!(&*o.content.borrow(), CnvContent::Animation(_)),
                         &mut buffer,
                     );
                     for animation_object in buffer {
-                        let mut guard = animation_object.content.borrow_mut();
-                        let animation = guard
-                            .as_mut()
-                            .unwrap()
-                            .as_any_mut()
-                            .downcast_mut::<Animation>()
-                            .unwrap();
+                        let guard = animation_object.content.borrow();
+                        let animation: Option<&Animation> = (&*guard).into();
+                        let animation = animation.unwrap();
                         animation.step(seconds)?;
                     }
                 }
@@ -214,13 +211,7 @@ impl CnvRunner {
         let mut to_init = Vec::new();
         self.find_objects(|o| !*o.initialized.borrow(), &mut to_init);
         for object in to_init {
-            if !object
-                .content
-                .borrow()
-                .as_ref()
-                .unwrap()
-                .has_event("ONINIT")
-            {
+            if !object.content.borrow().has_event("ONINIT") {
                 *object.initialized.borrow_mut() = true;
                 continue;
             }
@@ -426,20 +417,22 @@ impl CnvRunner {
         let Some(init_beh_obj) = script.get_object(name) else {
             return Err(BehaviorRunningError::ObjectNotFound);
         };
-        if init_beh_obj
+        init_beh_obj
             .content
             .borrow()
-            .as_ref()
-            .unwrap()
-            .get_type_id()
-            != "BEHAVIOUR"
-        {
-            return Err(BehaviorRunningError::InvalidType);
-        };
-        init_beh_obj
-            .call_method(CallableIdentifier::Method("RUN"), &Vec::new(), None)
-            .map_err(|e| BehaviorRunningError::RunnerError(e))?;
-        Ok(None)
+            .use_and_drop(|content| match &**content {
+                CnvContent::Behavior(b) => {
+                    let context = RunnerContext {
+                        runner: Arc::clone(self),
+                        self_object: init_beh_obj.name.clone(),
+                        current_object: init_beh_obj.name.clone(),
+                    };
+                    b.run(context.clone())
+                        .map(|_| None)
+                        .map_err(|e| BehaviorRunningError::RunnerError(e))
+                }
+                _ => Err(BehaviorRunningError::InvalidType),
+            })
     }
 
     pub fn change_scene(self: &Arc<Self>, scene_name: &str) -> RunnerResult<()> {
@@ -450,16 +443,11 @@ impl CnvRunner {
             });
         };
         let scene_guard = scene_object.content.borrow();
-        let scene = scene_guard
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<Scene>()
-            .unwrap();
+        let scene: Option<&Scene> = (&*scene_guard).into();
+        let scene = scene.unwrap();
         let scene_name = scene_object.name.clone();
         let scene_path = scene.get_script_path();
-        let (contents, path) = self
-            .filesystem
+        let (contents, path) = (*self.filesystem)
             .borrow()
             .read_scene_file(
                 self.game_paths.clone(),

@@ -126,7 +126,7 @@ impl CnvType for Int {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let default = properties
             .remove("DEFAULT")
             .and_then(discard_if_empty)
@@ -177,7 +177,7 @@ impl CnvType for Int {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Integer(Self::from_initial_properties(
             parent,
             IntInit {
                 default,
@@ -191,7 +191,7 @@ impl CnvType for Int {
                 on_net_changed,
                 on_signal,
             },
-        ))
+        )))
     }
 }
 

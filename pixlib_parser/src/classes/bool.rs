@@ -122,7 +122,7 @@ impl CnvType for Bool {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let default = properties
             .remove("DEFAULT")
             .and_then(discard_if_empty)
@@ -173,7 +173,7 @@ impl CnvType for Bool {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::Bool(Self::from_initial_properties(
             parent,
             BoolInit {
                 default,
@@ -187,7 +187,7 @@ impl CnvType for Bool {
                 on_net_changed,
                 on_signal,
             },
-        ))
+        )))
     }
 }
 

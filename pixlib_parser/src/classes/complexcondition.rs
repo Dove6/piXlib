@@ -58,20 +58,12 @@ impl ComplexCondition {
         };
         let left_object = runner.get_object(left).unwrap();
         let left_guard = left_object.content.borrow();
-        let left = left_guard
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<Condition>()
-            .unwrap();
+        let left: Option<&Condition> = (&*left_guard).into();
+        let left = left.unwrap();
         let right_object = runner.get_object(right).unwrap();
         let right_guard = right_object.content.borrow();
-        let right = right_guard
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<Condition>()
-            .unwrap();
+        let right: Option<&Condition> = (&*right_guard).into();
+        let right = right.unwrap();
         let Some(operator) = &self.initial_properties.operator else {
             return Err(RunnerError::MissingOperator {
                 object_name: self.parent.name.clone(),
@@ -177,7 +169,7 @@ impl CnvType for ComplexCondition {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         // eprintln!("Creating {} from properties: {:#?}", parent.name, properties);
         let operand1 = properties.remove("CONDITION1").and_then(discard_if_empty);
         let operand2 = properties.remove("CONDITION2").and_then(discard_if_empty);
@@ -196,7 +188,7 @@ impl CnvType for ComplexCondition {
             .and_then(discard_if_empty)
             .map(parse_program)
             .transpose()?;
-        Ok(Self::from_initial_properties(
+        Ok(CnvContent::ComplexCondition(Self::from_initial_properties(
             parent,
             ComplexConditionInit {
                 operand1,
@@ -205,6 +197,6 @@ impl CnvType for ComplexCondition {
                 on_runtime_failed,
                 on_runtime_success,
             },
-        ))
+        )))
     }
 }

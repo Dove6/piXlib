@@ -198,8 +198,11 @@ impl CnvType for System {
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
-    ) -> Result<Self, TypeParsingError> {
+    ) -> Result<CnvContent, TypeParsingError> {
         let system = properties.remove("SYSTEM").and_then(discard_if_empty);
-        Ok(Self::from_initial_properties(parent, SystemInit { system }))
+        Ok(CnvContent::System(System::from_initial_properties(
+            parent,
+            SystemInit { system },
+        )))
     }
 }
