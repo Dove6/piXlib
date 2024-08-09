@@ -74,6 +74,8 @@ pub enum RunnerError {
     NoDataLoaded,
     SequenceNameNotFound { name: String },
 
+    MissingFilenameToLoad,
+
     ScriptNotFound { path: Arc<Path> },
     RootScriptAlreadyLoaded,
     ApplicationScriptAlreadyLoaded,

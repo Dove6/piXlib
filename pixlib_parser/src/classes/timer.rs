@@ -7,7 +7,7 @@ use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct TimerInit {
+pub struct TimerProperties {
     // TIMER
     pub elapse: Option<i32>,   // ELAPSE
     pub enabled: Option<bool>, // ENABLED
@@ -52,7 +52,7 @@ pub struct Timer {
 }
 
 impl Timer {
-    pub fn from_initial_properties(parent: Arc<CnvObject>, props: TimerInit) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, props: TimerProperties) -> Self {
         let interval_ms = props.elapse.unwrap_or_default() as usize;
         let is_enabled = props.enabled.unwrap_or_default();
         Self {
@@ -191,7 +191,7 @@ impl CnvType for Timer {
             .transpose()?;
         Ok(CnvContent::Timer(Self::from_initial_properties(
             parent,
-            TimerInit {
+            TimerProperties {
                 elapse,
                 enabled,
                 ticks,

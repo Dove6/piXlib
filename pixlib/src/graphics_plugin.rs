@@ -148,7 +148,10 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
     let mut iter = query.iter_mut();
     info!("Current scene: {:?}", runner.get_current_scene());
     if let Some(current_scene) = runner.get_current_scene() {
-        if current_scene.get_property("BACKGROUND").is_some() {
+        let current_scene_guard = current_scene.content.borrow();
+        let current_scene: Option<&Scene> = (&*current_scene_guard).into();
+        let current_scene = current_scene.unwrap();
+        if current_scene.get_background_path().is_some() {
             *iter.next().unwrap() = GraphicsMarker::BackgroundImage;
             background_assigned = true;
         }
@@ -213,8 +216,8 @@ pub fn update_background(
         let Some(scene_object) = runner.get_current_scene() else {
             continue;
         };
-        let mut scene_guard = scene_object.content.borrow_mut();
-        let scene: Option<&mut Scene> = (&mut *scene_guard).into();
+        let scene_guard = scene_object.content.borrow_mut();
+        let scene: Option<&Scene> = (&*scene_guard).into();
         let scene = scene.unwrap();
         let scene_script_path = scene.get_script_path();
         let Some((image_definition, image_data)) = scene.get_background_to_show().unwrap() else {
@@ -232,7 +235,7 @@ pub fn update_background(
         )
         .with_scale(Vec3::new(1f32, -1f32, 1f32));
         if !ident.0.is_some_and(|h| h == image_data.hash) {
-            *handle = image_data_to_handle(&mut textures, image_definition, image_data);
+            *handle = image_data_to_handle(&mut textures, &image_definition, &image_data);
             ident.0 = Some(image_data.hash);
             info!(
                 "Updated background for scene {:?} / {:?}",

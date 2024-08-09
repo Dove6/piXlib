@@ -1,21 +1,26 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_program, ConditionOperator};
 
-use crate::{
-    ast::ParsedScript,
-    runner::{CnvExpression, RunnerError},
-};
+use crate::{ast::ParsedScript, runner::CnvExpression};
 
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct ConditionInit {
+pub struct ConditionProperties {
     // CONDITION
-    pub operand1: Option<Arc<ParsedScript>>, // OPERAND1
-    pub operand2: Option<Arc<ParsedScript>>, // OPERAND2
-    pub operator: Option<ConditionOperator>, // OPERATOR
+    pub operand1: Arc<ParsedScript>, // OPERAND1
+    pub operand2: Arc<ParsedScript>, // OPERAND2
+    pub operator: ConditionOperator, // OPERATOR
 
+    pub on_runtime_failed: Option<Arc<ParsedScript>>, // ONRUNTIMEFAILED signal
+    pub on_runtime_success: Option<Arc<ParsedScript>>, // ONRUNTIMESUCCESS signal
+}
+#[derive(Debug, Clone, Default)]
+pub struct ConditionState {}
+
+#[derive(Debug, Clone)]
+pub struct ConditionEventHandlers {
     pub on_runtime_failed: Option<Arc<ParsedScript>>, // ONRUNTIMEFAILED signal
     pub on_runtime_success: Option<Arc<ParsedScript>>, // ONRUNTIMESUCCESS signal
 }
@@ -24,78 +29,34 @@ pub struct ConditionInit {
 pub struct Condition {
     // CONDITION
     pub parent: Arc<CnvObject>,
-    pub initial_properties: ConditionInit,
+
+    pub state: RefCell<ConditionState>,
+    pub event_handlers: ConditionEventHandlers,
+
+    pub operator: ConditionOperator,
+    pub left: Arc<ParsedScript>,
+    pub right: Arc<ParsedScript>,
 }
 
 impl Condition {
-    pub fn from_initial_properties(
-        parent: Arc<CnvObject>,
-        initial_properties: ConditionInit,
-    ) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, props: ConditionProperties) -> Self {
         Self {
             parent,
-            initial_properties,
+            state: RefCell::new(ConditionState {
+                ..Default::default()
+            }),
+            event_handlers: ConditionEventHandlers {
+                on_runtime_failed: props.on_runtime_failed,
+                on_runtime_success: props.on_runtime_success,
+            },
+            operator: props.operator,
+            left: props.operand1,
+            right: props.operand2,
         }
-    }
-
-    pub fn break_running(&self) {
-        todo!()
     }
 
     pub fn check(&self) -> RunnerResult<bool> {
-        let Some(operator) = &self.initial_properties.operator else {
-            return Err(RunnerError::MissingOperator {
-                object_name: self.parent.name.clone(),
-            });
-        };
-        let Some(left) = &self.initial_properties.operand1 else {
-            return Err(RunnerError::MissingLeftOperand {
-                object_name: self.parent.name.clone(),
-            });
-        };
-        let Some(right) = &self.initial_properties.operand2 else {
-            return Err(RunnerError::MissingRightOperand {
-                object_name: self.parent.name.clone(),
-            });
-        };
-        let runner = Arc::clone(&self.parent.parent.runner);
-        let context = RunnerContext {
-            runner: Arc::clone(&runner),
-            self_object: self.parent.name.clone(),
-            current_object: self.parent.name.clone(),
-        };
-        let left = left.calculate(context.clone())?.unwrap();
-        let right = right.calculate(context.clone())?.unwrap();
-        let result = match operator {
-            ConditionOperator::Equal => Ok(&left == &right),
-            ConditionOperator::NotEqual => Ok(&left != &right),
-            ConditionOperator::Less => Ok(left.to_double() < right.to_double()), // TODO: handle integers
-            ConditionOperator::LessEqual => Ok(left.to_double() <= right.to_double()),
-            ConditionOperator::Greater => Ok(left.to_double() > right.to_double()),
-            ConditionOperator::GreaterEqual => Ok(left.to_double() >= right.to_double()),
-        };
-        match result {
-            Ok(false) => {
-                self.call_method(
-                    CallableIdentifier::Event("ONRUNTIMEFAILED"),
-                    &Vec::new(),
-                    context,
-                )?;
-            }
-            Ok(true) => {
-                self.call_method(
-                    CallableIdentifier::Event("ONRUNTIMESUCCESS"),
-                    &Vec::new(),
-                    context,
-                )?;
-            }
-            _ => {}
-        }
-        result
-    }
-
-    pub fn one_break(&self) {
-        todo!()
+        self.state.borrow().check(self)
     }
 }
 
@@ -135,16 +96,24 @@ impl CnvType for Condition {
         //     name, self.parent.name
         // );
         match name {
-            CallableIdentifier::Method("CHECK") => self.check().map(|v| Some(CnvValue::Boolean(v))),
+            CallableIdentifier::Method("BREAK") => self.state.borrow().break_run().map(|_| None),
+            CallableIdentifier::Method("CHECK") => self
+                .state
+                .borrow()
+                .check(self)
+                .map(|v| Some(CnvValue::Boolean(v))),
+            CallableIdentifier::Method("ONE_BREAK") => {
+                self.state.borrow().one_break().map(|_| None)
+            }
             CallableIdentifier::Event("ONRUNTIMEFAILED") => {
-                if let Some(v) = self.initial_properties.on_runtime_failed.as_ref() {
+                if let Some(v) = self.event_handlers.on_runtime_failed.as_ref() {
                     v.run(context).map(|_| None)
                 } else {
                     Ok(None)
                 }
             }
             CallableIdentifier::Event("ONRUNTIMESUCCESS") => {
-                if let Some(v) = self.initial_properties.on_runtime_success.as_ref() {
+                if let Some(v) = self.event_handlers.on_runtime_success.as_ref() {
                     v.run(context).map(|_| None)
                 } else {
                     Ok(None)
@@ -154,20 +123,8 @@ impl CnvType for Condition {
         }
     }
 
-    fn get_property(&self, name: &str) -> Option<PropertyValue> {
-        match name {
-            "ONRUNTIMEFAILED" => self
-                .initial_properties
-                .on_runtime_failed
-                .clone()
-                .map(|v| v.into()),
-            "ONRUNTIMESUCCESS" => self
-                .initial_properties
-                .on_runtime_success
-                .clone()
-                .map(|v| v.into()),
-            _ => todo!(),
-        }
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
     }
 
     fn new(
@@ -178,17 +135,20 @@ impl CnvType for Condition {
             .remove("OPERAND1")
             .and_then(discard_if_empty)
             .map(parse_program)
-            .transpose()?;
+            .transpose()?
+            .ok_or(TypeParsingError::MissingLeftOperand)?;
         let operand2 = properties
             .remove("OPERAND2")
             .and_then(discard_if_empty)
             .map(parse_program)
-            .transpose()?;
-        let map = properties
+            .transpose()?
+            .ok_or(TypeParsingError::MissingRightOperand)?;
+        let operator = properties
             .remove("OPERATOR")
             .and_then(discard_if_empty)
-            .map(ConditionOperator::parse);
-        let operator = map.transpose()?;
+            .map(ConditionOperator::parse)
+            .transpose()?
+            .ok_or(TypeParsingError::MissingOperator)?;
         let on_runtime_failed = properties
             .remove("ONRUNTIMEFAILED")
             .and_then(discard_if_empty)
@@ -201,7 +161,7 @@ impl CnvType for Condition {
             .transpose()?;
         Ok(CnvContent::Condition(Condition::from_initial_properties(
             parent,
-            ConditionInit {
+            ConditionProperties {
                 operand1,
                 operand2,
                 operator,
@@ -209,5 +169,52 @@ impl CnvType for Condition {
                 on_runtime_success,
             },
         )))
+    }
+}
+
+impl ConditionState {
+    pub fn break_run(&self) -> RunnerResult<()> {
+        todo!()
+    }
+
+    pub fn check(&self, condition: &Condition) -> RunnerResult<bool> {
+        let runner = Arc::clone(&condition.parent.parent.runner);
+        let context = RunnerContext {
+            runner: Arc::clone(&runner),
+            self_object: condition.parent.name.clone(),
+            current_object: condition.parent.name.clone(),
+        };
+        let left = condition.left.calculate(context.clone())?.unwrap();
+        let right = condition.right.calculate(context.clone())?.unwrap();
+        let result = match condition.operator {
+            ConditionOperator::Equal => Ok(&left == &right),
+            ConditionOperator::NotEqual => Ok(&left != &right),
+            ConditionOperator::Less => Ok(left.to_double() < right.to_double()), // TODO: handle integers
+            ConditionOperator::LessEqual => Ok(left.to_double() <= right.to_double()),
+            ConditionOperator::Greater => Ok(left.to_double() > right.to_double()),
+            ConditionOperator::GreaterEqual => Ok(left.to_double() >= right.to_double()),
+        };
+        match result {
+            Ok(false) => {
+                condition.call_method(
+                    CallableIdentifier::Event("ONRUNTIMEFAILED"),
+                    &Vec::new(),
+                    context,
+                )?;
+            }
+            Ok(true) => {
+                condition.call_method(
+                    CallableIdentifier::Event("ONRUNTIMESUCCESS"),
+                    &Vec::new(),
+                    context,
+                )?;
+            }
+            _ => {}
+        }
+        result
+    }
+
+    pub fn one_break(&self) -> RunnerResult<()> {
+        todo!()
     }
 }

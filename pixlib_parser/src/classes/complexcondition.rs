@@ -1,18 +1,27 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_program, ComplexConditionOperator};
 
-use crate::{ast::ParsedScript, runner::RunnerError};
+use crate::ast::ParsedScript;
 
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct ComplexConditionInit {
+pub struct ComplexConditionProperties {
     // COMPLEXCONDITION
-    pub operand1: Option<ConditionName>,            // OPERAND1
-    pub operand2: Option<ConditionName>,            // OPERAND2
-    pub operator: Option<ComplexConditionOperator>, // OPERATOR
+    pub operand1: ConditionName,            // OPERAND1
+    pub operand2: ConditionName,            // OPERAND2
+    pub operator: ComplexConditionOperator, // OPERATOR
 
+    pub on_runtime_failed: Option<Arc<ParsedScript>>, // ONRUNTIMEFAILED signal
+    pub on_runtime_success: Option<Arc<ParsedScript>>, // ONRUNTIMESUCCESS signal
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ComplexConditionState {}
+
+#[derive(Debug, Clone)]
+pub struct ComplexConditionEventHandlers {
     pub on_runtime_failed: Option<Arc<ParsedScript>>, // ONRUNTIMEFAILED signal
     pub on_runtime_success: Option<Arc<ParsedScript>>, // ONRUNTIMESUCCESS signal
 }
@@ -20,94 +29,37 @@ pub struct ComplexConditionInit {
 #[derive(Debug, Clone)]
 pub struct ComplexCondition {
     pub parent: Arc<CnvObject>,
-    pub initial_properties: ComplexConditionInit,
+
+    pub state: RefCell<ComplexConditionState>,
+    pub event_handlers: ComplexConditionEventHandlers,
+
+    pub operator: ComplexConditionOperator,
+    pub left: ConditionName,
+    pub right: ConditionName,
 }
 
 impl ComplexCondition {
     pub fn from_initial_properties(
         parent: Arc<CnvObject>,
-        initial_properties: ComplexConditionInit,
+        props: ComplexConditionProperties,
     ) -> Self {
         Self {
             parent,
-            initial_properties,
+            state: RefCell::new(ComplexConditionState {
+                ..Default::default()
+            }),
+            event_handlers: ComplexConditionEventHandlers {
+                on_runtime_failed: props.on_runtime_failed,
+                on_runtime_success: props.on_runtime_success,
+            },
+            operator: props.operator,
+            left: props.operand1,
+            right: props.operand2,
         }
-    }
-
-    pub fn break_running() {
-        // BREAK
-        todo!()
     }
 
     pub fn check(&self) -> RunnerResult<bool> {
-        let Some(left) = &self.initial_properties.operand1 else {
-            return Err(RunnerError::MissingLeftOperand {
-                object_name: self.parent.name.clone(),
-            });
-        };
-        let Some(right) = &self.initial_properties.operand2 else {
-            return Err(RunnerError::MissingRightOperand {
-                object_name: self.parent.name.clone(),
-            });
-        };
-        let runner = Arc::clone(&self.parent.parent.runner);
-        let context = RunnerContext {
-            runner: Arc::clone(&runner),
-            self_object: self.parent.name.clone(),
-            current_object: self.parent.name.clone(),
-        };
-        let left_object = runner.get_object(left).unwrap();
-        let left_guard = left_object.content.borrow();
-        let left: Option<&Condition> = (&*left_guard).into();
-        let left = left.unwrap();
-        let right_object = runner.get_object(right).unwrap();
-        let right_guard = right_object.content.borrow();
-        let right: Option<&Condition> = (&*right_guard).into();
-        let right = right.unwrap();
-        let Some(operator) = &self.initial_properties.operator else {
-            return Err(RunnerError::MissingOperator {
-                object_name: self.parent.name.clone(),
-            });
-        };
-        let result = match operator {
-            ComplexConditionOperator::And => {
-                if !left.check()? {
-                    Ok(false)
-                } else {
-                    Ok(right.check()?)
-                }
-            }
-            ComplexConditionOperator::Or => {
-                if left.check()? {
-                    Ok(true)
-                } else {
-                    Ok(right.check()?)
-                }
-            }
-        };
-        match result {
-            Ok(false) => {
-                self.call_method(
-                    CallableIdentifier::Event("ONRUNTIMEFAILED"),
-                    &Vec::new(),
-                    context,
-                )?;
-            }
-            Ok(true) => {
-                self.call_method(
-                    CallableIdentifier::Event("ONRUNTIMESUCCESS"),
-                    &Vec::new(),
-                    context,
-                )?;
-            }
-            _ => {}
-        }
-        result
-    }
-
-    pub fn one_break() {
-        // ONE_BREAK
-        todo!()
+        self.state.borrow().check(self)
     }
 }
 
@@ -143,16 +95,24 @@ impl CnvType for ComplexCondition {
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
-            CallableIdentifier::Method("CHECK") => self.check().map(|v| Some(CnvValue::Boolean(v))),
+            CallableIdentifier::Method("BREAK") => self.state.borrow().break_run().map(|_| None),
+            CallableIdentifier::Method("CHECK") => self
+                .state
+                .borrow()
+                .check(self)
+                .map(|v| Some(CnvValue::Boolean(v))),
+            CallableIdentifier::Method("ONE_BREAK") => {
+                self.state.borrow().one_break().map(|_| None)
+            }
             CallableIdentifier::Event("ONRUNTIMEFAILED") => {
-                if let Some(v) = self.initial_properties.on_runtime_failed.as_ref() {
+                if let Some(v) = self.event_handlers.on_runtime_failed.as_ref() {
                     v.run(context).map(|_| None)
                 } else {
                     Ok(None)
                 }
             }
             CallableIdentifier::Event("ONRUNTIMESUCCESS") => {
-                if let Some(v) = self.initial_properties.on_runtime_success.as_ref() {
+                if let Some(v) = self.event_handlers.on_runtime_success.as_ref() {
                     v.run(context).map(|_| None)
                 } else {
                     Ok(None)
@@ -171,13 +131,20 @@ impl CnvType for ComplexCondition {
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {
         // eprintln!("Creating {} from properties: {:#?}", parent.name, properties);
-        let operand1 = properties.remove("CONDITION1").and_then(discard_if_empty);
-        let operand2 = properties.remove("CONDITION2").and_then(discard_if_empty);
+        let operand1 = properties
+            .remove("CONDITION1")
+            .and_then(discard_if_empty)
+            .ok_or(TypeParsingError::MissingLeftOperand)?;
+        let operand2 = properties
+            .remove("CONDITION2")
+            .and_then(discard_if_empty)
+            .ok_or(TypeParsingError::MissingRightOperand)?;
         let operator = properties
             .remove("OPERATOR")
             .and_then(discard_if_empty)
             .map(ComplexConditionOperator::parse)
-            .transpose()?;
+            .transpose()?
+            .ok_or(TypeParsingError::MissingOperator)?;
         let on_runtime_failed = properties
             .remove("ONRUNTIMEFAILED")
             .and_then(discard_if_empty)
@@ -190,7 +157,7 @@ impl CnvType for ComplexCondition {
             .transpose()?;
         Ok(CnvContent::ComplexCondition(Self::from_initial_properties(
             parent,
-            ComplexConditionInit {
+            ComplexConditionProperties {
                 operand1,
                 operand2,
                 operator,
@@ -198,5 +165,68 @@ impl CnvType for ComplexCondition {
                 on_runtime_success,
             },
         )))
+    }
+}
+
+impl ComplexConditionState {
+    pub fn break_run(&self) -> RunnerResult<()> {
+        // BREAK
+        todo!()
+    }
+
+    pub fn check(&self, complex_condition: &ComplexCondition) -> RunnerResult<bool> {
+        let runner = Arc::clone(&complex_condition.parent.parent.runner);
+        let context = RunnerContext {
+            runner: Arc::clone(&runner),
+            self_object: complex_condition.parent.name.clone(),
+            current_object: complex_condition.parent.name.clone(),
+        };
+        let left_object = runner.get_object(&complex_condition.left).unwrap();
+        let left_guard = left_object.content.borrow();
+        let left: Option<&Condition> = (&*left_guard).into();
+        let left = left.unwrap();
+        let right_object = runner.get_object(&complex_condition.right).unwrap();
+        let right_guard = right_object.content.borrow();
+        let right: Option<&Condition> = (&*right_guard).into();
+        let right = right.unwrap();
+        let result = match complex_condition.operator {
+            ComplexConditionOperator::And => {
+                if !left.check()? {
+                    Ok(false)
+                } else {
+                    Ok(right.check()?)
+                }
+            }
+            ComplexConditionOperator::Or => {
+                if left.check()? {
+                    Ok(true)
+                } else {
+                    Ok(right.check()?)
+                }
+            }
+        };
+        match result {
+            Ok(false) => {
+                complex_condition.call_method(
+                    CallableIdentifier::Event("ONRUNTIMEFAILED"),
+                    &Vec::new(),
+                    context,
+                )?;
+            }
+            Ok(true) => {
+                complex_condition.call_method(
+                    CallableIdentifier::Event("ONRUNTIMESUCCESS"),
+                    &Vec::new(),
+                    context,
+                )?;
+            }
+            _ => {}
+        }
+        result
+    }
+
+    pub fn one_break(&self) -> RunnerResult<()> {
+        // ONE_BREAK
+        todo!()
     }
 }

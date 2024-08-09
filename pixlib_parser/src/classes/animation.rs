@@ -111,7 +111,6 @@ pub struct Animation {
 
 impl Animation {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: AnimationProperties) -> Self {
-        let filename = props.filename;
         let animation = Self {
             parent: Arc::clone(&parent),
             state: RefCell::new(AnimationState {
@@ -145,7 +144,7 @@ impl Animation {
             should_release: props.release.unwrap_or(true),
             should_draw_to_canvas: props.to_canvas.unwrap_or(true),
         };
-        if let Some(filename) = filename {
+        if let Some(filename) = props.filename {
             if animation.should_preload {
                 animation
                     .state

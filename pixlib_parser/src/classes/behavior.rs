@@ -7,7 +7,7 @@ use crate::ast::ParsedScript;
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct BehaviorInit {
+pub struct BehaviorProperties {
     // BEHAVIOUR
     pub code: Option<Arc<ParsedScript>>,  // CODE
     pub condition: Option<ConditionName>, // CONDITION
@@ -19,81 +19,46 @@ pub struct BehaviorInit {
 
 #[derive(Debug, Clone, Default)]
 struct BehaviorState {
-    is_enabled: bool,
+    // deduced from methods
+    pub is_enabled: bool,
 }
 
-impl BehaviorState {
-    pub fn disable(&mut self) {
-        self.is_enabled = false;
-    }
+#[derive(Debug, Clone)]
+pub struct BehaviorEventHandlers {
+    pub on_done: Option<Arc<ParsedScript>>, // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>, // ONINIT signal
+    pub on_signal: HashMap<String, Arc<ParsedScript>>, // ONSIGNAL signal
 }
 
 #[derive(Debug, Clone)]
 pub struct Behavior {
     // BEHAVIOUR
     parent: Arc<CnvObject>,
-    state: RefCell<BehaviorState>,
-    initial_properties: BehaviorInit,
 
-    is_enabled: bool,
+    state: RefCell<BehaviorState>,
+    event_handlers: BehaviorEventHandlers,
+
+    code: Option<Arc<ParsedScript>>,
+    condition: Option<ConditionName>,
 }
 
 impl Behavior {
-    pub fn from_initial_properties(
-        parent: Arc<CnvObject>,
-        initial_properties: BehaviorInit,
-    ) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, props: BehaviorProperties) -> Self {
         Self {
             parent,
             state: RefCell::new(BehaviorState { is_enabled: true }),
-            initial_properties,
-            is_enabled: true,
+            event_handlers: BehaviorEventHandlers {
+                on_done: props.on_done,
+                on_init: props.on_init,
+                on_signal: props.on_signal,
+            },
+            code: props.code,
+            condition: props.condition,
         }
-    }
-
-    pub fn break_running(&self) {
-        todo!()
     }
 
     pub fn run(&self, context: RunnerContext) -> RunnerResult<()> {
-        if let Some(condition) = self.initial_properties.condition.as_ref() {
-            let condition = context.runner.get_object(condition).unwrap();
-            match condition.call_method(
-                CallableIdentifier::Method("CHECK"),
-                &Vec::new(),
-                Some(context.clone()),
-            )? {
-                Some(CnvValue::Boolean(false)) => {
-                    condition.call_method(
-                        CallableIdentifier::Event("ONRUNTIMEFAILED"),
-                        &Vec::new(),
-                        Some(context.clone()),
-                    )?;
-                    return Ok(());
-                }
-                Some(CnvValue::Boolean(true)) => {
-                    condition.call_method(
-                        CallableIdentifier::Event("ONRUNTIMESUCCESS"),
-                        &Vec::new(),
-                        Some(context.clone()),
-                    )?;
-                }
-                _ => todo!(),
-            };
-        }
-        if let Some(v) = self.initial_properties.code.as_ref() {
-            v.run(context)
-        } else {
-            Ok(())
-        }
-    }
-
-    pub fn runc(&self) {
-        todo!()
-    }
-
-    pub fn runlooped(&self) {
-        todo!()
+        self.state.borrow().run(self, context)
     }
 }
 
@@ -131,35 +96,26 @@ impl CnvType for Behavior {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         let context = context.with_current_object(self.parent.name.clone());
         match name {
-            CallableIdentifier::Method("BREAK") => {
-                self.break_running();
-                Ok(None)
-            }
+            CallableIdentifier::Method("BREAK") => self.state.borrow().break_run().map(|_| None),
             CallableIdentifier::Method("DISABLE") => {
-                self.state.borrow_mut().disable();
-                Ok(None)
+                self.state.borrow_mut().disable().map(|_| None)
             }
             CallableIdentifier::Method("RUN") => {
-                self.run(context)?;
-                Ok(None)
+                self.state.borrow().run(self, context).map(|_| None)
             }
-            CallableIdentifier::Method("RUNC") => {
-                self.runc();
-                Ok(None)
-            }
+            CallableIdentifier::Method("RUNC") => self.state.borrow().run_c().map(|_| None),
             CallableIdentifier::Method("RUNLOOPED") => {
-                self.runlooped();
-                Ok(None)
+                self.state.borrow().run_looped().map(|_| None)
             }
             CallableIdentifier::Event("ONDONE") => {
-                if let Some(v) = self.initial_properties.on_done.as_ref() {
+                if let Some(v) = self.event_handlers.on_done.as_ref() {
                     v.run(context).map(|_| None)
                 } else {
                     Ok(None)
                 }
             }
             CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.initial_properties.on_init.as_ref() {
+                if let Some(v) = self.event_handlers.on_init.as_ref() {
                     v.run(context).map(|_| None)
                 } else {
                     Ok(None)
@@ -167,7 +123,7 @@ impl CnvType for Behavior {
             }
             CallableIdentifier::Event("ONSIGNAL") => {
                 if let Some(v) = self
-                    .initial_properties
+                    .event_handlers
                     .on_signal
                     .get(&arguments[0].to_string())
                     .as_ref()
@@ -181,11 +137,8 @@ impl CnvType for Behavior {
         }
     }
 
-    fn get_property(&self, name: &str) -> Option<PropertyValue> {
-        match name {
-            "ONINIT" => self.initial_properties.on_init.clone().map(|v| v.into()),
-            _ => todo!(),
-        }
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
     }
 
     fn new(
@@ -219,7 +172,7 @@ impl CnvType for Behavior {
         properties.retain(|k, _| k != "ONSIGNAL" && !k.starts_with("ONSIGNAL^"));
         Ok(CnvContent::Behavior(Behavior::from_initial_properties(
             parent,
-            BehaviorInit {
+            BehaviorProperties {
                 code,
                 condition,
                 on_done,
@@ -227,5 +180,53 @@ impl CnvType for Behavior {
                 on_signal,
             },
         )))
+    }
+}
+
+impl BehaviorState {
+    pub fn break_run(&self) -> RunnerResult<()> {
+        // BREAK
+        todo!()
+    }
+
+    pub fn run(&self, behavior: &Behavior, context: RunnerContext) -> RunnerResult<()> {
+        // RUN
+        if let Some(condition) = behavior.condition.as_ref() {
+            let condition_object = context.runner.get_object(condition).unwrap();
+            let condition_guard = condition_object.content.borrow();
+            let condition: Option<&Condition> = (&*condition_guard).into();
+            if let Some(condition) = condition {
+                if !condition.check()? {
+                    return Ok(());
+                }
+            } else {
+                let condition: Option<&ComplexCondition> = (&*condition_guard).into(); // TODO: generalize
+                let condition = condition.unwrap();
+                if !condition.check()? {
+                    return Ok(());
+                }
+            }
+        }
+        if let Some(v) = behavior.code.as_ref() {
+            v.run(context)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn disable(&mut self) -> RunnerResult<()> {
+        // DISABLE
+        self.is_enabled = false;
+        Ok(())
+    }
+
+    pub fn run_c(&self) -> RunnerResult<()> {
+        // RUNC
+        todo!()
+    }
+
+    pub fn run_looped(&self) -> RunnerResult<()> {
+        // RUNLOOPED
+        todo!()
     }
 }

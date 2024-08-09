@@ -1,40 +1,41 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::discard_if_empty;
 
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct CnvLoaderInit {
+pub struct CnvLoaderProperties {
     // CNVLOADER
     cnv_loader: Option<String>, // CNVLOADER
 }
 
+#[derive(Debug, Clone, Default)]
+struct CnvLoaderState {}
+
+#[derive(Debug, Clone)]
+pub struct CnvLoaderEventHandlers {}
+
 #[derive(Debug, Clone)]
 pub struct CnvLoader {
     parent: Arc<CnvObject>,
-    initial_properties: CnvLoaderInit,
+
+    state: RefCell<CnvLoaderState>,
+    event_handlers: CnvLoaderEventHandlers,
+
+    cnv_loader: String,
 }
 
 impl CnvLoader {
-    pub fn from_initial_properties(
-        parent: Arc<CnvObject>,
-        initial_properties: CnvLoaderInit,
-    ) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, props: CnvLoaderProperties) -> Self {
         Self {
             parent,
-            initial_properties,
+            state: RefCell::new(CnvLoaderState {
+                ..Default::default()
+            }),
+            event_handlers: CnvLoaderEventHandlers {},
+            cnv_loader: props.cnv_loader.unwrap_or_default(),
         }
-    }
-
-    pub fn load() {
-        // LOAD
-        todo!()
-    }
-
-    pub fn release() {
-        // RELEASE
-        todo!()
     }
 }
 
@@ -70,6 +71,10 @@ impl CnvType for CnvLoader {
         _context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
+            CallableIdentifier::Method("LOAD") => self.state.borrow_mut().load().map(|_| None),
+            CallableIdentifier::Method("RELEASE") => {
+                self.state.borrow_mut().release().map(|_| None)
+            }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }
@@ -85,7 +90,19 @@ impl CnvType for CnvLoader {
         let cnv_loader = properties.remove("CNVLOADER").and_then(discard_if_empty);
         Ok(CnvContent::CnvLoader(Self::from_initial_properties(
             parent,
-            CnvLoaderInit { cnv_loader },
+            CnvLoaderProperties { cnv_loader },
         )))
+    }
+}
+
+impl CnvLoaderState {
+    pub fn load(&mut self) -> RunnerResult<()> {
+        // LOAD
+        todo!()
+    }
+
+    pub fn release(&mut self) -> RunnerResult<()> {
+        // RELEASE
+        todo!()
     }
 }

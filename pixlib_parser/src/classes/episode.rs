@@ -1,11 +1,11 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_comma_separated, parse_datetime};
 
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct EpisodeInit {
+pub struct EpisodeProperties {
     pub author: Option<String>,                  // AUTHOR
     pub creation_time: Option<DateTime<Utc>>,    // CREATIONTIME
     pub description: Option<String>,             // DESCRIPTION
@@ -16,60 +16,61 @@ pub struct EpisodeInit {
     pub version: Option<String>,                 // VERSION
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct EpisodeState {}
+
+#[derive(Debug, Clone)]
+pub struct EpisodeEventHandlers {}
+
 #[derive(Debug, Clone)]
 pub struct Episode {
     // EPISODE
     parent: Arc<CnvObject>,
-    initial_properties: EpisodeInit,
+
+    state: RefCell<EpisodeState>,
+    event_handlers: EpisodeEventHandlers,
+
+    author: String,
+    creation_time: Option<DateTime<Utc>>,
+    description: String,
+    last_modify_time: Option<DateTime<Utc>>,
+    path: Option<String>,
+    scenes: Vec<SceneName>,
+    start_with: Option<SceneName>,
+    version: String,
 }
 
 impl Episode {
-    pub fn from_initial_properties(
-        parent: Arc<CnvObject>,
-        initial_properties: EpisodeInit,
-    ) -> Self {
-        Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, props: EpisodeProperties) -> Self {
+        let mut episode = Self {
             parent,
-            initial_properties,
+            state: RefCell::new(EpisodeState {
+                ..Default::default()
+            }),
+            event_handlers: EpisodeEventHandlers {},
+            author: props.author.unwrap_or_default(),
+            creation_time: props.creation_time,
+            description: props.description.unwrap_or_default(),
+            last_modify_time: props.last_modify_time,
+            path: props.path,
+            scenes: props.scenes.unwrap_or_default(),
+            start_with: props.start_with,
+            version: props.version.unwrap_or_default(),
+        };
+        if episode.start_with.is_none() && !episode.scenes.is_empty() {
+            episode.start_with = Some(episode.scenes[0].clone());
         }
-    }
-
-    pub fn back() {
-        todo!()
-    }
-
-    pub fn get_current_scene() {
-        todo!()
-    }
-
-    pub fn get_latest_scene() {
-        todo!()
-    }
-
-    pub fn go_to() {
-        todo!()
-    }
-
-    pub fn next() {
-        todo!()
-    }
-
-    pub fn prev() {
-        todo!()
-    }
-
-    pub fn restart() {
-        todo!()
+        episode
     }
 
     ///
 
     pub fn get_script_path(&self) -> Option<String> {
-        self.initial_properties.path.clone()
+        self.path.clone()
     }
 
     pub fn get_scene_list(&self) -> Vec<String> {
-        self.initial_properties.scenes.clone().unwrap_or(Vec::new())
+        self.scenes.clone()
     }
 }
 
@@ -106,23 +107,29 @@ impl CnvType for Episode {
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
-            CallableIdentifier::Method("GOTO") => {
-                self.parent
-                    .parent
-                    .runner
-                    .change_scene(&arguments[0].to_string())?;
-                Ok(None)
+            CallableIdentifier::Method("BACK") => self.state.borrow_mut().back().map(|_| None),
+            CallableIdentifier::Method("GETCURRENTSCENE") => {
+                self.state.borrow().get_current_scene().map(|_| None)
+            }
+            CallableIdentifier::Method("GETLATESTSCENE") => {
+                self.state.borrow().get_latest_scene().map(|_| None)
+            }
+            CallableIdentifier::Method("GOTO") => self
+                .state
+                .borrow_mut()
+                .go_to(self, &arguments[0].to_string())
+                .map(|_| None),
+            CallableIdentifier::Method("NEXT") => self.state.borrow_mut().next().map(|_| None),
+            CallableIdentifier::Method("PREV") => self.state.borrow_mut().prev().map(|_| None),
+            CallableIdentifier::Method("RESTART") => {
+                self.state.borrow_mut().restart().map(|_| None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }
 
-    fn get_property(&self, name: &str) -> Option<PropertyValue> {
-        match name {
-            "PATH" => self.initial_properties.path.clone().map(|v| v.into()),
-            "SCENES" => self.initial_properties.scenes.clone().map(|v| v.into()),
-            _ => todo!(),
-        }
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
     }
 
     fn new(
@@ -151,7 +158,7 @@ impl CnvType for Episode {
         let version = properties.remove("VERSION").and_then(discard_if_empty);
         Ok(CnvContent::Episode(Episode::from_initial_properties(
             parent,
-            EpisodeInit {
+            EpisodeProperties {
                 author,
                 creation_time,
                 description,
@@ -162,5 +169,42 @@ impl CnvType for Episode {
                 version,
             },
         )))
+    }
+}
+
+impl EpisodeState {
+    pub fn back(&mut self) -> RunnerResult<()> {
+        // BACK
+        todo!()
+    }
+
+    pub fn get_current_scene(&self) -> RunnerResult<()> {
+        // GETCURRENTSCENE
+        todo!()
+    }
+
+    pub fn get_latest_scene(&self) -> RunnerResult<()> {
+        // GETLATESTSCENE
+        todo!()
+    }
+
+    pub fn go_to(&mut self, episode: &Episode, scene_name: &str) -> RunnerResult<()> {
+        // GOTO
+        episode.parent.parent.runner.change_scene(scene_name)
+    }
+
+    pub fn next(&mut self) -> RunnerResult<()> {
+        // NEXT
+        todo!()
+    }
+
+    pub fn prev(&mut self) -> RunnerResult<()> {
+        // PREV
+        todo!()
+    }
+
+    pub fn restart(&mut self) -> RunnerResult<()> {
+        // RESTART
+        todo!()
     }
 }

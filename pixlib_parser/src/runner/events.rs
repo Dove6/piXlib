@@ -28,6 +28,8 @@ pub enum MouseEvent {
 
 pub use keyboard_types::Code as KeyboardKey;
 
+use crate::classes::SoundFileData;
+
 use super::CnvValue;
 
 #[derive(Debug, Clone)]
@@ -69,9 +71,9 @@ pub enum ApplicationEvent {
 
 #[derive(Debug, Clone)]
 pub enum SoundEvent {
-    SoundStarted,
-    SoundPaused,
-    SoundStopped,
+    SoundStarted(SoundFileData),
+    SoundPaused(SoundFileData),
+    SoundStopped(SoundFileData),
 }
 
 #[derive(Debug, Clone)]

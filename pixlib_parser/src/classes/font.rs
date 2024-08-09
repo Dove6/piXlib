@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_program, FontDef};
 
@@ -7,7 +7,7 @@ use crate::ast::ParsedScript;
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct FontInit {
+pub struct FontProperties {
     // FONT
     pub defs: HashMap<FontDef, Option<String>>,
 
@@ -16,43 +16,48 @@ pub struct FontInit {
     pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
 }
 
+#[derive(Debug, Clone, Default)]
+struct FontState {
+    pub initialized: bool,
+
+    // deduced from methods
+    pub color: String,
+    pub family: String,
+    pub size: usize,
+    pub style: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct FontEventHandlers {
+    pub on_done: Option<Arc<ParsedScript>>,   // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>,   // ONINIT signal
+    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
+}
+
 #[derive(Debug, Clone)]
 pub struct Font {
     parent: Arc<CnvObject>,
-    initial_properties: FontInit,
+
+    state: RefCell<FontState>,
+    event_handlers: FontEventHandlers,
+
+    font_definitions: HashMap<FontDef, Option<String>>,
 }
 
 impl Font {
-    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: FontInit) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, props: FontProperties) -> Self {
         Self {
             parent,
-            initial_properties,
+            state: RefCell::new(FontState {
+                ..Default::default()
+            }),
+            event_handlers: FontEventHandlers {
+                on_done: props.on_done,
+                on_init: props.on_init,
+                on_signal: props.on_signal,
+            },
+            font_definitions: props.defs,
         }
-    }
-
-    pub fn get_height() {
-        // GETHEIGHT
-        todo!()
-    }
-
-    pub fn set_color() {
-        // SETCOLOR
-        todo!()
-    }
-
-    pub fn set_family() {
-        // SETFAMILY
-        todo!()
-    }
-
-    pub fn set_size() {
-        // SETSIZE
-        todo!()
-    }
-
-    pub fn set_style() {
-        // SETSTYLE
-        todo!()
     }
 }
 
@@ -92,22 +97,39 @@ impl CnvType for Font {
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
+            CallableIdentifier::Method("GETHEIGHT") => self
+                .state
+                .borrow()
+                .get_height()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
+            CallableIdentifier::Method("SETCOLOR") => {
+                self.state.borrow_mut().set_color().map(|_| None)
+            }
+            CallableIdentifier::Method("SETFAMILY") => {
+                self.state.borrow_mut().set_family().map(|_| None)
+            }
+            CallableIdentifier::Method("SETSIZE") => {
+                self.state.borrow_mut().set_size().map(|_| None)
+            }
+            CallableIdentifier::Method("SETSTYLE") => {
+                self.state.borrow_mut().set_style().map(|_| None)
+            }
             CallableIdentifier::Event("ONDONE") => {
-                if let Some(v) = self.initial_properties.on_done.as_ref() {
+                if let Some(v) = self.event_handlers.on_done.as_ref() {
                     v.run(context).map(|_| None)
                 } else {
                     Ok(None)
                 }
             }
             CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.initial_properties.on_init.as_ref() {
+                if let Some(v) = self.event_handlers.on_init.as_ref() {
                     v.run(context).map(|_| None)
                 } else {
                     Ok(None)
                 }
             }
             CallableIdentifier::Event("ONSIGNAL") => {
-                if let Some(v) = self.initial_properties.on_signal.as_ref() {
+                if let Some(v) = self.event_handlers.on_signal.as_ref() {
                     v.run(context).map(|_| None)
                 } else {
                     Ok(None)
@@ -157,12 +179,39 @@ impl CnvType for Font {
             .collect();
         Ok(CnvContent::Font(Self::from_initial_properties(
             parent,
-            FontInit {
+            FontProperties {
                 defs,
                 on_done,
                 on_init,
                 on_signal,
             },
         )))
+    }
+}
+
+impl FontState {
+    pub fn get_height(&self) -> RunnerResult<usize> {
+        // GETHEIGHT
+        todo!()
+    }
+
+    pub fn set_color(&mut self) -> RunnerResult<()> {
+        // SETCOLOR
+        todo!()
+    }
+
+    pub fn set_family(&mut self) -> RunnerResult<()> {
+        // SETFAMILY
+        todo!()
+    }
+
+    pub fn set_size(&mut self) -> RunnerResult<()> {
+        // SETSIZE
+        todo!()
+    }
+
+    pub fn set_style(&mut self) -> RunnerResult<()> {
+        // SETSTYLE
+        todo!()
     }
 }

@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_program};
 
@@ -7,7 +7,7 @@ use crate::ast::ParsedScript;
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct SequenceInit {
+pub struct SequenceProperties {
     // SEQUENCE
     pub filename: Option<String>, // FILENAME
 
@@ -18,82 +18,60 @@ pub struct SequenceInit {
     pub on_started: Option<Arc<ParsedScript>>, // ONSTARTED signal
 }
 
+#[derive(Debug, Clone, Default)]
+struct SequenceState {
+    pub initialized: bool,
+
+    // initialized from properties
+    pub file_data: SequenceFileData,
+
+    // deduced from methods
+    pub is_playing: bool,
+    pub is_visible: bool,
+    pub music_frequency: usize,
+    pub music_volume: f32,
+    pub music_pan: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct SequenceEventHandlers {
+    pub on_done: Option<Arc<ParsedScript>>,     // ONDONE signal
+    pub on_finished: Option<Arc<ParsedScript>>, // ONFINISHED signal
+    pub on_init: Option<Arc<ParsedScript>>,     // ONINIT signal
+    pub on_signal: Option<Arc<ParsedScript>>,   // ONSIGNAL signal
+    pub on_started: Option<Arc<ParsedScript>>,  // ONSTARTED signal
+}
+
 #[derive(Debug, Clone)]
 pub struct Sequence {
     // SEQUENCE
     parent: Arc<CnvObject>,
-    initial_properties: SequenceInit,
+
+    state: RefCell<SequenceState>,
+    event_handlers: SequenceEventHandlers,
 }
 
 impl Sequence {
-    pub fn from_initial_properties(
-        parent: Arc<CnvObject>,
-        initial_properties: SequenceInit,
-    ) -> Self {
-        Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, props: SequenceProperties) -> Self {
+        let sequence = Self {
             parent,
-            initial_properties,
+            state: RefCell::new(SequenceState {
+                is_visible: true,
+                music_volume: 1f32,
+                ..Default::default()
+            }),
+            event_handlers: SequenceEventHandlers {
+                on_done: props.on_done,
+                on_finished: props.on_finished,
+                on_init: props.on_init,
+                on_signal: props.on_signal,
+                on_started: props.on_started,
+            },
+        };
+        if let Some(filename) = props.filename {
+            sequence.state.borrow_mut().file_data = SequenceFileData::NotLoaded(filename);
         }
-    }
-
-    pub fn get_event_name() {
-        // GETEVENTNAME
-        todo!()
-    }
-
-    pub fn get_playing() {
-        // GETPLAYING
-        todo!()
-    }
-
-    pub fn hide() {
-        // HIDE
-        todo!()
-    }
-
-    pub fn is_playing() {
-        // ISPLAYING
-        todo!()
-    }
-
-    pub fn pause() {
-        // PAUSE
-        todo!()
-    }
-
-    pub fn play() {
-        // PLAY
-        todo!()
-    }
-
-    pub fn resume() {
-        // RESUME
-        todo!()
-    }
-
-    pub fn set_freq() {
-        // SETFREQ
-        todo!()
-    }
-
-    pub fn set_pan() {
-        // SETPAN
-        todo!()
-    }
-
-    pub fn set_volume() {
-        // SETVOLUME
-        todo!()
-    }
-
-    pub fn show() {
-        // SHOW
-        todo!()
-    }
-
-    pub fn stop() {
-        // STOP
-        todo!()
+        sequence
     }
 }
 
@@ -133,8 +111,64 @@ impl CnvType for Sequence {
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
+            CallableIdentifier::Method("GETEVENTNAME") => self
+                .state
+                .borrow()
+                .get_event_name()
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("GETPLAYING") => self
+                .state
+                .borrow()
+                .get_playing()
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("HIDE") => self.state.borrow_mut().hide().map(|_| None),
+            CallableIdentifier::Method("ISPLAYING") => self
+                .state
+                .borrow()
+                .is_playing()
+                .map(|v| Some(CnvValue::Boolean(v))),
+            CallableIdentifier::Method("PAUSE") => self.state.borrow_mut().pause().map(|_| None),
+            CallableIdentifier::Method("PLAY") => self.state.borrow_mut().play().map(|_| None),
+            CallableIdentifier::Method("RESUME") => self.state.borrow_mut().resume().map(|_| None),
+            CallableIdentifier::Method("SETFREQ") => {
+                self.state.borrow_mut().set_freq().map(|_| None)
+            }
+            CallableIdentifier::Method("SETPAN") => self.state.borrow_mut().set_pan().map(|_| None),
+            CallableIdentifier::Method("SETVOLUME") => {
+                self.state.borrow_mut().set_volume().map(|_| None)
+            }
+            CallableIdentifier::Method("SHOW") => self.state.borrow_mut().show().map(|_| None),
+            CallableIdentifier::Method("STOP") => self.state.borrow_mut().stop().map(|_| None),
+            CallableIdentifier::Event("ONDONE") => {
+                if let Some(v) = self.event_handlers.on_done.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONFINISHED") => {
+                if let Some(v) = self.event_handlers.on_finished.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
             CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.initial_properties.on_init.as_ref() {
+                if let Some(v) = self.event_handlers.on_init.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONSIGNAL") => {
+                if let Some(v) = self.event_handlers.on_signal.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONSTARTED") => {
+                if let Some(v) = self.event_handlers.on_started.as_ref() {
                     v.run(context).map(|_| None)
                 } else {
                     Ok(None)
@@ -144,11 +178,8 @@ impl CnvType for Sequence {
         }
     }
 
-    fn get_property(&self, name: &str) -> Option<PropertyValue> {
-        match name {
-            "ONINIT" => self.initial_properties.on_init.clone().map(|v| v.into()),
-            _ => todo!(),
-        }
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
     }
 
     fn new(
@@ -183,7 +214,7 @@ impl CnvType for Sequence {
             .transpose()?;
         Ok(CnvContent::Sequence(Self::from_initial_properties(
             parent,
-            SequenceInit {
+            SequenceProperties {
                 filename,
                 on_done,
                 on_finished,
@@ -192,5 +223,67 @@ impl CnvType for Sequence {
                 on_started,
             },
         )))
+    }
+}
+
+impl SequenceState {
+    pub fn get_event_name(&self) -> RunnerResult<String> {
+        // GETEVENTNAME
+        todo!()
+    }
+
+    pub fn get_playing(&self) -> RunnerResult<String> {
+        // GETPLAYING
+        todo!()
+    }
+
+    pub fn hide(&mut self) -> RunnerResult<()> {
+        // HIDE
+        todo!()
+    }
+
+    pub fn is_playing(&self) -> RunnerResult<bool> {
+        // ISPLAYING
+        todo!()
+    }
+
+    pub fn pause(&mut self) -> RunnerResult<()> {
+        // PAUSE
+        todo!()
+    }
+
+    pub fn play(&mut self) -> RunnerResult<()> {
+        // PLAY
+        todo!()
+    }
+
+    pub fn resume(&mut self) -> RunnerResult<()> {
+        // RESUME
+        todo!()
+    }
+
+    pub fn set_freq(&mut self) -> RunnerResult<()> {
+        // SETFREQ
+        todo!()
+    }
+
+    pub fn set_pan(&mut self) -> RunnerResult<()> {
+        // SETPAN
+        todo!()
+    }
+
+    pub fn set_volume(&mut self) -> RunnerResult<()> {
+        // SETVOLUME
+        todo!()
+    }
+
+    pub fn show(&mut self) -> RunnerResult<()> {
+        // SHOW
+        todo!()
+    }
+
+    pub fn stop(&mut self) -> RunnerResult<()> {
+        // STOP
+        todo!()
     }
 }

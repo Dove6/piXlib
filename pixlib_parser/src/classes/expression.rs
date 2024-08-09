@@ -1,66 +1,63 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_program, ExpressionOperator};
 
-use crate::{
-    ast::ParsedScript,
-    runner::{CnvExpression, RunnerError},
-};
+use crate::{ast::ParsedScript, runner::CnvExpression};
 
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct ExpressionInit {
+pub struct ExpressionProperties {
     // EXPRESSION
-    pub operand1: Option<Arc<ParsedScript>>,  // OPERAND1
-    pub operand2: Option<Arc<ParsedScript>>,  // OPERAND2
-    pub operator: Option<ExpressionOperator>, // OPERATOR
+    pub operand1: Arc<ParsedScript>,  // OPERAND1
+    pub operand2: Arc<ParsedScript>,  // OPERAND2
+    pub operator: ExpressionOperator, // OPERATOR
 }
+
+#[derive(Debug, Clone, Default)]
+pub struct ExpressionState {}
+
+#[derive(Debug, Clone)]
+pub struct ExpressionEventHandlers {}
 
 #[derive(Debug, Clone)]
 pub struct Expression {
     parent: Arc<CnvObject>,
-    initial_properties: ExpressionInit,
+
+    state: RefCell<ExpressionState>,
+    event_handlers: ExpressionEventHandlers,
+
+    operator: ExpressionOperator,
+    left: Arc<ParsedScript>,
+    right: Arc<ParsedScript>,
 }
 
 impl Expression {
-    pub fn from_initial_properties(
-        parent: Arc<CnvObject>,
-        initial_properties: ExpressionInit,
-    ) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, props: ExpressionProperties) -> Self {
         Self {
             parent,
-            initial_properties,
+            state: RefCell::new(ExpressionState {
+                ..Default::default()
+            }),
+            event_handlers: ExpressionEventHandlers {},
+            operator: props.operator,
+            left: props.operand1,
+            right: props.operand2,
         }
     }
 
     ///
 
     pub fn calculate(&self) -> RunnerResult<CnvValue> {
-        let Some(operator) = self.initial_properties.operator.as_ref() else {
-            return Err(RunnerError::MissingOperator {
-                object_name: self.parent.name.clone(),
-            });
-        };
-        let Some(left) = self.initial_properties.operand1.as_ref() else {
-            return Err(RunnerError::MissingLeftOperand {
-                object_name: self.parent.name.clone(),
-            });
-        };
-        let Some(right) = self.initial_properties.operand2.as_ref() else {
-            return Err(RunnerError::MissingRightOperand {
-                object_name: self.parent.name.clone(),
-            });
-        };
         let runner = Arc::clone(&self.parent.parent.runner);
         let context = RunnerContext {
             runner: Arc::clone(&runner),
             self_object: self.parent.name.clone(),
             current_object: self.parent.name.clone(),
         };
-        let left = left.calculate(context.clone())?.unwrap();
-        let right = right.calculate(context.clone())?.unwrap();
-        Ok(match operator {
+        let left = self.left.calculate(context.clone())?.unwrap();
+        let right = self.right.calculate(context.clone())?.unwrap();
+        Ok(match self.operator {
             ExpressionOperator::Add => &left + &right,
             ExpressionOperator::Sub => &left - &right,
             ExpressionOperator::Mul => &left * &right,
@@ -118,20 +115,23 @@ impl CnvType for Expression {
             .remove("OPERAND1")
             .and_then(discard_if_empty)
             .map(parse_program)
-            .transpose()?;
+            .transpose()?
+            .ok_or(TypeParsingError::MissingLeftOperand)?;
         let operand2 = properties
             .remove("OPERAND2")
             .and_then(discard_if_empty)
             .map(parse_program)
-            .transpose()?;
+            .transpose()?
+            .ok_or(TypeParsingError::MissingRightOperand)?;
         let operator = properties
             .remove("OPERATOR")
             .and_then(discard_if_empty)
             .map(ExpressionOperator::parse)
-            .transpose()?;
+            .transpose()?
+            .ok_or(TypeParsingError::MissingOperator)?;
         Ok(CnvContent::Expression(Self::from_initial_properties(
             parent,
-            ExpressionInit {
+            ExpressionProperties {
                 operand1,
                 operand2,
                 operator,

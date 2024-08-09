@@ -1,157 +1,41 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::discard_if_empty;
 
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct SystemInit {
+pub struct SystemProperties {
     // SYSTEM
     pub system: Option<String>, // SYSTEM
 }
 
+#[derive(Debug, Clone, Default)]
+struct SystemState {}
+
+#[derive(Debug, Clone)]
+pub struct SystemEventHandlers {}
+
 #[derive(Debug, Clone)]
 pub struct System {
     parent: Arc<CnvObject>,
-    initial_properties: SystemInit,
+
+    state: RefCell<SystemState>,
+    event_handlers: SystemEventHandlers,
+
+    system: String,
 }
 
 impl System {
-    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: SystemInit) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, props: SystemProperties) -> Self {
         Self {
             parent,
-            initial_properties,
+            state: RefCell::new(SystemState {
+                ..Default::default()
+            }),
+            event_handlers: SystemEventHandlers {},
+            system: props.system.unwrap_or_default(),
         }
-    }
-
-    pub fn copy_file() {
-        // COPYFILE
-        todo!()
-    }
-
-    pub fn create_dir() {
-        // CREATEDIR
-        todo!()
-    }
-
-    pub fn delay() {
-        // DELAY
-        todo!()
-    }
-
-    pub fn get_cmd_line_parameter() {
-        // GETCMDLINEPARAMETER
-        todo!()
-    }
-
-    pub fn get_command_line() {
-        // GETCOMMANDLINE
-        todo!()
-    }
-
-    pub fn get_date() {
-        // GETDATE
-        todo!()
-    }
-
-    pub fn get_date_string() {
-        // GETDATESTRING
-        todo!()
-    }
-
-    pub fn get_day() {
-        // GETDAY
-        todo!()
-    }
-
-    pub fn get_day_of_week() {
-        // GETDAYOFWEEK
-        todo!()
-    }
-
-    pub fn get_day_of_week_string() {
-        // GETDAYOFWEEKSTRING
-        todo!()
-    }
-
-    pub fn get_folder_location() {
-        // GETFOLDERLOCATION
-        todo!()
-    }
-
-    pub fn get_hour() {
-        // GETHOUR
-        todo!()
-    }
-
-    pub fn get_mhz() {
-        // GETMHZ
-        todo!()
-    }
-
-    pub fn get_minutes() {
-        // GETMINUTES
-        todo!()
-    }
-
-    pub fn get_month() {
-        // GETMONTH
-        todo!()
-    }
-
-    pub fn get_month_string() {
-        // GETMONTHSTRING
-        todo!()
-    }
-
-    pub fn get_seconds() {
-        // GETSECONDS
-        todo!()
-    }
-
-    pub fn get_system_time() {
-        // GETSYSTEMTIME
-        todo!()
-    }
-
-    pub fn get_time_string() {
-        // GETTIMESTRING
-        todo!()
-    }
-
-    pub fn get_user_name() {
-        // GETUSERNAME
-        todo!()
-    }
-
-    pub fn get_year() {
-        // GETYEAR
-        todo!()
-    }
-
-    pub fn install() {
-        // INSTALL
-        todo!()
-    }
-
-    pub fn is_cmd_line_parameter() {
-        // ISCMDLINEPARAMETER
-        todo!()
-    }
-
-    pub fn is_file_exist() {
-        // ISFILEEXIST
-        todo!()
-    }
-
-    pub fn minimize() {
-        // MINIMIZE
-        todo!()
-    }
-
-    pub fn uninstall() {
-        // UNINSTALL
-        todo!()
     }
 }
 
@@ -187,6 +71,120 @@ impl CnvType for System {
         _context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
+            CallableIdentifier::Method("COPYFILE") => {
+                self.state.borrow_mut().copy_file().map(|_| None)
+            }
+            CallableIdentifier::Method("CREATEDIR") => {
+                self.state.borrow_mut().create_dir().map(|_| None)
+            }
+            CallableIdentifier::Method("DELAY") => self.state.borrow_mut().delay().map(|_| None),
+            CallableIdentifier::Method("GETCMDLINEPARAMETER") => self
+                .state
+                .borrow()
+                .get_cmd_line_parameter()
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("GETCOMMANDLINE") => self
+                .state
+                .borrow()
+                .get_command_line()
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("GETDATE") => self
+                .state
+                .borrow()
+                .get_date()
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("GETDATESTRING") => self
+                .state
+                .borrow()
+                .get_date_string()
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("GETDAY") => self
+                .state
+                .borrow()
+                .get_day()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
+            CallableIdentifier::Method("GETDAYOFWEEK") => self
+                .state
+                .borrow()
+                .get_day_of_week()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
+            CallableIdentifier::Method("GETDAYOFWEEKSTRING") => self
+                .state
+                .borrow()
+                .get_day_of_week_string()
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("GETFOLDERLOCATION") => self
+                .state
+                .borrow()
+                .get_folder_location()
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("GETHOUR") => self
+                .state
+                .borrow()
+                .get_hour()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
+            CallableIdentifier::Method("GETMHZ") => self
+                .state
+                .borrow()
+                .get_mhz()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
+            CallableIdentifier::Method("GETMINUTES") => self
+                .state
+                .borrow()
+                .get_minutes()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
+            CallableIdentifier::Method("GETMONTH") => self
+                .state
+                .borrow()
+                .get_month()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
+            CallableIdentifier::Method("GETMONTHSTRING") => self
+                .state
+                .borrow()
+                .get_month_string()
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("GETSECONDS") => self
+                .state
+                .borrow()
+                .get_seconds()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
+            CallableIdentifier::Method("GETSYSTEMTIME") => self
+                .state
+                .borrow()
+                .get_system_time()
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("GETTIMESTRING") => self
+                .state
+                .borrow()
+                .get_time_string()
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("GETUSERNAME") => {
+                self.state.borrow().get_user_name().map(|_| None)
+            }
+            CallableIdentifier::Method("GETYEAR") => self
+                .state
+                .borrow()
+                .get_year()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
+            CallableIdentifier::Method("INSTALL") => {
+                self.state.borrow_mut().install().map(|_| None)
+            }
+            CallableIdentifier::Method("ISCMDLINEPARAMETER") => self
+                .state
+                .borrow()
+                .is_cmd_line_parameter()
+                .map(|v| Some(CnvValue::Boolean(v))),
+            CallableIdentifier::Method("ISFILEEXIST") => self
+                .state
+                .borrow()
+                .is_file_exist()
+                .map(|v| Some(CnvValue::Boolean(v))),
+            CallableIdentifier::Method("MINIMIZE") => {
+                self.state.borrow_mut().minimize().map(|_| None)
+            }
+            CallableIdentifier::Method("UNINSTALL") => {
+                self.state.borrow_mut().uninstall().map(|_| None)
+            }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }
@@ -202,7 +200,139 @@ impl CnvType for System {
         let system = properties.remove("SYSTEM").and_then(discard_if_empty);
         Ok(CnvContent::System(System::from_initial_properties(
             parent,
-            SystemInit { system },
+            SystemProperties { system },
         )))
+    }
+}
+
+impl SystemState {
+    pub fn copy_file(&mut self) -> RunnerResult<()> {
+        // COPYFILE
+        todo!()
+    }
+
+    pub fn create_dir(&mut self) -> RunnerResult<()> {
+        // CREATEDIR
+        todo!()
+    }
+
+    pub fn delay(&mut self) -> RunnerResult<()> {
+        // DELAY
+        todo!()
+    }
+
+    pub fn get_cmd_line_parameter(&self) -> RunnerResult<String> {
+        // GETCMDLINEPARAMETER
+        todo!()
+    }
+
+    pub fn get_command_line(&self) -> RunnerResult<String> {
+        // GETCOMMANDLINE
+        todo!()
+    }
+
+    pub fn get_date(&self) -> RunnerResult<String> {
+        // GETDATE
+        todo!()
+    }
+
+    pub fn get_date_string(&self) -> RunnerResult<String> {
+        // GETDATESTRING
+        todo!()
+    }
+
+    pub fn get_day(&self) -> RunnerResult<usize> {
+        // GETDAY
+        todo!()
+    }
+
+    pub fn get_day_of_week(&self) -> RunnerResult<usize> {
+        // GETDAYOFWEEK
+        todo!()
+    }
+
+    pub fn get_day_of_week_string(&self) -> RunnerResult<String> {
+        // GETDAYOFWEEKSTRING
+        todo!()
+    }
+
+    pub fn get_folder_location(&self) -> RunnerResult<String> {
+        // GETFOLDERLOCATION
+        todo!()
+    }
+
+    pub fn get_hour(&self) -> RunnerResult<usize> {
+        // GETHOUR
+        todo!()
+    }
+
+    pub fn get_mhz(&self) -> RunnerResult<usize> {
+        // GETMHZ
+        todo!()
+    }
+
+    pub fn get_minutes(&self) -> RunnerResult<usize> {
+        // GETMINUTES
+        todo!()
+    }
+
+    pub fn get_month(&self) -> RunnerResult<usize> {
+        // GETMONTH
+        todo!()
+    }
+
+    pub fn get_month_string(&self) -> RunnerResult<String> {
+        // GETMONTHSTRING
+        todo!()
+    }
+
+    pub fn get_seconds(&self) -> RunnerResult<usize> {
+        // GETSECONDS
+        todo!()
+    }
+
+    pub fn get_system_time(&self) -> RunnerResult<String> {
+        // GETSYSTEMTIME
+        todo!()
+    }
+
+    pub fn get_time_string(&self) -> RunnerResult<String> {
+        // GETTIMESTRING
+        todo!()
+    }
+
+    pub fn get_user_name(&self) -> RunnerResult<String> {
+        // GETUSERNAME
+        todo!()
+    }
+
+    pub fn get_year(&self) -> RunnerResult<isize> {
+        // GETYEAR
+        todo!()
+    }
+
+    pub fn install(&mut self) -> RunnerResult<()> {
+        // INSTALL
+        todo!()
+    }
+
+    pub fn is_cmd_line_parameter(&self) -> RunnerResult<bool> {
+        // ISCMDLINEPARAMETER
+        todo!()
+    }
+
+    pub fn is_file_exist(&self) -> RunnerResult<bool> {
+        // ISFILEEXIST
+        todo!()
+    }
+
+    pub fn minimize(&mut self) -> RunnerResult<()> {
+        // MINIMIZE
+        todo!()
+    }
+
+    pub fn uninstall(&mut self) -> RunnerResult<()> {
+        // UNINSTALL
+        todo!()
     }
 }

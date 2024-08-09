@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program, parse_rect, Rect};
 
@@ -7,7 +7,7 @@ use crate::ast::ParsedScript;
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct ButtonInit {
+pub struct ButtonProperties {
     // BUTTON
     pub accent: Option<bool>,            // ACCENT
     pub drag: Option<bool>,              // DRAG
@@ -36,82 +36,84 @@ pub struct ButtonInit {
     pub on_start_dragging: Option<Arc<ParsedScript>>, // ONSTARTDRAGGING signal
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ButtonState {
+    pub initialized: bool,
+
+    // initialized from properties
+    pub is_enabled: bool,
+    pub is_accented: bool,
+    pub is_draggable: bool,
+    pub graphics_normal: Option<String>,
+    pub graphics_on_hover: Option<String>,
+    pub graphics_on_click: Option<String>,
+    pub priority: isize,
+    pub rect: Option<Rect>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ButtonEventHandlers {
+    pub on_action: Option<Arc<ParsedScript>>,  // ONACTION signal
+    pub on_clicked: Option<Arc<ParsedScript>>, // ONCLICKED signal
+    pub on_done: Option<Arc<ParsedScript>>,    // ONDONE signal
+    pub on_dragging: Option<Arc<ParsedScript>>, // ONDRAGGING signal
+    pub on_end_dragging: Option<Arc<ParsedScript>>, // ONENDDRAGGING signal
+    pub on_focus_off: Option<Arc<ParsedScript>>, // ONFOCUSOFF signal
+    pub on_focus_on: Option<Arc<ParsedScript>>, // ONFOCUSON signal
+    pub on_init: Option<Arc<ParsedScript>>,    // ONINIT signal
+    pub on_paused: Option<Arc<ParsedScript>>,  // ONPAUSED signal
+    pub on_released: Option<Arc<ParsedScript>>, // ONRELEASED signal
+    pub on_signal: Option<Arc<ParsedScript>>,  // ONSIGNAL signal
+    pub on_start_dragging: Option<Arc<ParsedScript>>, // ONSTARTDRAGGING signal
+}
+
 #[derive(Debug, Clone)]
 pub struct Button {
     parent: Arc<CnvObject>,
-    initial_properties: ButtonInit,
+
+    state: RefCell<ButtonState>,
+    event_handlers: ButtonEventHandlers,
+
+    drag: bool,
+    sound_normal: Option<String>,
+    sound_on_hover: Option<String>,
+    sound_on_click: Option<String>,
 }
 
 impl Button {
-    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: ButtonInit) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, props: ButtonProperties) -> Self {
         Self {
             parent,
-            initial_properties,
+            state: RefCell::new(ButtonState {
+                is_enabled: props.enable.unwrap_or_default(),
+                is_accented: props.accent.unwrap_or_default(),
+                is_draggable: props.draggable.unwrap_or_default(),
+                graphics_normal: props.gfx_standard,
+                graphics_on_hover: props.gfx_on_move,
+                graphics_on_click: props.gfx_on_click,
+                priority: props.priority.unwrap_or_default() as isize,
+                rect: props.rect,
+                ..Default::default()
+            }),
+            event_handlers: ButtonEventHandlers {
+                on_action: props.on_action,
+                on_clicked: props.on_clicked,
+                on_done: props.on_done,
+                on_dragging: props.on_dragging,
+                on_end_dragging: props.on_end_dragging,
+                on_focus_off: props.on_focus_off,
+                on_focus_on: props.on_focus_on,
+                on_init: props.on_init,
+                on_paused: props.on_paused,
+                on_released: props.on_released,
+                on_signal: props.on_signal,
+                on_start_dragging: props.on_start_dragging,
+            },
+            drag: props.drag.unwrap_or_default(),
+            sound_normal: props.snd_standard,
+            sound_on_hover: props.snd_on_move,
+            sound_on_click: props.snd_on_click,
         }
-    }
-
-    pub fn accent() {
-        todo!()
-    }
-
-    pub fn disable() {
-        todo!()
-    }
-
-    pub fn disable_but_visible() {
-        todo!()
-    }
-
-    pub fn disable_dragging() {
-        todo!()
-    }
-
-    pub fn enable() {
-        todo!()
-    }
-
-    pub fn enable_dragging() {
-        todo!()
-    }
-
-    pub fn get_on_click() {
-        todo!()
-    }
-
-    pub fn get_on_move() {
-        todo!()
-    }
-
-    pub fn get_priority() {
-        todo!()
-    }
-
-    pub fn get_std() {
-        todo!()
-    }
-
-    pub fn set_on_click() {
-        todo!()
-    }
-
-    pub fn set_on_move() {
-        todo!()
-    }
-
-    pub fn set_priority() {
-        todo!()
-    }
-
-    pub fn set_rect() {
-        todo!()
-    }
-
-    pub fn set_std() {
-        todo!()
-    }
-
-    pub fn syn() {
-        todo!()
     }
 }
 
@@ -162,8 +164,121 @@ impl CnvType for Button {
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
+            CallableIdentifier::Method("ACCENT") => self.state.borrow_mut().accent().map(|_| None),
+            CallableIdentifier::Method("DISABLE") => {
+                self.state.borrow_mut().disable().map(|_| None)
+            }
+            CallableIdentifier::Method("DISABLEBUTVISIBLE") => {
+                self.state.borrow_mut().disable_but_visible().map(|_| None)
+            }
+            CallableIdentifier::Method("DISABLEDRAGGING") => {
+                self.state.borrow_mut().disable_dragging().map(|_| None)
+            }
+            CallableIdentifier::Method("ENABLE") => self.state.borrow_mut().enable().map(|_| None),
+            CallableIdentifier::Method("ENABLEDRAGGING") => {
+                self.state.borrow_mut().enable_dragging().map(|_| None)
+            }
+            CallableIdentifier::Method("GETONCLICK") => self.state.borrow().get_on_click(),
+            CallableIdentifier::Method("GETONMOVE") => self.state.borrow().get_on_move(),
+            CallableIdentifier::Method("GETPRIORITY") => self
+                .state
+                .borrow()
+                .get_priority()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
+            CallableIdentifier::Method("GETSTD") => self.state.borrow().get_std(),
+            CallableIdentifier::Method("SETONCLICK") => {
+                self.state.borrow_mut().set_on_click().map(|_| None)
+            }
+            CallableIdentifier::Method("SETONMOVE") => {
+                self.state.borrow_mut().set_on_move().map(|_| None)
+            }
+            CallableIdentifier::Method("SETPRIORITY") => {
+                self.state.borrow_mut().set_priority().map(|_| None)
+            }
+            CallableIdentifier::Method("SETRECT") => {
+                self.state.borrow_mut().set_rect().map(|_| None)
+            }
+            CallableIdentifier::Method("SETSTD") => self.state.borrow_mut().set_std().map(|_| None),
+            CallableIdentifier::Method("SYN") => self.state.borrow_mut().syn().map(|_| None),
+            CallableIdentifier::Event("ONACTION") => {
+                if let Some(v) = self.event_handlers.on_action.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONCLICKED") => {
+                if let Some(v) = self.event_handlers.on_clicked.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONDONE") => {
+                if let Some(v) = self.event_handlers.on_done.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONDRAGGING") => {
+                if let Some(v) = self.event_handlers.on_dragging.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONENDDRAGGING") => {
+                if let Some(v) = self.event_handlers.on_end_dragging.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONFOCUSOFF") => {
+                if let Some(v) = self.event_handlers.on_focus_off.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONFOCUSON") => {
+                if let Some(v) = self.event_handlers.on_focus_on.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
             CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.initial_properties.on_init.as_ref() {
+                if let Some(v) = self.event_handlers.on_init.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONPAUSED") => {
+                if let Some(v) = self.event_handlers.on_paused.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONRELEASED") => {
+                if let Some(v) = self.event_handlers.on_released.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONSIGNAL") => {
+                if let Some(v) = self.event_handlers.on_signal.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONSTARTDRAGGING") => {
+                if let Some(v) = self.event_handlers.on_start_dragging.as_ref() {
                     v.run(context).map(|_| None)
                 } else {
                     Ok(None)
@@ -173,11 +288,8 @@ impl CnvType for Button {
         }
     }
 
-    fn get_property(&self, name: &str) -> Option<PropertyValue> {
-        match name {
-            "ONINIT" => self.initial_properties.on_init.clone().map(|v| v.into()),
-            _ => todo!(),
-        }
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
     }
 
     fn new(
@@ -282,7 +394,7 @@ impl CnvType for Button {
             .transpose()?;
         Ok(CnvContent::Button(Button::from_initial_properties(
             parent,
-            ButtonInit {
+            ButtonProperties {
                 accent,
                 drag,
                 draggable,
@@ -309,5 +421,87 @@ impl CnvType for Button {
                 on_start_dragging,
             },
         )))
+    }
+}
+
+impl ButtonState {
+    pub fn accent(&mut self) -> RunnerResult<()> {
+        // ACCENT
+        todo!()
+    }
+
+    pub fn disable(&mut self) -> RunnerResult<()> {
+        // DISABLE
+        todo!()
+    }
+
+    pub fn disable_but_visible(&mut self) -> RunnerResult<()> {
+        // DISABLEBUTVISIBLE
+        todo!()
+    }
+
+    pub fn disable_dragging(&mut self) -> RunnerResult<()> {
+        // DISABLEDRAGGING
+        todo!()
+    }
+
+    pub fn enable(&mut self) -> RunnerResult<()> {
+        // ENABLE
+        todo!()
+    }
+
+    pub fn enable_dragging(&mut self) -> RunnerResult<()> {
+        // ENABLEDRAGGING
+        todo!()
+    }
+
+    pub fn get_on_click(&self) -> RunnerResult<Option<CnvValue>> {
+        // GETONCLICK
+        todo!()
+    }
+
+    pub fn get_on_move(&self) -> RunnerResult<Option<CnvValue>> {
+        // GETONMOVE
+        todo!()
+    }
+
+    pub fn get_priority(&self) -> RunnerResult<isize> {
+        // GETPRIORITY
+        todo!()
+    }
+
+    pub fn get_std(&self) -> RunnerResult<Option<CnvValue>> {
+        // GETSTD
+        todo!()
+    }
+
+    pub fn set_on_click(&mut self) -> RunnerResult<()> {
+        // SETONCLICK
+        todo!()
+    }
+
+    pub fn set_on_move(&mut self) -> RunnerResult<()> {
+        // SETONMOVE
+        todo!()
+    }
+
+    pub fn set_priority(&mut self) -> RunnerResult<()> {
+        // SETPRIORITY
+        todo!()
+    }
+
+    pub fn set_rect(&mut self) -> RunnerResult<()> {
+        // SETRECT
+        todo!()
+    }
+
+    pub fn set_std(&mut self) -> RunnerResult<()> {
+        // SETSTD
+        todo!()
+    }
+
+    pub fn syn(&mut self) -> RunnerResult<()> {
+        // SYN
+        todo!()
     }
 }

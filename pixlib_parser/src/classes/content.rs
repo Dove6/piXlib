@@ -8,28 +8,28 @@ pub enum CnvContent {
     Application(Application),
     Array(Array),
     Behavior(Behavior),
-    Bool(Bool),
+    Bool(BoolVar),
     Button(Button),
     CanvasObserver(CanvasObserver),
     CnvLoader(CnvLoader),
     Condition(Condition),
     ComplexCondition(ComplexCondition),
-    Double(Dbl),
+    Double(DoubleVar),
     Episode(Episode),
     Expression(Expression),
     Font(Font),
     Group(Group),
     Image(Image),
-    Integer(Int),
+    Integer(IntegerVar),
     Keyboard(Keyboard),
     Mouse(Mouse),
     MultiArray(MultiArray),
     Music(Music),
-    Rand(Random),
+    Rand(Rand),
     Scene(Scene),
     Sequence(Sequence),
     Sound(Sound),
-    String(Str),
+    String(StringVar),
     Struct(Struct),
     System(System),
     Text(Text),
@@ -121,7 +121,7 @@ impl<'a> From<&'a CnvContent> for Option<&'a Behavior> {
     }
 }
 
-impl<'a> From<&'a CnvContent> for Option<&'a Bool> {
+impl<'a> From<&'a CnvContent> for Option<&'a BoolVar> {
     fn from(value: &'a CnvContent) -> Self {
         match value {
             CnvContent::Bool(content) => Some(content),
@@ -175,7 +175,7 @@ impl<'a> From<&'a CnvContent> for Option<&'a ComplexCondition> {
     }
 }
 
-impl<'a> From<&'a CnvContent> for Option<&'a Dbl> {
+impl<'a> From<&'a CnvContent> for Option<&'a DoubleVar> {
     fn from(value: &'a CnvContent) -> Self {
         match value {
             CnvContent::Double(content) => Some(content),
@@ -229,7 +229,7 @@ impl<'a> From<&'a CnvContent> for Option<&'a Image> {
     }
 }
 
-impl<'a> From<&'a CnvContent> for Option<&'a Int> {
+impl<'a> From<&'a CnvContent> for Option<&'a IntegerVar> {
     fn from(value: &'a CnvContent) -> Self {
         match value {
             CnvContent::Integer(content) => Some(content),
@@ -274,7 +274,7 @@ impl<'a> From<&'a CnvContent> for Option<&'a Music> {
     }
 }
 
-impl<'a> From<&'a CnvContent> for Option<&'a Random> {
+impl<'a> From<&'a CnvContent> for Option<&'a Rand> {
     fn from(value: &'a CnvContent) -> Self {
         match value {
             CnvContent::Rand(content) => Some(content),
@@ -310,7 +310,7 @@ impl<'a> From<&'a CnvContent> for Option<&'a Sound> {
     }
 }
 
-impl<'a> From<&'a CnvContent> for Option<&'a Str> {
+impl<'a> From<&'a CnvContent> for Option<&'a StringVar> {
     fn from(value: &'a CnvContent) -> Self {
         match value {
             CnvContent::String(content) => Some(content),
@@ -391,7 +391,7 @@ impl<'a> From<&'a mut CnvContent> for Option<&'a mut Behavior> {
     }
 }
 
-impl<'a> From<&'a mut CnvContent> for Option<&'a mut Bool> {
+impl<'a> From<&'a mut CnvContent> for Option<&'a mut BoolVar> {
     fn from(value: &'a mut CnvContent) -> Self {
         match value {
             CnvContent::Bool(content) => Some(content),
@@ -445,7 +445,7 @@ impl<'a> From<&'a mut CnvContent> for Option<&'a mut ComplexCondition> {
     }
 }
 
-impl<'a> From<&'a mut CnvContent> for Option<&'a mut Dbl> {
+impl<'a> From<&'a mut CnvContent> for Option<&'a mut DoubleVar> {
     fn from(value: &'a mut CnvContent) -> Self {
         match value {
             CnvContent::Double(content) => Some(content),
@@ -499,7 +499,7 @@ impl<'a> From<&'a mut CnvContent> for Option<&'a mut Image> {
     }
 }
 
-impl<'a> From<&'a mut CnvContent> for Option<&'a mut Int> {
+impl<'a> From<&'a mut CnvContent> for Option<&'a mut IntegerVar> {
     fn from(value: &'a mut CnvContent) -> Self {
         match value {
             CnvContent::Integer(content) => Some(content),
@@ -544,7 +544,7 @@ impl<'a> From<&'a mut CnvContent> for Option<&'a mut Music> {
     }
 }
 
-impl<'a> From<&'a mut CnvContent> for Option<&'a mut Random> {
+impl<'a> From<&'a mut CnvContent> for Option<&'a mut Rand> {
     fn from(value: &'a mut CnvContent) -> Self {
         match value {
             CnvContent::Rand(content) => Some(content),
@@ -580,7 +580,7 @@ impl<'a> From<&'a mut CnvContent> for Option<&'a mut Sound> {
     }
 }
 
-impl<'a> From<&'a mut CnvContent> for Option<&'a mut Str> {
+impl<'a> From<&'a mut CnvContent> for Option<&'a mut StringVar> {
     fn from(value: &'a mut CnvContent) -> Self {
         match value {
             CnvContent::String(content) => Some(content),

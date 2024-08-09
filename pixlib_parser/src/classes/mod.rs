@@ -109,29 +109,29 @@ impl CnvTypeFactory {
             "APPLICATION" => Application::new(parent, properties),
             "ARRAY" => Array::new(parent, properties),
             "BEHAVIOUR" => Behavior::new(parent, properties),
-            "BOOL" => Bool::new(parent, properties),
+            "BOOL" => BoolVar::new(parent, properties),
             "BUTTON" => Button::new(parent, properties),
             "CANVAS_OBSERVER" => CanvasObserver::new(parent, properties),
             "CANVASOBSERVER" => CanvasObserver::new(parent, properties),
             "CNVLOADER" => CnvLoader::new(parent, properties),
             "CONDITION" => Condition::new(parent, properties),
             "COMPLEXCONDITION" => ComplexCondition::new(parent, properties),
-            "DOUBLE" => Dbl::new(parent, properties),
+            "DOUBLE" => DoubleVar::new(parent, properties),
             "EPISODE" => Episode::new(parent, properties),
             "EXPRESSION" => Expression::new(parent, properties),
             "FONT" => Font::new(parent, properties),
             "GROUP" => Group::new(parent, properties),
             "IMAGE" => Image::new(parent, properties),
-            "INTEGER" => Int::new(parent, properties),
+            "INTEGER" => IntegerVar::new(parent, properties),
             "KEYBOARD" => Keyboard::new(parent, properties),
             "MOUSE" => Mouse::new(parent, properties),
             "MULTIARRAY" => MultiArray::new(parent, properties),
             "MUSIC" => Music::new(parent, properties),
-            "RAND" => Random::new(parent, properties),
+            "RAND" => Rand::new(parent, properties),
             "SCENE" => Scene::new(parent, properties),
             "SEQUENCE" => Sequence::new(parent, properties),
             "SOUND" => Sound::new(parent, properties),
-            "STRING" => Str::new(parent, properties),
+            "STRING" => StringVar::new(parent, properties),
             "STRUCT" => Struct::new(parent, properties),
             "SYSTEM" => System::new(parent, properties),
             "TEXT" => Text::new(parent, properties),
@@ -139,6 +139,40 @@ impl CnvTypeFactory {
             _ => Err(TypeParsingError::UnknownType(type_name)),
         }
     }
+}
+
+#[derive(Debug, Clone, Default)]
+pub enum SoundFileData {
+    #[default]
+    Empty,
+    NotLoaded(String),
+    Loaded(LoadedSound),
+}
+
+#[derive(Debug, Clone)]
+pub struct LoadedSound {
+    pub filename: Option<String>,
+    pub sound: SoundData,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SoundData {
+    pub hash: u64,
+    pub data: Arc<[u8]>, // RGBA8888
+}
+
+#[derive(Debug, Clone, Default)]
+pub enum SequenceFileData {
+    #[default]
+    Empty,
+    NotLoaded(String),
+    Loaded(LoadedSequence),
+}
+
+#[derive(Debug, Clone)]
+pub struct LoadedSequence {
+    pub filename: Option<String>,
+    pub sequence: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -264,20 +298,20 @@ pub use animation::Animation;
 pub use application::Application;
 pub use array::Array;
 pub use behavior::Behavior;
-pub use bool::Bool;
+pub use bool::BoolVar;
 pub use button::Button;
 pub use canvasobserver::CanvasObserver;
 pub use cnvloader::CnvLoader;
 pub use complexcondition::ComplexCondition;
 pub use condition::Condition;
 pub use content::CnvContent;
-pub use dbl::Dbl;
+pub use dbl::DoubleVar;
 pub use episode::Episode;
 pub use expression::Expression;
 pub use font::Font;
 pub use group::Group;
 pub use image::Image;
-pub use int::Int;
+pub use int::IntegerVar;
 pub use keyboard::Keyboard;
 pub use lalrpop_util::ParseError;
 pub use mouse::Mouse;
@@ -287,11 +321,11 @@ pub use object::CnvObject;
 pub use object::CnvObjectBuilder;
 pub use object::ObjectBuilderError;
 pub use parsers::PropertyValue; // poison
-pub use random::Random;
+pub use random::Rand;
 pub use scene::Scene;
 pub use sequence::Sequence;
 pub use sound::Sound;
-pub use str::Str;
+pub use str::StringVar;
 pub use structure::Struct;
 pub use system::System;
 pub use text::Text;

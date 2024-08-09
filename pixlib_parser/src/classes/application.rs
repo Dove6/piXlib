@@ -1,11 +1,11 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_comma_separated, parse_datetime};
 
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct ApplicationInit {
+pub struct ApplicationProperties {
     // APPLICATION
     pub author: Option<String>,                  // AUTHOR
     pub bloomoo_version: Option<String>,         // BLOOMOO_VERSION
@@ -19,113 +19,68 @@ pub struct ApplicationInit {
 }
 
 #[derive(Debug, Clone)]
+struct ApplicationState {
+    // deduced from methods
+    pub has_music_enabled: bool,
+    pub language_code: String,
+    pub is_being_dragged: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ApplicationEventHandlers {}
+
+#[derive(Debug, Clone)]
 pub struct Application {
     parent: Arc<CnvObject>,
-    initial_properties: ApplicationInit,
+
+    state: RefCell<ApplicationState>,
+    event_handlers: ApplicationEventHandlers,
+
+    author: String,
+    bloomoo_version: String,
+    creation_time: Option<DateTime<Utc>>,
+    description: String,
+    episodes: Vec<EpisodeName>,
+    last_modify_time: Option<DateTime<Utc>>,
+    path: Option<String>,
+    start_with: Option<EpisodeName>,
+    version: String,
 }
 
 impl Application {
-    pub fn from_initial_properties(
-        parent: Arc<CnvObject>,
-        initial_properties: ApplicationInit,
-    ) -> Self {
-        Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, props: ApplicationProperties) -> Self {
+        let mut app = Self {
             parent,
-            initial_properties,
+            state: RefCell::new(ApplicationState {
+                has_music_enabled: true,
+                language_code: "040E".to_owned(),
+                is_being_dragged: false,
+            }),
+            event_handlers: ApplicationEventHandlers {},
+            author: props.author.unwrap_or_default(),
+            bloomoo_version: props.bloomoo_version.unwrap_or_default(),
+            creation_time: props.creation_time,
+            description: props.description.unwrap_or_default(),
+            episodes: props.episodes.unwrap_or_default(),
+            last_modify_time: props.last_modify_time,
+            path: props.path,
+            start_with: props.start_with,
+            version: props.version.unwrap_or_default(),
+        };
+        if app.start_with.is_none() && !app.episodes.is_empty() {
+            app.start_with = Some(app.episodes[0].clone());
         }
-    }
-
-    pub fn disable_music(&self) {
-        // DISABLEMUSIC
-        todo!()
-    }
-
-    pub fn enable_music(&self) {
-        // ENABLEMUSIC
-        todo!()
-    }
-
-    pub fn exists_env(&self) {
-        // EXISTSENV
-        todo!()
-    }
-
-    pub fn exit(&self) {
-        // EXIT
-        todo!()
-    }
-
-    pub fn get_language(&self) {
-        // GETLANGUAGE
-        todo!()
-    }
-
-    pub fn get_player(&self) {
-        // GETPLAYER
-        todo!()
-    }
-
-    pub fn goto(&self) {
-        // GOTO
-        todo!()
-    }
-
-    pub fn print(&self) {
-        // PRINT
-        todo!()
-    }
-
-    pub fn reload(&self) {
-        // RELOAD
-        todo!()
-    }
-
-    pub fn restart(&self) {
-        // RESTART
-        todo!()
-    }
-
-    pub fn run(&self) {
-        // RUN
-        todo!()
-    }
-
-    pub fn run_env(&self) {
-        // RUNENV
-        todo!()
-    }
-
-    pub fn set_language(&self) {
-        // SETLANGUAGE
-        todo!()
-    }
-
-    pub fn start_dragging_window(&self) {
-        // STARTDRAGGINGWINDOW
-        todo!()
-    }
-
-    pub fn stop_dragging_window(&self) {
-        // STOPDRAGGINGWINDOW
-        todo!()
-    }
-
-    pub fn store_binary(&self) {
-        // STOREBINARY
-        todo!()
+        app
     }
 
     ///
 
     pub fn get_episode_list(&self) -> Vec<String> {
-        self.initial_properties
-            .episodes
-            .clone()
-            .unwrap_or(Vec::new())
+        self.episodes.clone()
     }
 
     pub fn get_script_path(&self) -> Option<String> {
-        self.initial_properties.path.clone()
+        self.path.clone()
     }
 }
 
@@ -161,16 +116,56 @@ impl CnvType for Application {
         _context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
+            CallableIdentifier::Method("DISABLEMUSIC") => {
+                self.state.borrow_mut().disable_music().map(|_| None)
+            }
+            CallableIdentifier::Method("ENABLEMUSIC") => {
+                self.state.borrow_mut().enable_music().map(|_| None)
+            }
+            CallableIdentifier::Method("EXISTSENV") => self
+                .state
+                .borrow()
+                .exists_env()
+                .map(|v| Some(CnvValue::Boolean(v))),
+            CallableIdentifier::Method("EXIT") => self.state.borrow_mut().exit().map(|_| None),
+            CallableIdentifier::Method("GETLANGUAGE") => self
+                .state
+                .borrow()
+                .get_language()
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("GETPLAYER") => self
+                .state
+                .borrow()
+                .get_player()
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("GOTO") => self.state.borrow_mut().goto().map(|_| None),
+            CallableIdentifier::Method("PRINT") => self.state.borrow_mut().print().map(|_| None),
+            CallableIdentifier::Method("RELOAD") => self.state.borrow_mut().reload().map(|_| None),
+            CallableIdentifier::Method("RESTART") => {
+                self.state.borrow_mut().restart().map(|_| None)
+            }
+            CallableIdentifier::Method("RUN") => self.state.borrow_mut().run().map(|_| None),
+            CallableIdentifier::Method("RUNENV") => self.state.borrow_mut().run_env().map(|_| None),
+            CallableIdentifier::Method("SETLANGUAGE") => {
+                self.state.borrow_mut().set_language().map(|_| None)
+            }
+            CallableIdentifier::Method("STARTDRAGGINGWINDOW") => self
+                .state
+                .borrow_mut()
+                .start_dragging_window()
+                .map(|_| None),
+            CallableIdentifier::Method("STOPDRAGGINGWINDOW") => {
+                self.state.borrow_mut().stop_dragging_window().map(|_| None)
+            }
+            CallableIdentifier::Method("STOREBINARY") => {
+                self.state.borrow_mut().store_binary().map(|_| None)
+            }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }
 
-    fn get_property(&self, name: &str) -> Option<PropertyValue> {
-        match name {
-            "PATH" => self.initial_properties.path.clone().map(|v| v.into()),
-            "EPISODES" => self.initial_properties.episodes.clone().map(|v| v.into()),
-            _ => todo!(),
-        }
+    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
+        todo!()
     }
 
     fn new(
@@ -202,7 +197,7 @@ impl CnvType for Application {
         let version = properties.remove("VERSION").and_then(discard_if_empty);
         Ok(CnvContent::Application(Self::from_initial_properties(
             parent,
-            ApplicationInit {
+            ApplicationProperties {
                 author,
                 bloomoo_version,
                 creation_time,
@@ -214,5 +209,87 @@ impl CnvType for Application {
                 version,
             },
         )))
+    }
+}
+
+impl ApplicationState {
+    pub fn disable_music(&mut self) -> RunnerResult<()> {
+        // DISABLEMUSIC
+        todo!()
+    }
+
+    pub fn enable_music(&mut self) -> RunnerResult<()> {
+        // ENABLEMUSIC
+        todo!()
+    }
+
+    pub fn exists_env(&self) -> RunnerResult<bool> {
+        // EXISTSENV
+        todo!()
+    }
+
+    pub fn exit(&mut self) -> RunnerResult<()> {
+        // EXIT
+        todo!()
+    }
+
+    pub fn get_language(&self) -> RunnerResult<String> {
+        // GETLANGUAGE
+        todo!()
+    }
+
+    pub fn get_player(&self) -> RunnerResult<String> {
+        // GETPLAYER
+        todo!()
+    }
+
+    pub fn goto(&mut self) -> RunnerResult<()> {
+        // GOTO
+        todo!()
+    }
+
+    pub fn print(&mut self) -> RunnerResult<()> {
+        // PRINT
+        todo!()
+    }
+
+    pub fn reload(&mut self) -> RunnerResult<()> {
+        // RELOAD
+        todo!()
+    }
+
+    pub fn restart(&mut self) -> RunnerResult<()> {
+        // RESTART
+        todo!()
+    }
+
+    pub fn run(&mut self) -> RunnerResult<()> {
+        // RUN
+        todo!()
+    }
+
+    pub fn run_env(&mut self) -> RunnerResult<()> {
+        // RUNENV
+        todo!()
+    }
+
+    pub fn set_language(&mut self) -> RunnerResult<()> {
+        // SETLANGUAGE
+        todo!()
+    }
+
+    pub fn start_dragging_window(&mut self) -> RunnerResult<()> {
+        // STARTDRAGGINGWINDOW
+        todo!()
+    }
+
+    pub fn stop_dragging_window(&mut self) -> RunnerResult<()> {
+        // STOPDRAGGINGWINDOW
+        todo!()
+    }
+
+    pub fn store_binary(&mut self) -> RunnerResult<()> {
+        // STOREBINARY
+        todo!()
     }
 }

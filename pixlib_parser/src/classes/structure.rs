@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_program, STRUCT_FIELDS_REGEX};
 
@@ -7,7 +7,7 @@ use crate::ast::ParsedScript;
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct StructInit {
+pub struct StructProperties {
     // STRUCT
     pub fields: Option<Vec<(String, TypeName)>>,
 
@@ -16,33 +16,45 @@ pub struct StructInit {
     pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
 }
 
+#[derive(Debug, Clone, Default)]
+struct StructState {
+    pub initialized: bool,
+
+    // deduced from methods
+    pub fields: HashMap<String, CnvValue>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructEventHandlers {
+    pub on_done: Option<Arc<ParsedScript>>,   // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>,   // ONINIT signal
+    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
+}
+
 #[derive(Debug, Clone)]
 pub struct Struct {
     parent: Arc<CnvObject>,
-    initial_properties: StructInit,
+
+    state: RefCell<StructState>,
+    event_handlers: StructEventHandlers,
+
+    fields: Vec<(String, TypeName)>,
 }
 
 impl Struct {
-    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: StructInit) -> Self {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, props: StructProperties) -> Self {
         Self {
             parent,
-            initial_properties,
+            state: RefCell::new(StructState {
+                ..Default::default()
+            }),
+            event_handlers: StructEventHandlers {
+                on_done: props.on_done,
+                on_init: props.on_init,
+                on_signal: props.on_signal,
+            },
+            fields: props.fields.unwrap_or_default(),
         }
-    }
-
-    pub fn get_field() {
-        // GETFIELD
-        todo!()
-    }
-
-    pub fn set() {
-        // SET
-        todo!()
-    }
-
-    pub fn set_field() {
-        // SETFIELD
-        todo!()
     }
 }
 
@@ -74,10 +86,42 @@ impl CnvType for Struct {
     fn call_method(
         &self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
-        _context: RunnerContext,
+        arguments: &[CnvValue],
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
+            CallableIdentifier::Method("GETFIELD") => self
+                .state
+                .borrow_mut()
+                .get_field(&arguments[0].to_string())
+                .map(|_| None),
+            CallableIdentifier::Method("SET") => self.state.borrow_mut().set().map(|_| None),
+            CallableIdentifier::Method("SETFIELD") => self
+                .state
+                .borrow_mut()
+                .set_field(&arguments[0].to_string(), arguments[1].clone())
+                .map(|_| None),
+            CallableIdentifier::Event("ONDONE") => {
+                if let Some(v) = self.event_handlers.on_done.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.event_handlers.on_init.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONSIGNAL") => {
+                if let Some(v) = self.event_handlers.on_signal.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }
@@ -118,12 +162,29 @@ impl CnvType for Struct {
             .transpose()?;
         Ok(CnvContent::Struct(Self::from_initial_properties(
             parent,
-            StructInit {
+            StructProperties {
                 fields,
                 on_done,
                 on_init,
                 on_signal,
             },
         )))
+    }
+}
+
+impl StructState {
+    pub fn get_field(&self, _name: &str) -> RunnerResult<CnvValue> {
+        // GETFIELD
+        todo!()
+    }
+
+    pub fn set(&mut self) -> RunnerResult<()> {
+        // SET
+        todo!()
+    }
+
+    pub fn set_field(&mut self, _name: &str, _value: CnvValue) -> RunnerResult<()> {
+        // SETFIELD
+        todo!()
     }
 }

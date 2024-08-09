@@ -191,6 +191,14 @@ pub enum TypeParsingError {
     InvalidExpressionOperator(String),
     #[error("Invalid program: {0}")]
     InvalidProgram(ProgramParsingError),
+    #[error("Missing operator")]
+    MissingOperator,
+    #[error("Missing left operand")]
+    MissingLeftOperand,
+    #[error("Missing right operand")]
+    MissingRightOperand,
+    #[error("Missing dimension count")]
+    MissingDimensionCount,
 }
 
 #[derive(Debug, Error)]

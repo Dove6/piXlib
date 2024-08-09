@@ -7,7 +7,7 @@ use crate::ast::ParsedScript;
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct BoolInit {
+pub struct BoolVarProperties {
     // BOOL
     pub default: Option<bool>,   // DEFAULT
     pub netnotify: Option<bool>, // NETNOTIFY
@@ -23,24 +23,52 @@ pub struct BoolInit {
 }
 
 #[derive(Debug, Clone, Default)]
-struct BoolState {
-    value: bool,
+struct BoolVarState {
+    pub initialized: bool,
+
+    // initialized from properties
+    pub value: bool,
 }
 
 #[derive(Debug, Clone)]
-pub struct Bool {
-    parent: Arc<CnvObject>,
-    state: RefCell<BoolState>,
-    initial_properties: BoolInit,
+struct BoolVarEventHandlers {
+    pub on_brutal_changed: Option<Arc<ParsedScript>>, // ONBRUTALCHANGED signal
+    pub on_changed: Option<Arc<ParsedScript>>,        // ONCHANGED signal
+    pub on_done: Option<Arc<ParsedScript>>,           // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>,           // ONINIT signal
+    pub on_net_changed: Option<Arc<ParsedScript>>,    // ONNETCHANGED signal
+    pub on_signal: Option<Arc<ParsedScript>>,         // ONSIGNAL signal
 }
 
-impl Bool {
-    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: BoolInit) -> Self {
-        let value = initial_properties.value.unwrap_or(false);
+#[derive(Debug, Clone)]
+pub struct BoolVar {
+    parent: Arc<CnvObject>,
+
+    state: RefCell<BoolVarState>,
+    event_handlers: BoolVarEventHandlers,
+
+    should_notify_on_net_changed: bool,
+    should_be_stored_to_ini: bool,
+}
+
+impl BoolVar {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, props: BoolVarProperties) -> Self {
         Self {
             parent,
-            state: RefCell::new(BoolState { value }),
-            initial_properties,
+            state: RefCell::new(BoolVarState {
+                value: props.value.unwrap_or_default(),
+                ..Default::default()
+            }),
+            event_handlers: BoolVarEventHandlers {
+                on_brutal_changed: props.on_brutal_changed,
+                on_changed: props.on_changed,
+                on_done: props.on_done,
+                on_init: props.on_init,
+                on_net_changed: props.on_net_changed,
+                on_signal: props.on_signal,
+            },
+            should_notify_on_net_changed: props.netnotify.unwrap_or_default(),
+            should_be_stored_to_ini: props.to_ini.unwrap_or_default(),
         }
     }
 
@@ -49,7 +77,7 @@ impl Bool {
     }
 }
 
-impl CnvType for Bool {
+impl CnvType for BoolVar {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -84,32 +112,71 @@ impl CnvType for Bool {
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
-            CallableIdentifier::Method("SET") => {
-                assert!(arguments.len() == 1);
-                self.state
-                    .borrow_mut()
-                    .set(self, context, arguments[0].to_boolean())?;
-                Ok(None)
+            CallableIdentifier::Method("AND") => self.state.borrow_mut().and().map(|_| None),
+            CallableIdentifier::Method("CLEAR") => self.state.borrow_mut().clear().map(|_| None),
+            CallableIdentifier::Method("COPYFILE") => {
+                self.state.borrow_mut().copy_file().map(|_| None)
             }
-            CallableIdentifier::Method("GET") => {
-                Ok(Some(CnvValue::Boolean(self.state.borrow().get()?)))
+            CallableIdentifier::Method("DEC") => self.state.borrow_mut().dec().map(|_| None),
+            CallableIdentifier::Method("GET") => self
+                .state
+                .borrow()
+                .get()
+                .map(|v| Some(CnvValue::Boolean(v))),
+            CallableIdentifier::Method("INC") => self.state.borrow_mut().inc().map(|_| None),
+            CallableIdentifier::Method("NOT") => self.state.borrow_mut().not().map(|_| None),
+            CallableIdentifier::Method("OR") => self.state.borrow_mut().or().map(|_| None),
+            CallableIdentifier::Method("RANDOM") => self.state.borrow_mut().random().map(|_| None),
+            CallableIdentifier::Method("RESETINI") => {
+                self.state.borrow_mut().reset_ini().map(|_| None)
             }
-            CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.initial_properties.on_init.as_ref() {
+            CallableIdentifier::Method("SET") => self
+                .state
+                .borrow_mut()
+                .set(self, context, arguments[0].to_boolean())
+                .map(|_| None),
+            CallableIdentifier::Method("SETDEFAULT") => {
+                self.state.borrow_mut().set_default().map(|_| None)
+            }
+            CallableIdentifier::Method("SWITCH") => self.state.borrow_mut().switch().map(|_| None),
+            CallableIdentifier::Method("XOR") => self.state.borrow_mut().xor().map(|_| None),
+            CallableIdentifier::Event("ONBRUTALCHANGED") => {
+                if let Some(v) = self.event_handlers.on_brutal_changed.as_ref() {
                     v.run(context).map(|_| None)
                 } else {
                     Ok(None)
                 }
             }
             CallableIdentifier::Event("ONCHANGED") => {
-                if let Some(v) = self.initial_properties.on_changed.as_ref() {
+                if let Some(v) = self.event_handlers.on_changed.as_ref() {
                     v.run(context).map(|_| None)
                 } else {
                     Ok(None)
                 }
             }
-            CallableIdentifier::Event("ONBRUTALCHANGED") => {
-                if let Some(v) = self.initial_properties.on_brutal_changed.as_ref() {
+            CallableIdentifier::Event("ONDONE") => {
+                if let Some(v) = self.event_handlers.on_done.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONINIT") => {
+                if let Some(v) = self.event_handlers.on_init.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONNETCHANGED") => {
+                if let Some(v) = self.event_handlers.on_net_changed.as_ref() {
+                    v.run(context).map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
+            CallableIdentifier::Event("ONSIGNAL") => {
+                if let Some(v) = self.event_handlers.on_signal.as_ref() {
                     v.run(context).map(|_| None)
                 } else {
                     Ok(None)
@@ -179,7 +246,7 @@ impl CnvType for Bool {
             .transpose()?;
         Ok(CnvContent::Bool(Self::from_initial_properties(
             parent,
-            BoolInit {
+            BoolVarProperties {
                 default,
                 netnotify,
                 to_ini,
@@ -195,23 +262,23 @@ impl CnvType for Bool {
     }
 }
 
-impl BoolState {
-    pub fn and() {
+impl BoolVarState {
+    pub fn and(&mut self) -> RunnerResult<()> {
         // AND
         todo!()
     }
 
-    pub fn clear() {
+    pub fn clear(&mut self) -> RunnerResult<()> {
         // CLEAR
         todo!()
     }
 
-    pub fn copy_file() {
+    pub fn copy_file(&mut self) -> RunnerResult<()> {
         // COPYFILE
         todo!()
     }
 
-    pub fn dec() {
+    pub fn dec(&mut self) -> RunnerResult<()> {
         // DEC
         todo!()
     }
@@ -221,32 +288,37 @@ impl BoolState {
         Ok(self.value)
     }
 
-    pub fn inc() {
+    pub fn inc(&mut self) -> RunnerResult<()> {
         // INC
         todo!()
     }
 
-    pub fn not() {
+    pub fn not(&mut self) -> RunnerResult<()> {
         // NOT
         todo!()
     }
 
-    pub fn or() {
+    pub fn or(&mut self) -> RunnerResult<()> {
         // OR
         todo!()
     }
 
-    pub fn random() {
+    pub fn random(&mut self) -> RunnerResult<()> {
         // RANDOM
         todo!()
     }
 
-    pub fn reset_ini() {
+    pub fn reset_ini(&mut self) -> RunnerResult<()> {
         // RESETINI
         todo!()
     }
 
-    pub fn set(&mut self, boolean: &Bool, context: RunnerContext, value: bool) -> RunnerResult<()> {
+    pub fn set(
+        &mut self,
+        boolean: &BoolVar,
+        context: RunnerContext,
+        value: bool,
+    ) -> RunnerResult<()> {
         // SET
         let changed_value = self.value != value;
         self.value = value;
@@ -265,17 +337,17 @@ impl BoolState {
         Ok(())
     }
 
-    pub fn set_default() {
+    pub fn set_default(&mut self) -> RunnerResult<()> {
         // SETDEFAULT
         todo!()
     }
 
-    pub fn switch() {
+    pub fn switch(&mut self) -> RunnerResult<()> {
         // SWITCH
         todo!()
     }
 
-    pub fn xor() {
+    pub fn xor(&mut self) -> RunnerResult<()> {
         // XOR
         todo!()
     }

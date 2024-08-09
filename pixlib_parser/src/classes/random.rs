@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 use rand::Rng;
 
@@ -7,37 +7,37 @@ use crate::runner::RunnerError;
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct RandomInit {
+pub struct RandProperties {
     // RAND
 }
 
+#[derive(Debug, Clone, Default)]
+struct RandState {}
+
 #[derive(Debug, Clone)]
-pub struct Random {
+pub struct RandEventHandlers {}
+
+#[derive(Debug, Clone)]
+pub struct Rand {
     parent: Arc<CnvObject>,
-    initial_properties: RandomInit,
+
+    state: RefCell<RandState>,
+    event_handlers: RandEventHandlers,
 }
 
-impl Random {
-    pub fn from_initial_properties(parent: Arc<CnvObject>, initial_properties: RandomInit) -> Self {
+impl Rand {
+    pub fn from_initial_properties(parent: Arc<CnvObject>, _props: RandProperties) -> Self {
         Self {
             parent,
-            initial_properties,
+            state: RefCell::new(RandState {
+                ..Default::default()
+            }),
+            event_handlers: RandEventHandlers {},
         }
-    }
-
-    pub fn get(&self, max_exclusive: usize, offset: isize) -> RunnerResult<isize> {
-        // GET
-        let mut rng = rand::thread_rng();
-        Ok(rng.gen_range(0..max_exclusive) as isize + offset)
-    }
-
-    pub fn get_plenty() {
-        // GETPLENTY
-        todo!()
     }
 }
 
-impl CnvType for Random {
+impl CnvType for Rand {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -74,8 +74,11 @@ impl CnvType for Random {
                     expected_min: 1,
                     actual: 0,
                 }),
-                1 => self.get(arguments[0].to_integer() as usize, 0),
-                2 => self.get(
+                1 => self
+                    .state
+                    .borrow()
+                    .get(arguments[0].to_integer() as usize, 0),
+                2 => self.state.borrow().get(
                     arguments[1].to_integer() as usize,
                     arguments[0].to_integer() as isize,
                 ),
@@ -85,6 +88,9 @@ impl CnvType for Random {
                 }),
             }
             .map(|v| Some(CnvValue::Integer(v as i32))),
+            CallableIdentifier::Method("GETPLENTY") => {
+                self.state.borrow().get_plenty().map(|_| None)
+            }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }
@@ -97,9 +103,22 @@ impl CnvType for Random {
         parent: Arc<CnvObject>,
         _properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {
-        Ok(CnvContent::Rand(Random::from_initial_properties(
+        Ok(CnvContent::Rand(Rand::from_initial_properties(
             parent,
-            RandomInit {},
+            RandProperties {},
         )))
+    }
+}
+
+impl RandState {
+    pub fn get(&self, max_exclusive: usize, offset: isize) -> RunnerResult<isize> {
+        // GET
+        let mut rng = rand::thread_rng();
+        Ok(rng.gen_range(0..max_exclusive) as isize + offset)
+    }
+
+    pub fn get_plenty(&self) -> RunnerResult<()> {
+        // GETPLENTY
+        todo!()
     }
 }
