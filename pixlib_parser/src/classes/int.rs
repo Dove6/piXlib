@@ -27,6 +27,7 @@ struct IntegerVarState {
     pub initialized: bool,
 
     // initialized from properties
+    pub default_value: i32,
     pub value: i32,
 }
 
@@ -53,10 +54,12 @@ pub struct IntegerVar {
 
 impl IntegerVar {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: IntegerVarProperties) -> Self {
+        let value = props.value.unwrap_or_default();
         Self {
             parent,
             state: RefCell::new(IntegerVarState {
-                value: props.value.unwrap_or_default(),
+                value,
+                default_value: props.default.unwrap_or(value),
                 ..Default::default()
             }),
             event_handlers: IntegerVarEventHandlers {
@@ -112,27 +115,67 @@ impl CnvType for IntegerVar {
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
-            CallableIdentifier::Method("ABS") => self.state.borrow_mut().abs().map(|_| None),
-            CallableIdentifier::Method("ADD") => self.state.borrow_mut().add().map(|_| None),
-            CallableIdentifier::Method("AND") => self.state.borrow_mut().and().map(|_| None),
-            CallableIdentifier::Method("CLAMP") => self.state.borrow_mut().clamp().map(|_| None),
+            CallableIdentifier::Method("ABS") => self
+                .state
+                .borrow_mut()
+                .abs()
+                .map(|v| Some(CnvValue::Integer(v))),
+            CallableIdentifier::Method("ADD") => self
+                .state
+                .borrow_mut()
+                .add(arguments[0].to_integer())
+                .map(|v| Some(CnvValue::Integer(v))),
+            CallableIdentifier::Method("AND") => self
+                .state
+                .borrow_mut()
+                .and(arguments[0].to_integer())
+                .map(|v| Some(CnvValue::Integer(v))),
+            CallableIdentifier::Method("CLAMP") => self
+                .state
+                .borrow_mut()
+                .clamp(arguments[0].to_integer(), arguments[1].to_integer())
+                .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("CLEAR") => self.state.borrow_mut().clear().map(|_| None),
             CallableIdentifier::Method("COPYFILE") => {
                 self.state.borrow_mut().copy_file().map(|_| None)
             }
             CallableIdentifier::Method("DEC") => self.state.borrow_mut().dec().map(|_| None),
-            CallableIdentifier::Method("DIV") => self.state.borrow_mut().div().map(|_| None),
+            CallableIdentifier::Method("DIV") => self
+                .state
+                .borrow_mut()
+                .div(arguments[0].to_integer())
+                .map(|_| None),
             CallableIdentifier::Method("GET") => self
                 .state
                 .borrow()
                 .get()
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("INC") => self.state.borrow_mut().inc().map(|_| None),
-            CallableIdentifier::Method("MOD") => self.state.borrow_mut().modulus().map(|_| None),
-            CallableIdentifier::Method("MUL") => self.state.borrow_mut().mul().map(|_| None),
-            CallableIdentifier::Method("NOT") => self.state.borrow_mut().not().map(|_| None),
-            CallableIdentifier::Method("OR") => self.state.borrow_mut().or().map(|_| None),
-            CallableIdentifier::Method("POWER") => self.state.borrow_mut().power().map(|_| None),
+            CallableIdentifier::Method("MOD") => self
+                .state
+                .borrow_mut()
+                .modulus(arguments[0].to_integer())
+                .map(|_| None),
+            CallableIdentifier::Method("MUL") => self
+                .state
+                .borrow_mut()
+                .mul(arguments[0].to_integer())
+                .map(|_| None),
+            CallableIdentifier::Method("NOT") => self
+                .state
+                .borrow_mut()
+                .not()
+                .map(|v| Some(CnvValue::Integer(v))),
+            CallableIdentifier::Method("OR") => self
+                .state
+                .borrow_mut()
+                .or(arguments[0].to_integer())
+                .map(|v| Some(CnvValue::Integer(v))),
+            CallableIdentifier::Method("POWER") => self
+                .state
+                .borrow_mut()
+                .power(arguments[0].to_integer())
+                .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("RANDOM") => self.state.borrow_mut().random().map(|_| None),
             CallableIdentifier::Method("RESETINI") => {
                 self.state.borrow_mut().reset_ini().map(|_| None)
@@ -142,12 +185,26 @@ impl CnvType for IntegerVar {
                 .borrow_mut()
                 .set(self, context, arguments[0].to_integer())
                 .map(|_| None),
-            CallableIdentifier::Method("SETDEFAULT") => {
-                self.state.borrow_mut().set_default().map(|_| None)
-            }
-            CallableIdentifier::Method("SUB") => self.state.borrow_mut().sub().map(|_| None),
-            CallableIdentifier::Method("SWITCH") => self.state.borrow_mut().switch().map(|_| None),
-            CallableIdentifier::Method("XOR") => self.state.borrow_mut().xor().map(|_| None),
+            CallableIdentifier::Method("SETDEFAULT") => self
+                .state
+                .borrow_mut()
+                .set_default(arguments[0].to_integer())
+                .map(|_| None),
+            CallableIdentifier::Method("SUB") => self
+                .state
+                .borrow_mut()
+                .sub(arguments[0].to_integer())
+                .map(|v| Some(CnvValue::Integer(v))),
+            CallableIdentifier::Method("SWITCH") => self
+                .state
+                .borrow_mut()
+                .switch(arguments[0].to_integer(), arguments[1].to_integer())
+                .map(|_| None),
+            CallableIdentifier::Method("XOR") => self
+                .state
+                .borrow_mut()
+                .xor(arguments[0].to_integer())
+                .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Event("ONBRUTALCHANGED") => {
                 if let Some(v) = self.event_handlers.on_brutal_changed.as_ref() {
                     v.run(context).map(|_| None)
@@ -271,29 +328,34 @@ impl CnvType for IntegerVar {
 }
 
 impl IntegerVarState {
-    pub fn abs(&mut self) -> RunnerResult<()> {
+    pub fn abs(&mut self) -> RunnerResult<i32> {
         // ABS
-        todo!()
+        self.value = self.value.abs();
+        Ok(self.value)
     }
 
-    pub fn add(&mut self) -> RunnerResult<()> {
+    pub fn add(&mut self, operand: i32) -> RunnerResult<i32> {
         // ADD
-        todo!()
+        self.value += operand;
+        Ok(self.value)
     }
 
-    pub fn and(&mut self) -> RunnerResult<()> {
+    pub fn and(&mut self, operand: i32) -> RunnerResult<i32> {
         // AND
-        todo!()
+        self.value &= operand;
+        Ok(self.value)
     }
 
-    pub fn clamp(&mut self) -> RunnerResult<()> {
+    pub fn clamp(&mut self, min: i32, max: i32) -> RunnerResult<i32> {
         // CLAMP
-        todo!()
+        self.value = self.value.clamp(min, max);
+        Ok(self.value)
     }
 
     pub fn clear(&mut self) -> RunnerResult<()> {
         // CLEAR
-        todo!()
+        self.value = 0;
+        Ok(())
     }
 
     pub fn copy_file(&mut self) -> RunnerResult<()> {
@@ -307,9 +369,10 @@ impl IntegerVarState {
         Ok(())
     }
 
-    pub fn div(&mut self) -> RunnerResult<()> {
+    pub fn div(&mut self, divisor: i32) -> RunnerResult<()> {
         // DIV
-        todo!()
+        self.value /= divisor;
+        Ok(())
     }
 
     pub fn get(&self) -> RunnerResult<i32> {
@@ -319,32 +382,42 @@ impl IntegerVarState {
 
     pub fn inc(&mut self) -> RunnerResult<()> {
         // INC
-        todo!()
+        self.value += 1;
+        Ok(())
     }
 
-    pub fn modulus(&mut self) -> RunnerResult<()> {
+    pub fn modulus(&mut self, divisor: i32) -> RunnerResult<()> {
         // MOD
-        todo!()
+        self.value %= divisor;
+        Ok(())
     }
 
-    pub fn mul(&mut self) -> RunnerResult<()> {
+    pub fn mul(&mut self, operand: i32) -> RunnerResult<()> {
         // MUL
-        todo!()
+        self.value *= operand;
+        Ok(())
     }
 
-    pub fn not(&mut self) -> RunnerResult<()> {
+    pub fn not(&mut self) -> RunnerResult<i32> {
         // NOT
-        todo!()
+        self.value = !self.value;
+        Ok(self.value)
     }
 
-    pub fn or(&mut self) -> RunnerResult<()> {
+    pub fn or(&mut self, operand: i32) -> RunnerResult<i32> {
         // OR
-        todo!()
+        self.value |= operand;
+        Ok(self.value)
     }
 
-    pub fn power(&mut self) -> RunnerResult<()> {
+    pub fn power(&mut self, exponent: i32) -> RunnerResult<i32> {
         // POWER
-        todo!()
+        self.value = if exponent < 0 {
+            0i32
+        } else {
+            self.value.pow(exponent as u32)
+        };
+        Ok(self.value)
     }
 
     pub fn random(&mut self) -> RunnerResult<()> {
@@ -381,23 +454,27 @@ impl IntegerVarState {
         Ok(())
     }
 
-    pub fn set_default(&mut self) -> RunnerResult<()> {
+    pub fn set_default(&mut self, default_value: i32) -> RunnerResult<()> {
         // SETDEFAULT
-        todo!()
+        self.default_value = default_value;
+        Ok(())
     }
 
-    pub fn sub(&mut self) -> RunnerResult<()> {
+    pub fn sub(&mut self, subtrahend: i32) -> RunnerResult<i32> {
         // SUB
-        todo!()
+        self.value -= subtrahend;
+        Ok(self.value)
     }
 
-    pub fn switch(&mut self) -> RunnerResult<()> {
+    pub fn switch(&mut self, first: i32, second: i32) -> RunnerResult<()> {
         // SWITCH
-        todo!()
+        self.value = if self.value == first { second } else { first };
+        Ok(())
     }
 
-    pub fn xor(&mut self) -> RunnerResult<()> {
+    pub fn xor(&mut self, operand: i32) -> RunnerResult<i32> {
         // XOR
-        todo!()
+        self.value ^= operand;
+        Ok(self.value)
     }
 }

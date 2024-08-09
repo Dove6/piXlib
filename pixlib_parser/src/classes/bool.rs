@@ -27,6 +27,7 @@ struct BoolVarState {
     pub initialized: bool,
 
     // initialized from properties
+    pub default_value: bool,
     pub value: bool,
 }
 
@@ -53,10 +54,12 @@ pub struct BoolVar {
 
 impl BoolVar {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: BoolVarProperties) -> Self {
+        let value = props.value.unwrap_or_default();
         Self {
             parent,
             state: RefCell::new(BoolVarState {
-                value: props.value.unwrap_or_default(),
+                value,
+                default_value: props.default.unwrap_or(value),
                 ..Default::default()
             }),
             event_handlers: BoolVarEventHandlers {

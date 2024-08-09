@@ -27,6 +27,7 @@ struct DoubleVarState {
     pub initialized: bool,
 
     // initialized from properties
+    pub default_value: f64,
     pub value: f64,
 }
 
@@ -53,10 +54,12 @@ pub struct DoubleVar {
 
 impl DoubleVar {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: DoubleVarProperties) -> Self {
+        let value = props.value.unwrap_or_default();
         Self {
             parent,
             state: RefCell::new(DoubleVarState {
-                value: props.value.unwrap_or_default(),
+                value,
+                default_value: props.default.unwrap_or(value),
                 ..Default::default()
             }),
             event_handlers: DoubleVarEventHandlers {

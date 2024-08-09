@@ -27,6 +27,7 @@ struct StringVarState {
     pub initialized: bool,
 
     // initialized from properties
+    pub default_value: String,
     pub value: String,
 }
 
@@ -53,10 +54,12 @@ pub struct StringVar {
 
 impl StringVar {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: StringVarProperties) -> Self {
+        let value = props.value.unwrap_or_default();
         Self {
             parent,
             state: RefCell::new(StringVarState {
-                value: props.value.unwrap_or_default(),
+                default_value: props.default.unwrap_or(value.clone()),
+                value,
                 ..Default::default()
             }),
             event_handlers: StringVarEventHandlers {
