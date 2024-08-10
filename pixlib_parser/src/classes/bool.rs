@@ -2,7 +2,7 @@ use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_bool, parse_program};
 
-use crate::ast::ParsedScript;
+use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
 use super::*;
 
@@ -28,7 +28,7 @@ struct BoolVarState {
 
     // initialized from properties
     pub default_value: bool,
-    pub value: bool,
+    pub value: i32,
 }
 
 #[derive(Debug, Clone)]
@@ -58,7 +58,7 @@ impl BoolVar {
         Self {
             parent,
             state: RefCell::new(BoolVarState {
-                value,
+                value: if value { 1 } else { 0 },
                 default_value: props.default.unwrap_or(value),
                 ..Default::default()
             }),
@@ -115,34 +115,54 @@ impl CnvType for BoolVar {
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
-            CallableIdentifier::Method("AND") => self.state.borrow_mut().and().map(|_| None),
-            CallableIdentifier::Method("CLEAR") => self.state.borrow_mut().clear().map(|_| None),
-            CallableIdentifier::Method("COPYFILE") => {
-                self.state.borrow_mut().copy_file().map(|_| None)
+            CallableIdentifier::Method("AND") => self
+                .state
+                .borrow_mut()
+                .and(context, arguments[0].to_integer())
+                .map(|_| None),
+            CallableIdentifier::Method("CLEAR") => {
+                self.state.borrow_mut().clear(context).map(|_| None)
             }
-            CallableIdentifier::Method("DEC") => self.state.borrow_mut().dec().map(|_| None),
+            CallableIdentifier::Method("COPYFILE") => {
+                self.state.borrow_mut().copy_file(context).map(|_| None)
+            }
+            CallableIdentifier::Method("DEC") => self.state.borrow_mut().dec(context).map(|_| None),
             CallableIdentifier::Method("GET") => self
                 .state
                 .borrow()
                 .get()
                 .map(|v| Some(CnvValue::Boolean(v))),
-            CallableIdentifier::Method("INC") => self.state.borrow_mut().inc().map(|_| None),
-            CallableIdentifier::Method("NOT") => self.state.borrow_mut().not().map(|_| None),
-            CallableIdentifier::Method("OR") => self.state.borrow_mut().or().map(|_| None),
-            CallableIdentifier::Method("RANDOM") => self.state.borrow_mut().random().map(|_| None),
+            CallableIdentifier::Method("INC") => self.state.borrow_mut().inc(context).map(|_| None),
+            CallableIdentifier::Method("NOT") => self.state.borrow_mut().not(context).map(|_| None),
+            CallableIdentifier::Method("OR") => self
+                .state
+                .borrow_mut()
+                .or(context, arguments[0].to_integer())
+                .map(|_| None),
+            CallableIdentifier::Method("RANDOM") => {
+                self.state.borrow_mut().random(context).map(|_| None)
+            }
             CallableIdentifier::Method("RESETINI") => {
-                self.state.borrow_mut().reset_ini().map(|_| None)
+                self.state.borrow_mut().reset_ini(context).map(|_| None)
             }
             CallableIdentifier::Method("SET") => self
                 .state
                 .borrow_mut()
-                .set(self, context, arguments[0].to_boolean())
+                .set(context, arguments[0].to_boolean())
                 .map(|_| None),
-            CallableIdentifier::Method("SETDEFAULT") => {
-                self.state.borrow_mut().set_default().map(|_| None)
+            CallableIdentifier::Method("SETDEFAULT") => self
+                .state
+                .borrow_mut()
+                .set_default(context, arguments[0].to_boolean())
+                .map(|_| None),
+            CallableIdentifier::Method("SWITCH") => {
+                self.state.borrow_mut().switch(context).map(|_| None)
             }
-            CallableIdentifier::Method("SWITCH") => self.state.borrow_mut().switch().map(|_| None),
-            CallableIdentifier::Method("XOR") => self.state.borrow_mut().xor().map(|_| None),
+            CallableIdentifier::Method("XOR") => self
+                .state
+                .borrow_mut()
+                .xor(context, arguments[0].to_integer())
+                .map(|_| None),
             CallableIdentifier::Event("ONBRUTALCHANGED") => {
                 if let Some(v) = self.event_handlers.on_brutal_changed.as_ref() {
                     v.run(context).map(|_| None)
@@ -265,93 +285,126 @@ impl CnvType for BoolVar {
     }
 }
 
+const I32_WITH_CLEARED_U8: i32 = 0xffffff00u32 as i32;
+
 impl BoolVarState {
-    pub fn and(&mut self) -> RunnerResult<()> {
+    pub fn and(&mut self, context: RunnerContext, operand: i32) -> RunnerResult<i32> {
         // AND
-        todo!()
+        self.change_value(context, self.value & operand);
+        Ok(self.value)
     }
 
-    pub fn clear(&mut self) -> RunnerResult<()> {
+    pub fn clear(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // CLEAR
-        todo!()
+        self.change_value(context, self.value & I32_WITH_CLEARED_U8);
+        Ok(())
     }
 
-    pub fn copy_file(&mut self) -> RunnerResult<()> {
+    pub fn copy_file(&mut self, _context: RunnerContext) -> RunnerResult<()> {
         // COPYFILE
         todo!()
     }
 
-    pub fn dec(&mut self) -> RunnerResult<()> {
+    pub fn dec(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // DEC
-        todo!()
+        let value = match self.value as u8 {
+            0 => (self.value & I32_WITH_CLEARED_U8) | 0x01,
+            1 => self.value & I32_WITH_CLEARED_U8,
+            _ => {
+                self.value = (self.value & I32_WITH_CLEARED_U8) | 0x01; // a strange case - ONCHANGED needs to be emitted with the same value
+                self.value & I32_WITH_CLEARED_U8
+            }
+        };
+        self.change_value(context, value);
+        Ok(())
     }
 
     pub fn get(&self) -> RunnerResult<bool> {
         // GET
+        Ok(self.value as u8 == 1)
+    }
+
+    pub fn inc(&mut self, context: RunnerContext) -> RunnerResult<()> {
+        // INC
+        self.dec(context)
+    }
+
+    pub fn not(&mut self, context: RunnerContext) -> RunnerResult<i32> {
+        // NOT
+        self.change_value(context, !self.value);
         Ok(self.value)
     }
 
-    pub fn inc(&mut self) -> RunnerResult<()> {
-        // INC
-        todo!()
-    }
-
-    pub fn not(&mut self) -> RunnerResult<()> {
-        // NOT
-        todo!()
-    }
-
-    pub fn or(&mut self) -> RunnerResult<()> {
+    pub fn or(&mut self, context: RunnerContext, operand: i32) -> RunnerResult<i32> {
         // OR
-        todo!()
+        self.change_value(context, self.value | operand);
+        Ok(self.value)
     }
 
-    pub fn random(&mut self) -> RunnerResult<()> {
+    pub fn random(&mut self, _context: RunnerContext) -> RunnerResult<()> {
         // RANDOM
         todo!()
     }
 
-    pub fn reset_ini(&mut self) -> RunnerResult<()> {
+    pub fn reset_ini(&mut self, _context: RunnerContext) -> RunnerResult<()> {
         // RESETINI
         todo!()
     }
 
-    pub fn set(
-        &mut self,
-        boolean: &BoolVar,
-        context: RunnerContext,
-        value: bool,
-    ) -> RunnerResult<()> {
+    pub fn set(&mut self, context: RunnerContext, value: bool) -> RunnerResult<()> {
         // SET
-        let changed_value = self.value != value;
-        self.value = value;
-        if changed_value {
-            boolean.call_method(
-                CallableIdentifier::Event("ONCHANGED"),
-                &vec![CnvValue::Boolean(self.value)],
-                context.clone(),
-            )?;
-        }
-        boolean.call_method(
-            CallableIdentifier::Event("ONBRUTALCHANGED"),
-            &vec![CnvValue::Boolean(self.value)],
+        self.change_value(
             context,
-        )?;
+            (self.value & I32_WITH_CLEARED_U8) | if value { 0x01 } else { 0x00 },
+        );
         Ok(())
     }
 
-    pub fn set_default(&mut self) -> RunnerResult<()> {
+    pub fn set_default(
+        &mut self,
+        _context: RunnerContext,
+        default_value: bool,
+    ) -> RunnerResult<()> {
         // SETDEFAULT
-        todo!()
+        self.default_value = default_value;
+        Ok(())
     }
 
-    pub fn switch(&mut self) -> RunnerResult<()> {
+    pub fn switch(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // SWITCH
-        todo!()
+        self.dec(context)
     }
 
-    pub fn xor(&mut self) -> RunnerResult<()> {
+    pub fn xor(&mut self, context: RunnerContext, operand: i32) -> RunnerResult<i32> {
         // XOR
-        todo!()
+        self.change_value(context, self.value ^ operand);
+        Ok(self.value)
+    }
+
+    ///
+
+    fn change_value(&mut self, context: RunnerContext, value: i32) {
+        let old_value = self.get().unwrap();
+        self.value = value;
+        let value = self.get().unwrap();
+        let changed = value != old_value;
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONBRUTALCHANGED").to_owned(),
+                    arguments: vec![CnvValue::Boolean(value)],
+                });
+                if changed {
+                    events.push_back(InternalEvent {
+                        object: context.current_object.clone(),
+                        callable: CallableIdentifier::Event("ONCHANGED").to_owned(),
+                        arguments: vec![CnvValue::Boolean(value)],
+                    });
+                }
+            });
     }
 }

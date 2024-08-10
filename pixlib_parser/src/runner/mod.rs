@@ -137,12 +137,12 @@ impl Issue for RunnerIssue {
 #[derive(Debug, Clone)]
 pub struct RunnerContext {
     pub runner: Arc<CnvRunner>,
-    pub self_object: String,
-    pub current_object: String,
+    pub self_object: Arc<CnvObject>,
+    pub current_object: Arc<CnvObject>,
 }
 
 impl RunnerContext {
-    pub fn with_current_object(self, current_object: String) -> Self {
+    pub fn with_current_object(self, current_object: Arc<CnvObject>) -> Self {
         Self {
             current_object,
             ..self
@@ -225,22 +225,8 @@ impl CnvRunner {
             .borrow_mut()
             .use_and_drop_mut(|events| events.pop_front())
         {
-            let Some(script) = self.get_script(&evt.script_path) else {
-                eprintln!("Script with path {:?} not found", evt.script_path);
-                continue;
-            };
-            let Some(object) = script.get_object(&evt.object_name) else {
-                eprintln!(
-                    "Object with name {} not found for script {:?}",
-                    evt.object_name, evt.script_path
-                );
-                continue;
-            };
-            object.call_method(
-                CallableIdentifier::Event(&evt.event_name),
-                &evt.arguments,
-                None,
-            )?;
+            evt.object
+                .call_method((&evt.callable).into(), &evt.arguments, None)?;
         }
         Ok(())
     }
@@ -426,8 +412,8 @@ impl CnvRunner {
                 CnvContent::Behavior(b) => {
                     let context = RunnerContext {
                         runner: Arc::clone(self),
-                        self_object: init_beh_obj.name.clone(),
-                        current_object: init_beh_obj.name.clone(),
+                        self_object: init_beh_obj.clone(),
+                        current_object: init_beh_obj.clone(),
                     };
                     b.run(context.clone())
                         .map(|_| None)

@@ -17,6 +17,7 @@ string-interner = "0.17"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 keyboard-types = "0.7"
 rand = "0.8"
+libm = "0.2"
 
 [build-dependencies]
 lalrpop = "0.20"

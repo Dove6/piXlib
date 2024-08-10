@@ -40,10 +40,9 @@ impl CnvExpression for Expression {
                 .transpose()?
                 .or_else(|| Some(CnvValue::String(name.trim_matches('\"').to_owned())))),
             Expression::Invocation(invocation) => invocation.calculate(context.clone()),
-            Expression::SelfReference => Ok(context
-                .runner
-                .get_object(&context.self_object)
-                .map(CnvValue::Reference)), // error
+            Expression::SelfReference => {
+                Ok(Some(context.self_object.clone()).map(CnvValue::Reference))
+            } // error
             Expression::Parameter(_name) => Ok(None), // access function scope and retrieve arguments
             Expression::NameResolution(expression) => {
                 let name = &expression.calculate(context.clone())?.unwrap();

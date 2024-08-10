@@ -161,7 +161,7 @@ impl CnvType for Mouse {
             CallableIdentifier::Method("MOUSERELEASE") => {
                 self.state.borrow_mut().mouse_release().map(|_| None)
             }
-            CallableIdentifier::Method("MOVE") => self.state.borrow_mut().move_to().map(|_| None),
+            CallableIdentifier::Method("MOVE") => self.state.borrow_mut().move_by().map(|_| None),
             CallableIdentifier::Method("SET") => self.state.borrow_mut().set().map(|_| None),
             CallableIdentifier::Method("SETACTIVERECT") => {
                 self.state.borrow_mut().set_active_rect().map(|_| None)
@@ -364,7 +364,7 @@ impl MouseState {
         todo!()
     }
 
-    pub fn move_to(&mut self) -> RunnerResult<()> {
+    pub fn move_by(&mut self) -> RunnerResult<()> {
         // MOVE
         todo!()
     }

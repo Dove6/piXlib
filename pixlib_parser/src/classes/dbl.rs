@@ -1,8 +1,13 @@
+use core::f64;
 use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_bool, parse_f64, parse_program};
 
-use crate::ast::ParsedScript;
+use crate::{
+    ast::ParsedScript,
+    common::DroppableRefMut,
+    runner::{InternalEvent, RunnerError},
+};
 
 use super::*;
 
@@ -115,50 +120,147 @@ impl CnvType for DoubleVar {
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
-            CallableIdentifier::Method("ADD") => self.state.borrow_mut().add().map(|_| None),
-            CallableIdentifier::Method("ARCTAN") => self.state.borrow_mut().arc_tan().map(|_| None),
-            CallableIdentifier::Method("ARCTANEX") => {
-                self.state.borrow_mut().arc_tan_ex().map(|_| None)
+            CallableIdentifier::Method("ADD") => self
+                .state
+                .borrow_mut()
+                .add(context, arguments[0].to_double())
+                .map(|v| Some(CnvValue::Double(v))),
+            CallableIdentifier::Method("ARCTAN") => self
+                .state
+                .borrow_mut()
+                .arc_tan(context, arguments[0].to_double())
+                .map(|v| Some(CnvValue::Double(v))),
+            CallableIdentifier::Method("ARCTANEX") => self
+                .state
+                .borrow_mut()
+                .arc_tan_ex(
+                    context,
+                    arguments[0].to_double(),
+                    arguments[1].to_double(),
+                    arguments.get(2).map(|v| v.to_integer()),
+                )
+                .map(|v| Some(CnvValue::Double(v))),
+            CallableIdentifier::Method("CLAMP") => self
+                .state
+                .borrow_mut()
+                .clamp(context, arguments[0].to_double(), arguments[1].to_double())
+                .map(|v| Some(CnvValue::Double(v))),
+            CallableIdentifier::Method("CLEAR") => {
+                self.state.borrow_mut().clear(context).map(|_| None)
             }
-            CallableIdentifier::Method("CLAMP") => self.state.borrow_mut().clamp().map(|_| None),
-            CallableIdentifier::Method("CLEAR") => self.state.borrow_mut().clear().map(|_| None),
             CallableIdentifier::Method("COPYFILE") => {
-                self.state.borrow_mut().copy_file().map(|_| None)
+                self.state.borrow_mut().copy_file(context).map(|_| None)
             }
-            CallableIdentifier::Method("COSINUS") => {
-                self.state.borrow_mut().cosinus().map(|_| None)
-            }
-            CallableIdentifier::Method("DEC") => self.state.borrow_mut().dec().map(|_| None),
-            CallableIdentifier::Method("DIV") => self.state.borrow_mut().div().map(|_| None),
+            CallableIdentifier::Method("COSINUS") => self
+                .state
+                .borrow_mut()
+                .cosinus(context, arguments[0].to_double())
+                .map(|v| Some(CnvValue::Double(v))),
+            CallableIdentifier::Method("DEC") => self.state.borrow_mut().dec(context).map(|_| None),
+            CallableIdentifier::Method("DIV") => self
+                .state
+                .borrow_mut()
+                .div(context, arguments[0].to_double())
+                .map(|_| None),
             CallableIdentifier::Method("GET") => {
                 self.state.borrow().get().map(|v| Some(CnvValue::Double(v)))
             }
-            CallableIdentifier::Method("INC") => self.state.borrow_mut().inc().map(|_| None),
-            CallableIdentifier::Method("LENGTH") => self.state.borrow_mut().length().map(|_| None),
-            CallableIdentifier::Method("LOG") => self.state.borrow_mut().log().map(|_| None),
-            CallableIdentifier::Method("MAXA") => self.state.borrow_mut().max_a().map(|_| None),
-            CallableIdentifier::Method("MINA") => self.state.borrow_mut().min_a().map(|_| None),
-            CallableIdentifier::Method("MOD") => self.state.borrow_mut().modulus().map(|_| None),
-            CallableIdentifier::Method("MUL") => self.state.borrow_mut().mul().map(|_| None),
-            CallableIdentifier::Method("POWER") => self.state.borrow_mut().power().map(|_| None),
-            CallableIdentifier::Method("RANDOM") => self.state.borrow_mut().random().map(|_| None),
-            CallableIdentifier::Method("RESETINI") => {
-                self.state.borrow_mut().reset_ini().map(|_| None)
+            CallableIdentifier::Method("INC") => self.state.borrow_mut().inc(context).map(|_| None),
+            CallableIdentifier::Method("LENGTH") => self
+                .state
+                .borrow_mut()
+                .length(context, arguments[0].to_double(), arguments[1].to_double())
+                .map(|v| Some(CnvValue::Double(v))),
+            CallableIdentifier::Method("LOG") => self
+                .state
+                .borrow_mut()
+                .log(context, arguments[0].to_double())
+                .map(|v| Some(CnvValue::Double(v))),
+            CallableIdentifier::Method("MAXA") => {
+                if arguments.is_empty() {
+                    return Err(RunnerError::TooFewArguments {
+                        expected_min: 1,
+                        actual: 0,
+                    });
+                }
+                self.state
+                    .borrow_mut()
+                    .max_a(context, arguments.iter().map(|v| v.to_double()))
+                    .map(|v| Some(CnvValue::Double(v)))
             }
-            CallableIdentifier::Method("ROUND") => self.state.borrow_mut().round().map(|_| None),
+            CallableIdentifier::Method("MINA") => {
+                if arguments.is_empty() {
+                    return Err(RunnerError::TooFewArguments {
+                        expected_min: 1,
+                        actual: 0,
+                    });
+                }
+                self.state
+                    .borrow_mut()
+                    .min_a(context, arguments.iter().map(|v| v.to_double()))
+                    .map(|v| Some(CnvValue::Double(v)))
+            }
+            CallableIdentifier::Method("MOD") => self
+                .state
+                .borrow_mut()
+                .modulus(context, arguments[0].to_integer())
+                .map(|_| None),
+            CallableIdentifier::Method("MUL") => self
+                .state
+                .borrow_mut()
+                .mul(context, arguments[0].to_double())
+                .map(|_| None),
+            CallableIdentifier::Method("POWER") => self
+                .state
+                .borrow_mut()
+                .power(context, arguments[0].to_double())
+                .map(|v| Some(CnvValue::Double(v))),
+            CallableIdentifier::Method("RANDOM") => {
+                self.state.borrow_mut().random(context).map(|_| None)
+            }
+            CallableIdentifier::Method("RESETINI") => {
+                self.state.borrow_mut().reset_ini(context).map(|_| None)
+            }
+            CallableIdentifier::Method("ROUND") => self
+                .state
+                .borrow_mut()
+                .round(context)
+                .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("SET") => self
                 .state
                 .borrow_mut()
-                .set(self, arguments[0].to_double())
+                .set(context, arguments[0].to_double())
                 .map(|_| None),
-            CallableIdentifier::Method("SETDEFAULT") => {
-                self.state.borrow_mut().set_default().map(|_| None)
-            }
-            CallableIdentifier::Method("SGN") => self.state.borrow_mut().sgn().map(|_| None),
-            CallableIdentifier::Method("SINUS") => self.state.borrow_mut().sinus().map(|_| None),
-            CallableIdentifier::Method("SQRT") => self.state.borrow_mut().sqrt().map(|_| None),
-            CallableIdentifier::Method("SUB") => self.state.borrow_mut().sub().map(|_| None),
-            CallableIdentifier::Method("SWITCH") => self.state.borrow_mut().switch().map(|_| None),
+            CallableIdentifier::Method("SETDEFAULT") => self
+                .state
+                .borrow_mut()
+                .set_default(context, arguments[0].to_double())
+                .map(|_| None),
+            CallableIdentifier::Method("SGN") => self
+                .state
+                .borrow()
+                .sgn()
+                .map(|v| Some(CnvValue::Integer(v))),
+            CallableIdentifier::Method("SINUS") => self
+                .state
+                .borrow_mut()
+                .sinus(context, arguments[0].to_double())
+                .map(|v| Some(CnvValue::Double(v))),
+            CallableIdentifier::Method("SQRT") => self
+                .state
+                .borrow_mut()
+                .sqrt(context)
+                .map(|v| Some(CnvValue::Double(v))),
+            CallableIdentifier::Method("SUB") => self
+                .state
+                .borrow_mut()
+                .sub(context, arguments[0].to_double())
+                .map(|v| Some(CnvValue::Double(v))),
+            CallableIdentifier::Method("SWITCH") => self
+                .state
+                .borrow_mut()
+                .switch(context, arguments[0].to_double(), arguments[1].to_double())
+                .map(|_| None),
             CallableIdentifier::Event("ONBRUTALCHANGED") => {
                 if let Some(v) = self.event_handlers.on_brutal_changed.as_ref() {
                     v.run(context).map(|_| None)
@@ -281,50 +383,71 @@ impl CnvType for DoubleVar {
     }
 }
 
+const RADIANS_TO_DEGREES: f64 = 180f64 / f64::consts::PI;
+const DEGREES_TO_RADIANS: f64 = f64::consts::PI / 180f64;
+
 impl DoubleVarState {
-    pub fn add(&mut self) -> RunnerResult<()> {
+    pub fn add(&mut self, context: RunnerContext, operand: f64) -> RunnerResult<f64> {
         // ADD
-        todo!()
+        self.change_value(context, self.value + operand);
+        Ok(self.value)
     }
 
-    pub fn arc_tan(&mut self) -> RunnerResult<()> {
+    pub fn arc_tan(&mut self, context: RunnerContext, tangent: f64) -> RunnerResult<f64> {
         // ARCTAN
-        todo!()
+        self.change_value(context, tangent.atan() * RADIANS_TO_DEGREES);
+        Ok(self.value)
     }
 
-    pub fn arc_tan_ex(&mut self) -> RunnerResult<()> {
+    pub fn arc_tan_ex(
+        &mut self,
+        context: RunnerContext,
+        y: f64,
+        x: f64,
+        summand: Option<i32>,
+    ) -> RunnerResult<f64> {
         // ARCTANEX
-        todo!()
+        let mut value = (libm::atan2(y, x) + f64::consts::PI) * RADIANS_TO_DEGREES;
+        if let Some(summand) = summand {
+            value = value.trunc() + summand as f64;
+        }
+        self.change_value(context, value);
+        Ok(self.value)
     }
 
-    pub fn clamp(&mut self) -> RunnerResult<()> {
+    pub fn clamp(&mut self, context: RunnerContext, min: f64, max: f64) -> RunnerResult<f64> {
         // CLAMP
-        todo!()
+        self.change_value(context, self.value.clamp(min, max));
+        Ok(self.value)
     }
 
-    pub fn clear(&mut self) -> RunnerResult<()> {
+    pub fn clear(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // CLEAR
-        todo!()
+        self.change_value(context, 0f64);
+        Ok(())
     }
 
-    pub fn copy_file(&mut self) -> RunnerResult<()> {
+    pub fn copy_file(&mut self, _context: RunnerContext) -> RunnerResult<bool> {
         // COPYFILE
         todo!()
     }
 
-    pub fn cosinus(&mut self) -> RunnerResult<()> {
+    pub fn cosinus(&mut self, context: RunnerContext, angle_degrees: f64) -> RunnerResult<f64> {
         // COSINUS
-        todo!()
+        self.change_value(context, (angle_degrees * DEGREES_TO_RADIANS).cos());
+        Ok(self.value)
     }
 
-    pub fn dec(&mut self) -> RunnerResult<()> {
+    pub fn dec(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // DEC
-        todo!()
+        self.change_value(context, self.value - 1f64);
+        Ok(())
     }
 
-    pub fn div(&mut self) -> RunnerResult<()> {
+    pub fn div(&mut self, context: RunnerContext, divisor: f64) -> RunnerResult<()> {
         // DIV
-        todo!()
+        self.change_value(context, self.value / divisor);
+        Ok(())
     }
 
     pub fn get(&self) -> RunnerResult<f64> {
@@ -332,112 +455,147 @@ impl DoubleVarState {
         Ok(self.value)
     }
 
-    pub fn inc(&mut self) -> RunnerResult<()> {
+    pub fn inc(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // INC
-        todo!()
+        self.change_value(context, self.value + 1f64);
+        Ok(())
     }
 
-    pub fn length(&mut self) -> RunnerResult<()> {
+    pub fn length(&mut self, context: RunnerContext, x: f64, y: f64) -> RunnerResult<f64> {
         // LENGTH
-        todo!()
+        self.change_value(context, (x.powi(2) + y.powi(2)).sqrt());
+        Ok(self.value)
     }
 
-    pub fn log(&mut self) -> RunnerResult<()> {
+    pub fn log(&mut self, context: RunnerContext, operand: f64) -> RunnerResult<f64> {
         // LOG
-        todo!()
+        self.change_value(context, operand.ln());
+        Ok(self.value)
     }
 
-    pub fn max_a(&mut self) -> RunnerResult<()> {
+    pub fn max_a(
+        &mut self,
+        context: RunnerContext,
+        arguments: impl Iterator<Item = f64>,
+    ) -> RunnerResult<f64> {
         // MAXA
-        todo!()
+        self.change_value(context, arguments.reduce(f64::max).unwrap());
+        Ok(self.value)
     }
 
-    pub fn min_a(&mut self) -> RunnerResult<()> {
+    pub fn min_a(
+        &mut self,
+        context: RunnerContext,
+        arguments: impl Iterator<Item = f64>,
+    ) -> RunnerResult<f64> {
         // MINA
-        todo!()
+        self.change_value(context, arguments.reduce(f64::min).unwrap());
+        Ok(self.value)
     }
 
-    pub fn modulus(&mut self) -> RunnerResult<()> {
+    pub fn modulus(&mut self, context: RunnerContext, divisor: i32) -> RunnerResult<()> {
         // MOD
-        todo!()
+        self.change_value(context, (self.value as i32 % divisor) as f64);
+        Ok(())
     }
 
-    pub fn mul(&mut self) -> RunnerResult<()> {
+    pub fn mul(&mut self, context: RunnerContext, operand: f64) -> RunnerResult<()> {
         // MUL
-        todo!()
+        self.change_value(context, self.value * operand);
+        Ok(())
     }
 
-    pub fn power(&mut self) -> RunnerResult<()> {
+    pub fn power(&mut self, context: RunnerContext, exponent: f64) -> RunnerResult<f64> {
         // POWER
-        todo!()
+        self.change_value(context, self.value.powf(exponent));
+        Ok(self.value)
     }
 
-    pub fn random(&mut self) -> RunnerResult<()> {
+    pub fn random(&mut self, _context: RunnerContext) -> RunnerResult<i32> {
         // RANDOM
         todo!()
     }
 
-    pub fn reset_ini(&mut self) -> RunnerResult<()> {
+    pub fn reset_ini(&mut self, _context: RunnerContext) -> RunnerResult<()> {
         // RESETINI
         todo!()
     }
 
-    pub fn round(&mut self) -> RunnerResult<()> {
+    pub fn round(&mut self, context: RunnerContext) -> RunnerResult<i32> {
         // ROUND
-        todo!()
+        self.change_value(context, self.value.round());
+        Ok(self.value as i32)
     }
 
-    pub fn set(&mut self, double: &DoubleVar, value: f64) -> RunnerResult<()> {
+    pub fn set(&mut self, context: RunnerContext, value: f64) -> RunnerResult<()> {
         // SET
-        let changed_value = self.value != value;
-        self.value = value;
-        let context = RunnerContext {
-            runner: Arc::clone(&double.parent.parent.runner),
-            self_object: double.parent.name.clone(),
-            current_object: double.parent.name.clone(),
-        };
-        if changed_value {
-            double.call_method(
-                CallableIdentifier::Event("ONCHANGED"),
-                &vec![CnvValue::Double(self.value)],
-                context.clone(),
-            )?;
-        }
-        double.call_method(
-            CallableIdentifier::Event("ONBRUTALCHANGED"),
-            &vec![CnvValue::Double(self.value)],
-            context,
-        )?;
+        self.change_value(context, value);
         Ok(())
     }
 
-    pub fn set_default(&mut self) -> RunnerResult<()> {
+    pub fn set_default(&mut self, _context: RunnerContext, default_value: f64) -> RunnerResult<()> {
         // SETDEFAULT
-        todo!()
+        self.default_value = default_value;
+        Ok(())
     }
 
-    pub fn sgn(&mut self) -> RunnerResult<()> {
+    pub fn sgn(&self) -> RunnerResult<i32> {
         // SGN
-        todo!()
+        Ok(if self.value == 0.0 || self.value.is_nan() {
+            0
+        } else if self.value > 0.0 {
+            1
+        } else {
+            -1
+        })
     }
 
-    pub fn sinus(&mut self) -> RunnerResult<()> {
+    pub fn sinus(&mut self, context: RunnerContext, angle_degrees: f64) -> RunnerResult<f64> {
         // SINUS
-        todo!()
+        self.change_value(context, (angle_degrees * DEGREES_TO_RADIANS).sin());
+        Ok(self.value)
     }
 
-    pub fn sqrt(&mut self) -> RunnerResult<()> {
+    pub fn sqrt(&mut self, context: RunnerContext) -> RunnerResult<f64> {
         // SQRT
-        todo!()
+        self.change_value(context, self.value.sqrt());
+        Ok(self.value)
     }
 
-    pub fn sub(&mut self) -> RunnerResult<()> {
+    pub fn sub(&mut self, context: RunnerContext, subtrahend: f64) -> RunnerResult<f64> {
         // SUB
-        todo!()
+        self.change_value(context, self.value - subtrahend);
+        Ok(self.value)
     }
 
-    pub fn switch(&mut self) -> RunnerResult<()> {
+    pub fn switch(&mut self, context: RunnerContext, first: f64, second: f64) -> RunnerResult<()> {
         // SWITCH
-        todo!()
+        self.change_value(context, if self.value == first { second } else { first });
+        Ok(())
+    }
+
+    ///
+
+    fn change_value(&mut self, context: RunnerContext, value: f64) {
+        let changed = self.value != value;
+        self.value = value;
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONBRUTALCHANGED").to_owned(),
+                    arguments: vec![CnvValue::Double(self.value)],
+                });
+                if changed {
+                    events.push_back(InternalEvent {
+                        object: context.current_object.clone(),
+                        callable: CallableIdentifier::Event("ONCHANGED").to_owned(),
+                        arguments: vec![CnvValue::Double(self.value)],
+                    });
+                }
+            });
     }
 }

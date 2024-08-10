@@ -173,7 +173,14 @@ impl Animation {
     }
 
     pub fn step(&self, seconds: f64) -> RunnerResult<()> {
-        self.state.borrow_mut().step(&self, seconds)
+        self.state.borrow_mut().step(
+            RunnerContext {
+                runner: self.parent.parent.runner.clone(),
+                self_object: self.parent.clone(),
+                current_object: self.parent.clone(),
+            },
+            seconds,
+        )
     }
 
     pub fn get_frame_to_show(
@@ -452,15 +459,13 @@ impl CnvType for Animation {
                 Ok(None)
             }
             CallableIdentifier::Method("PAUSE") => {
-                self.state.borrow_mut().pause(&self)?;
-                Ok(None)
+                self.state.borrow_mut().pause(context).map(|_| None)
             }
-            CallableIdentifier::Method("PLAY") => {
-                self.state
-                    .borrow_mut()
-                    .play(&self, &arguments[0].to_string())?;
-                Ok(None)
-            }
+            CallableIdentifier::Method("PLAY") => self
+                .state
+                .borrow_mut()
+                .play(context, &arguments[0].to_string())
+                .map(|_| None),
             CallableIdentifier::Method("PLAYRAND") => {
                 self.state.borrow_mut().play_rand(
                     &arguments[0].to_string(),
@@ -490,8 +495,7 @@ impl CnvType for Animation {
                 Ok(None)
             }
             CallableIdentifier::Method("RESUME") => {
-                self.state.borrow_mut().resume(&self)?;
-                Ok(None)
+                self.state.borrow_mut().resume(context).map(|_| None)
             }
             CallableIdentifier::Method("SETANCHOR") => {
                 self.state
@@ -1158,27 +1162,35 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn pause(&mut self, animation: &Animation) -> RunnerResult<()> {
+    pub fn pause(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // PAUSE
         self.is_paused = true;
-        animation
-            .parent
-            .parent
+        let current_sequence_name = match &self.file_data {
+            AnimationFileData::Loaded(LoadedAnimation { sequences, .. }) => sequences
+                .get(self.current_frame.sequence_idx)
+                .map(|s| s.name.clone()),
+            _ => None,
+        };
+        let arguments = if let Some(current_sequence_name) = current_sequence_name {
+            vec![CnvValue::String(current_sequence_name)]
+        } else {
+            Vec::new()
+        };
+        context
             .runner
             .internal_events
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    script_path: animation.parent.parent.path.clone(),
-                    object_name: animation.parent.name.clone(),
-                    event_name: "ONPAUSED".into(),
-                    arguments: Vec::new(),
-                })
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONPAUSED").to_owned(),
+                    arguments: arguments.clone(),
+                });
             });
         Ok(())
     }
 
-    pub fn play(&mut self, animation: &Animation, sequence_name: &str) -> RunnerResult<()> {
+    pub fn play(&mut self, context: RunnerContext, sequence_name: &str) -> RunnerResult<()> {
         // PLAY (STRING)
         let AnimationFileData::Loaded(loaded_data) = &self.file_data else {
             return Err(RunnerError::NoDataLoaded);
@@ -1189,18 +1201,15 @@ impl AnimationState {
         {
             // TODO: check if applicable
             self.is_paused = false;
-            animation
-                .parent
-                .parent
+            context
                 .runner
                 .internal_events
                 .borrow_mut()
                 .use_and_drop_mut(|events| {
                     events.push_back(InternalEvent {
-                        script_path: animation.parent.parent.path.clone(),
-                        object_name: animation.parent.name.clone(),
-                        event_name: "ONRESUMED".into(),
-                        arguments: Vec::new(),
+                        object: context.current_object.clone(),
+                        callable: CallableIdentifier::Event("ONRESUMED").to_owned(),
+                        arguments: vec![CnvValue::String(sequence_name.to_owned())],
                     })
                 });
         } else {
@@ -1217,24 +1226,20 @@ impl AnimationState {
             self.is_playing = true;
             self.is_paused = false;
             self.is_reversed = false;
-            animation
-                .parent
-                .parent
+            context
                 .runner
                 .internal_events
                 .borrow_mut()
                 .use_and_drop_mut(|events| {
                     events.push_back(InternalEvent {
-                        script_path: animation.parent.parent.path.clone(),
-                        object_name: animation.parent.name.clone(),
-                        event_name: "ONSTARTED".into(),
-                        arguments: Vec::new(),
+                        object: context.current_object.clone(),
+                        callable: CallableIdentifier::Event("ONSTARTED").to_owned(),
+                        arguments: vec![CnvValue::String(sequence_name.to_owned())],
                     });
                     events.push_back(InternalEvent {
-                        script_path: animation.parent.parent.path.clone(),
-                        object_name: animation.parent.name.clone(),
-                        event_name: "ONFIRSTFRAME".into(),
-                        arguments: Vec::new(),
+                        object: context.current_object.clone(),
+                        callable: CallableIdentifier::Event("ONFIRSTFRAME").to_owned(),
+                        arguments: vec![CnvValue::String(sequence_name.to_owned())],
                     })
                 });
         }
@@ -1271,22 +1276,30 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn resume(&mut self, animation: &Animation) -> RunnerResult<()> {
+    pub fn resume(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // RESUME
         self.is_paused = false;
-        animation
-            .parent
-            .parent
+        let current_sequence_name = match &self.file_data {
+            AnimationFileData::Loaded(LoadedAnimation { sequences, .. }) => sequences
+                .get(self.current_frame.sequence_idx)
+                .map(|s| s.name.clone()),
+            _ => None,
+        };
+        let arguments = if let Some(current_sequence_name) = current_sequence_name {
+            vec![CnvValue::String(current_sequence_name)]
+        } else {
+            Vec::new()
+        };
+        context
             .runner
             .internal_events
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    script_path: animation.parent.parent.path.clone(),
-                    object_name: animation.parent.name.clone(),
-                    event_name: "ONRESUMED".into(),
-                    arguments: Vec::new(),
-                })
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONRESUMED").to_owned(),
+                    arguments: arguments.clone(),
+                });
             });
         Ok(())
     }
@@ -1388,7 +1401,7 @@ impl AnimationState {
         1f64 / (self.fps as f64)
     }
 
-    pub fn step(&mut self, animation: &Animation, seconds: f64) -> RunnerResult<()> {
+    pub fn step(&mut self, context: RunnerContext, seconds: f64) -> RunnerResult<()> {
         let AnimationFileData::Loaded(loaded_data) = &self.file_data else {
             return Ok(());
         };
@@ -1428,33 +1441,35 @@ impl AnimationState {
                 self.is_playing = false;
                 self.is_paused = false;
                 self.is_reversed = false;
-                animation
-                    .parent
-                    .parent
+                context
                     .runner
                     .internal_events
                     .borrow_mut()
                     .use_and_drop_mut(|events| {
                         events.push_back(InternalEvent {
-                            script_path: animation.parent.parent.path.clone(),
-                            object_name: animation.parent.name.clone(),
-                            event_name: "ONFINISHED".into(),
-                            arguments: Vec::new(),
+                            object: context.current_object.clone(),
+                            callable: CallableIdentifier::Event("ONFINISHED").to_owned(),
+                            arguments: vec![CnvValue::String(
+                                loaded_data.sequences[self.current_frame.sequence_idx]
+                                    .name
+                                    .clone(),
+                            )],
                         })
                     });
             } else {
-                animation
-                    .parent
-                    .parent
+                context
                     .runner
                     .internal_events
                     .borrow_mut()
                     .use_and_drop_mut(|events| {
                         events.push_back(InternalEvent {
-                            script_path: animation.parent.parent.path.clone(),
-                            object_name: animation.parent.name.clone(),
-                            event_name: "ONFRAMECHANGED".into(),
-                            arguments: Vec::new(),
+                            object: context.current_object.clone(),
+                            callable: CallableIdentifier::Event("ONFRAMECHANGED").to_owned(),
+                            arguments: vec![CnvValue::String(
+                                loaded_data.sequences[self.current_frame.sequence_idx]
+                                    .name
+                                    .clone(),
+                            )],
                         })
                     });
             }

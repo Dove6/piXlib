@@ -94,7 +94,7 @@ impl CnvType for Behavior {
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
-        let context = context.with_current_object(self.parent.name.clone());
+        let context = context.with_current_object(self.parent.clone());
         match name {
             CallableIdentifier::Method("BREAK") => self.state.borrow().break_run().map(|_| None),
             CallableIdentifier::Method("DISABLE") => {

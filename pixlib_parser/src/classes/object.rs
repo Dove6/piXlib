@@ -132,22 +132,22 @@ impl core::fmt::Debug for CnvObject {
 
 impl CnvObject {
     pub fn call_method(
-        &self,
+        self: &Arc<Self>,
         identifier: CallableIdentifier,
         arguments: &[CnvValue],
-        mut context: Option<RunnerContext>,
+        context: Option<RunnerContext>,
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of: {:?}", identifier, self.name);
-        if context.is_none() {
-            context = Some(RunnerContext {
+        let context = context
+            .map(|c| c.with_current_object(self.clone()))
+            .unwrap_or(RunnerContext {
                 runner: self.parent.runner.clone(),
-                self_object: self.name.clone(),
-                current_object: self.name.clone(),
+                self_object: self.clone(),
+                current_object: self.clone(),
             });
-        }
         self.content
             .borrow()
-            .call_method(identifier, arguments, context.unwrap())
+            .call_method(identifier, arguments, context)
         // println!("Result is {:?}", result);
     }
 

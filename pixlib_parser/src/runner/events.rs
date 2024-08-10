@@ -2,9 +2,8 @@ use std::{cell::RefCell, collections::VecDeque, path::Path, sync::Arc};
 
 #[derive(Debug, Clone)]
 pub struct InternalEvent {
-    pub script_path: Arc<Path>,
-    pub object_name: String,
-    pub event_name: String,
+    pub object: Arc<CnvObject>,
+    pub callable: CallableIdentifierOwned,
     pub arguments: Vec<CnvValue>,
 }
 
@@ -28,7 +27,7 @@ pub enum MouseEvent {
 
 pub use keyboard_types::Code as KeyboardKey;
 
-use crate::classes::SoundFileData;
+use crate::classes::{CallableIdentifierOwned, CnvObject, SoundFileData};
 
 use super::CnvValue;
 

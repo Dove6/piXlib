@@ -274,7 +274,14 @@ impl CnvType for Image {
             CallableIdentifier::Method("MONITORCOLLISION") => {
                 self.state.borrow_mut().monitor_collision().map(|_| None)
             }
-            CallableIdentifier::Method("MOVE") => self.state.borrow_mut().move_to().map(|_| None),
+            CallableIdentifier::Method("MOVE") => self
+                .state
+                .borrow_mut()
+                .move_by(
+                    arguments[0].to_integer() as isize,
+                    arguments[1].to_integer() as isize,
+                )
+                .map(|_| None),
             CallableIdentifier::Method("REMOVEMONITORCOLLISION") => self
                 .state
                 .borrow_mut()
@@ -302,9 +309,14 @@ impl CnvType for Image {
             CallableIdentifier::Method("SETOPACITY") => {
                 self.state.borrow_mut().set_opacity().map(|_| None)
             }
-            CallableIdentifier::Method("SETPOSITION") => {
-                self.state.borrow_mut().set_position().map(|_| None)
-            }
+            CallableIdentifier::Method("SETPOSITION") => self
+                .state
+                .borrow_mut()
+                .set_position(
+                    arguments[0].to_integer() as isize,
+                    arguments[1].to_integer() as isize,
+                )
+                .map(|_| None),
             CallableIdentifier::Method("SETPRIORITY") => {
                 self.state.borrow_mut().set_priority().map(|_| None)
             }
@@ -694,9 +706,10 @@ impl ImageState {
         todo!()
     }
 
-    pub fn move_to(&mut self) -> RunnerResult<()> {
+    pub fn move_by(&mut self, x: isize, y: isize) -> RunnerResult<()> {
         // MOVE
-        todo!()
+        self.position = (self.position.0 + x, self.position.1 + y);
+        Ok(())
     }
 
     pub fn remove_monitor_collision(&mut self) -> RunnerResult<()> {
@@ -744,9 +757,10 @@ impl ImageState {
         todo!()
     }
 
-    pub fn set_position(&mut self) -> RunnerResult<()> {
+    pub fn set_position(&mut self, x: isize, y: isize) -> RunnerResult<()> {
         // SETPOSITION
-        todo!()
+        self.position = (x, y);
+        Ok(())
     }
 
     pub fn set_priority(&mut self) -> RunnerResult<()> {

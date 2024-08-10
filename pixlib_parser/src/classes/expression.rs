@@ -52,8 +52,8 @@ impl Expression {
         let runner = Arc::clone(&self.parent.parent.runner);
         let context = RunnerContext {
             runner: Arc::clone(&runner),
-            self_object: self.parent.name.clone(),
-            current_object: self.parent.name.clone(),
+            self_object: self.parent.clone(),
+            current_object: self.parent.clone(),
         };
         let left = self.left.calculate(context.clone())?.unwrap();
         let right = self.right.calculate(context.clone())?.unwrap();

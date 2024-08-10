@@ -2,7 +2,7 @@ use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_bool, parse_program};
 
-use crate::ast::ParsedScript;
+use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
 use super::*;
 
@@ -76,7 +76,7 @@ impl StringVar {
     }
 
     pub fn get(&self) -> RunnerResult<String> {
-        self.state.borrow().get()
+        self.state.borrow().get(None, None)
     }
 }
 
@@ -115,48 +115,125 @@ impl CnvType for StringVar {
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
-            CallableIdentifier::Method("ADD") => self.state.borrow_mut().add().map(|_| None),
-            CallableIdentifier::Method("CLEAR") => self.state.borrow_mut().clear().map(|_| None),
+            CallableIdentifier::Method("ADD") => self
+                .state
+                .borrow_mut()
+                .add(context, &arguments[0].to_string())
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("CLEAR") => {
+                self.state.borrow_mut().clear(context).map(|_| None)
+            }
             CallableIdentifier::Method("COPYFILE") => {
-                self.state.borrow_mut().copy_file().map(|_| None)
+                self.state.borrow_mut().copy_file(context).map(|_| None)
             }
-            CallableIdentifier::Method("CUT") => self.state.borrow_mut().cut().map(|_| None),
-            CallableIdentifier::Method("FIND") => self.state.borrow_mut().find().map(|_| None),
-            CallableIdentifier::Method("GET") => {
-                self.state.borrow().get().map(|v| Some(CnvValue::String(v)))
-            }
-            CallableIdentifier::Method("INSERTAT") => {
-                self.state.borrow_mut().insert_at().map(|_| None)
-            }
+            CallableIdentifier::Method("CUT") => self
+                .state
+                .borrow_mut()
+                .cut(
+                    context,
+                    arguments[0].to_integer() as usize,
+                    arguments[1].to_integer() as usize,
+                )
+                .map(|_| None),
+            CallableIdentifier::Method("FIND") => self
+                .state
+                .borrow()
+                .find(
+                    &arguments[0].to_string(),
+                    arguments.get(1).map(|v| v.to_integer() as usize),
+                )
+                .map(|v| v.map(|u| u as i32).unwrap_or(-1))
+                .map(|v| Some(CnvValue::Integer(v))),
+            CallableIdentifier::Method("GET") => self
+                .state
+                .borrow()
+                .get(
+                    arguments.get(0).map(|v| v.to_integer() as usize),
+                    arguments.get(1).map(|v| v.to_integer() as usize),
+                )
+                .map(|v| Some(CnvValue::String(v))),
+            CallableIdentifier::Method("INSERTAT") => self
+                .state
+                .borrow_mut()
+                .insert_at(
+                    context,
+                    arguments[0].to_integer() as usize,
+                    &arguments[1].to_string(),
+                    arguments
+                        .get(2)
+                        .map(|v| v.to_integer() as usize)
+                        .unwrap_or(1),
+                )
+                .map(|_| None),
             CallableIdentifier::Method("ISUPPERLETTER") => self
                 .state
                 .borrow()
-                .is_upper_letter()
+                .is_upper_letter(arguments[0].to_integer() as usize)
                 .map(|v| Some(CnvValue::Boolean(v))),
-            CallableIdentifier::Method("LENGTH") => self.state.borrow_mut().length().map(|_| None),
-            CallableIdentifier::Method("LOWER") => self.state.borrow_mut().lower().map(|_| None),
-            CallableIdentifier::Method("NOT") => self.state.borrow_mut().not().map(|_| None),
-            CallableIdentifier::Method("RANDOM") => self.state.borrow_mut().random().map(|_| None),
-            CallableIdentifier::Method("REPLACE") => {
-                self.state.borrow_mut().replace().map(|_| None)
+            CallableIdentifier::Method("LENGTH") => self
+                .state
+                .borrow_mut()
+                .length()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
+            CallableIdentifier::Method("LOWER") => {
+                self.state.borrow_mut().lower(context).map(|_| None)
             }
-            CallableIdentifier::Method("REPLACEAT") => {
-                self.state.borrow_mut().replace_at().map(|_| None)
+            CallableIdentifier::Method("NOT") => self.state.borrow_mut().not(context).map(|_| None),
+            CallableIdentifier::Method("RANDOM") => {
+                self.state.borrow_mut().random(context).map(|_| None)
             }
+            CallableIdentifier::Method("REPLACE") => self
+                .state
+                .borrow_mut()
+                .replace(
+                    context,
+                    &arguments[0].to_string(),
+                    &arguments[1].to_string(),
+                )
+                .map(|_| None),
+            CallableIdentifier::Method("REPLACEAT") => self
+                .state
+                .borrow_mut()
+                .replace_at(
+                    context,
+                    arguments[0].to_integer() as usize,
+                    &arguments[1].to_string(),
+                )
+                .map(|_| None),
             CallableIdentifier::Method("RESETINI") => {
-                self.state.borrow_mut().reset_ini().map(|_| None)
+                self.state.borrow_mut().reset_ini(context).map(|_| None)
             }
             CallableIdentifier::Method("SET") => self
                 .state
                 .borrow_mut()
-                .set(self, &arguments[0].to_string())
+                .set(context, &arguments[0].to_string())
                 .map(|_| None),
-            CallableIdentifier::Method("SETDEFAULT") => {
-                self.state.borrow_mut().set_default().map(|_| None)
+            CallableIdentifier::Method("SETDEFAULT") => self
+                .state
+                .borrow_mut()
+                .set_default(context, &arguments[0].to_string())
+                .map(|_| None),
+            CallableIdentifier::Method("SUB") => self
+                .state
+                .borrow_mut()
+                .sub(
+                    context,
+                    arguments[0].to_integer() as usize,
+                    arguments[1].to_integer() as usize,
+                )
+                .map(|_| None),
+            CallableIdentifier::Method("SWITCH") => self
+                .state
+                .borrow_mut()
+                .switch(
+                    context,
+                    &arguments[0].to_string(),
+                    &arguments[1].to_string(),
+                )
+                .map(|_| None),
+            CallableIdentifier::Method("UPPER") => {
+                self.state.borrow_mut().upper(context).map(|_| None)
             }
-            CallableIdentifier::Method("SUB") => self.state.borrow_mut().sub().map(|_| None),
-            CallableIdentifier::Method("SWITCH") => self.state.borrow_mut().switch().map(|_| None),
-            CallableIdentifier::Method("UPPER") => self.state.borrow_mut().upper().map(|_| None),
             CallableIdentifier::Event("ONBRUTALCHANGED") => {
                 if let Some(v) = self.event_handlers.on_brutal_changed.as_ref() {
                     v.run(context).map(|_| None)
@@ -272,122 +349,207 @@ impl CnvType for StringVar {
 }
 
 impl StringVarState {
-    pub fn add(&mut self) -> RunnerResult<()> {
+    pub fn add(&mut self, context: RunnerContext, suffix: &str) -> RunnerResult<String> {
         // ADD
-        todo!()
+        self.change_value(context, self.value.clone() + suffix);
+        Ok(self.value.clone())
     }
 
-    pub fn clear(&mut self) -> RunnerResult<()> {
+    pub fn clear(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // CLEAR
-        todo!()
+        self.change_value(context, "".to_owned());
+        Ok(())
     }
 
-    pub fn copy_file(&mut self) -> RunnerResult<()> {
+    pub fn copy_file(&mut self, _context: RunnerContext) -> RunnerResult<bool> {
         // COPYFILE
         todo!()
     }
 
-    pub fn cut(&mut self) -> RunnerResult<()> {
+    pub fn cut(&mut self, context: RunnerContext, index: usize, length: usize) -> RunnerResult<()> {
         // CUT
-        todo!()
+        let value = if length > 0 {
+            self.value[index..(index + length)].to_owned()
+        } else {
+            self.value[index..].to_owned()
+        };
+        self.value = value; // doesn't emit onchanged
+        self.change_value(context, self.value.clone());
+        Ok(())
     }
 
-    pub fn find(&mut self) -> RunnerResult<()> {
+    pub fn find(&self, needle: &str, start_index: Option<usize>) -> RunnerResult<Option<usize>> {
         // FIND
+        Ok(self
+            .value
+            .match_indices(needle)
+            .find(|m| {
+                if let Some(start_index) = start_index {
+                    m.0 >= start_index
+                } else {
+                    true
+                }
+            })
+            .map(|m| m.0))
+    }
+
+    pub fn get(&self, index: Option<usize>, length: Option<usize>) -> RunnerResult<String> {
+        // GET
+        let index = index.unwrap_or_default();
+        let length = length.unwrap_or(self.value.len() - index);
+        Ok(self.value[index..(index + length)].to_owned())
+    }
+
+    pub fn insert_at(
+        &mut self,
+        context: RunnerContext,
+        index: usize,
+        value: &str,
+        times: usize,
+    ) -> RunnerResult<()> {
+        // INSERTAT
+        if times == 0 || value.is_empty() {
+            return Ok(());
+        }
+        for _ in 0..times {
+            self.value.insert_str(index, value); // doesn't emit onchanged
+        }
+        self.change_value(context, self.value.clone());
         todo!()
     }
 
-    pub fn get(&self) -> RunnerResult<String> {
-        // GET
+    pub fn is_upper_letter(&self, index: usize) -> RunnerResult<bool> {
+        // ISUPPERLETTER
+        Ok(self
+            .value
+            .bytes()
+            .skip(index)
+            .next()
+            .map(|b| b.is_ascii_uppercase())
+            .unwrap_or_default())
+    }
+
+    pub fn length(&self) -> RunnerResult<usize> {
+        // LENGTH
+        Ok(self.value.len())
+    }
+
+    pub fn lower(&mut self, context: RunnerContext) -> RunnerResult<()> {
+        // LOWER
+        self.change_value(context, self.value.to_ascii_lowercase());
+        Ok(())
+    }
+
+    pub fn not(&mut self, context: RunnerContext) -> RunnerResult<String> {
+        // NOT
+        self.value = String::from_utf8(self.value.bytes().rev().collect()).unwrap(); // doesn't emit onchanged
+        self.change_value(context, self.value.clone());
         Ok(self.value.clone())
     }
 
-    pub fn insert_at(&mut self) -> RunnerResult<()> {
-        // INSERTAT
-        todo!()
-    }
-
-    pub fn is_upper_letter(&self) -> RunnerResult<bool> {
-        // ISUPPERLETTER
-        todo!()
-    }
-
-    pub fn length(&mut self) -> RunnerResult<()> {
-        // LENGTH
-        todo!()
-    }
-
-    pub fn lower(&mut self) -> RunnerResult<()> {
-        // LOWER
-        todo!()
-    }
-
-    pub fn not(&mut self) -> RunnerResult<()> {
-        // NOT
-        todo!()
-    }
-
-    pub fn random(&mut self) -> RunnerResult<()> {
+    pub fn random(&mut self, _context: RunnerContext) -> RunnerResult<i32> {
         // RANDOM
         todo!()
     }
 
-    pub fn replace(&mut self) -> RunnerResult<()> {
+    pub fn replace(
+        &mut self,
+        context: RunnerContext,
+        search: &str,
+        replace: &str,
+    ) -> RunnerResult<()> {
         // REPLACE
-        todo!()
+        std::mem::drop(self.value.replace(search, replace)); // doesn't emit onchanged
+        self.change_value(context, self.value.clone()); // but emits onbrutalchanged even when not changed
+        Ok(())
     }
 
-    pub fn replace_at(&mut self) -> RunnerResult<()> {
+    pub fn replace_at(
+        &mut self,
+        context: RunnerContext,
+        index: usize,
+        replace: &str,
+    ) -> RunnerResult<()> {
         // REPLACEAT
-        todo!()
+        std::mem::drop(self.value.replace(&self.value[index..].to_owned(), replace)); // doesn't emit onchanged
+        self.change_value(context, self.value.clone()); // but emits onbrutalchanged even when not changed
+        Ok(())
     }
 
-    pub fn reset_ini(&mut self) -> RunnerResult<()> {
+    pub fn reset_ini(&mut self, _context: RunnerContext) -> RunnerResult<()> {
         // RESETINI
         todo!()
     }
 
-    pub fn set(&mut self, string: &StringVar, value: &str) -> RunnerResult<()> {
+    pub fn set(&mut self, context: RunnerContext, value: &str) -> RunnerResult<()> {
         // SET
-        let changed_value = self.value != value;
-        self.value = value.to_owned();
-        let context = RunnerContext {
-            runner: Arc::clone(&string.parent.parent.runner),
-            self_object: string.parent.name.clone(),
-            current_object: string.parent.name.clone(),
-        };
-        if changed_value {
-            string.call_method(
-                CallableIdentifier::Event("ONCHANGED"),
-                &vec![CnvValue::String(self.value.clone())],
-                context.clone(),
-            )?;
-        }
-        string.call_method(
-            CallableIdentifier::Event("ONBRUTALCHANGED"),
-            &vec![CnvValue::String(self.value.clone())],
-            context,
-        )?;
+        self.change_value(context, value.to_owned());
         Ok(())
     }
 
-    pub fn set_default(&mut self) -> RunnerResult<()> {
+    pub fn set_default(
+        &mut self,
+        _context: RunnerContext,
+        default_value: &str,
+    ) -> RunnerResult<()> {
         // SETDEFAULT
-        todo!()
+        self.default_value = default_value.to_owned();
+        Ok(())
     }
 
-    pub fn sub(&mut self) -> RunnerResult<()> {
+    pub fn sub(&mut self, context: RunnerContext, index: usize, length: usize) -> RunnerResult<()> {
         // SUB
-        todo!()
+        self.value.drain(index..(index + length)); // doesn't emit onchanged
+        self.change_value(context, self.value.clone()); // but emits onbrutalchanged even when not changed
+        Ok(())
     }
 
-    pub fn switch(&mut self) -> RunnerResult<()> {
+    pub fn switch(
+        &mut self,
+        context: RunnerContext,
+        first: &str,
+        second: &str,
+    ) -> RunnerResult<()> {
         // SWITCH
-        todo!()
+        self.change_value(
+            context,
+            if self.value == first {
+                second.to_owned()
+            } else {
+                first.to_owned()
+            },
+        );
+        Ok(())
     }
 
-    pub fn upper(&mut self) -> RunnerResult<()> {
+    pub fn upper(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // UPPER
-        todo!()
+        self.change_value(context, self.value.to_ascii_uppercase());
+        Ok(())
+    }
+
+    ///
+
+    fn change_value(&mut self, context: RunnerContext, value: String) {
+        let changed = self.value != value;
+        self.value = value;
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONBRUTALCHANGED").to_owned(),
+                    arguments: vec![CnvValue::String(self.value.clone())],
+                });
+                if changed {
+                    events.push_back(InternalEvent {
+                        object: context.current_object.clone(),
+                        callable: CallableIdentifier::Event("ONCHANGED").to_owned(),
+                        arguments: vec![CnvValue::String(self.value.clone())],
+                    });
+                }
+            });
     }
 }

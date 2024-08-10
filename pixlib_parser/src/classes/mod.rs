@@ -42,6 +42,30 @@ pub enum CallableIdentifier<'a> {
     Event(&'a str),
 }
 
+impl<'a> CallableIdentifier<'a> {
+    pub fn to_owned(&self) -> CallableIdentifierOwned {
+        match *self {
+            CallableIdentifier::Method(m) => CallableIdentifierOwned::Method(m.to_owned()),
+            CallableIdentifier::Event(e) => CallableIdentifierOwned::Event(e.to_owned()),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum CallableIdentifierOwned {
+    Method(String),
+    Event(String),
+}
+
+impl<'a> From<&'a CallableIdentifierOwned> for CallableIdentifier<'a> {
+    fn from(value: &'a CallableIdentifierOwned) -> Self {
+        match value {
+            CallableIdentifierOwned::Method(m) => CallableIdentifier::Method(m.as_ref()),
+            CallableIdentifierOwned::Event(e) => CallableIdentifier::Event(e.as_ref()),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct DummyCnvType {}
 

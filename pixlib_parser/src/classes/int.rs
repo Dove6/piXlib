@@ -2,7 +2,7 @@ use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
 
-use crate::ast::ParsedScript;
+use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
 use super::*;
 
@@ -76,7 +76,11 @@ impl IntegerVar {
     }
 
     pub fn get(&self) -> RunnerResult<i32> {
-        self.state.borrow().get()
+        self.state.borrow().get(RunnerContext {
+            runner: self.parent.parent.runner.clone(),
+            self_object: self.parent.clone(),
+            current_object: self.parent.clone(),
+        })
     }
 }
 
@@ -118,92 +122,104 @@ impl CnvType for IntegerVar {
             CallableIdentifier::Method("ABS") => self
                 .state
                 .borrow_mut()
-                .abs()
+                .abs(context)
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("ADD") => self
                 .state
                 .borrow_mut()
-                .add(arguments[0].to_integer())
+                .add(context, arguments[0].to_integer())
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("AND") => self
                 .state
                 .borrow_mut()
-                .and(arguments[0].to_integer())
+                .and(context, arguments[0].to_integer())
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("CLAMP") => self
                 .state
                 .borrow_mut()
-                .clamp(arguments[0].to_integer(), arguments[1].to_integer())
+                .clamp(
+                    context,
+                    arguments[0].to_integer(),
+                    arguments[1].to_integer(),
+                )
                 .map(|v| Some(CnvValue::Integer(v))),
-            CallableIdentifier::Method("CLEAR") => self.state.borrow_mut().clear().map(|_| None),
-            CallableIdentifier::Method("COPYFILE") => {
-                self.state.borrow_mut().copy_file().map(|_| None)
+            CallableIdentifier::Method("CLEAR") => {
+                self.state.borrow_mut().clear(context).map(|_| None)
             }
-            CallableIdentifier::Method("DEC") => self.state.borrow_mut().dec().map(|_| None),
+            CallableIdentifier::Method("COPYFILE") => {
+                self.state.borrow_mut().copy_file(context).map(|_| None)
+            }
+            CallableIdentifier::Method("DEC") => self.state.borrow_mut().dec(context).map(|_| None),
             CallableIdentifier::Method("DIV") => self
                 .state
                 .borrow_mut()
-                .div(arguments[0].to_integer())
+                .div(context, arguments[0].to_integer())
                 .map(|_| None),
             CallableIdentifier::Method("GET") => self
                 .state
                 .borrow()
-                .get()
+                .get(context)
                 .map(|v| Some(CnvValue::Integer(v))),
-            CallableIdentifier::Method("INC") => self.state.borrow_mut().inc().map(|_| None),
+            CallableIdentifier::Method("INC") => self.state.borrow_mut().inc(context).map(|_| None),
             CallableIdentifier::Method("MOD") => self
                 .state
                 .borrow_mut()
-                .modulus(arguments[0].to_integer())
+                .modulus(context, arguments[0].to_integer())
                 .map(|_| None),
             CallableIdentifier::Method("MUL") => self
                 .state
                 .borrow_mut()
-                .mul(arguments[0].to_integer())
+                .mul(context, arguments[0].to_integer())
                 .map(|_| None),
             CallableIdentifier::Method("NOT") => self
                 .state
                 .borrow_mut()
-                .not()
+                .not(context)
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("OR") => self
                 .state
                 .borrow_mut()
-                .or(arguments[0].to_integer())
+                .or(context, arguments[0].to_integer())
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("POWER") => self
                 .state
                 .borrow_mut()
-                .power(arguments[0].to_integer())
+                .power(context, arguments[0].to_integer())
                 .map(|v| Some(CnvValue::Integer(v))),
-            CallableIdentifier::Method("RANDOM") => self.state.borrow_mut().random().map(|_| None),
+            CallableIdentifier::Method("RANDOM") => {
+                self.state.borrow_mut().random(context).map(|_| None)
+            }
             CallableIdentifier::Method("RESETINI") => {
-                self.state.borrow_mut().reset_ini().map(|_| None)
+                self.state.borrow_mut().reset_ini(context).map(|_| None)
             }
             CallableIdentifier::Method("SET") => self
                 .state
                 .borrow_mut()
-                .set(self, context, arguments[0].to_integer())
+                .set(context, arguments[0].to_integer())
                 .map(|_| None),
             CallableIdentifier::Method("SETDEFAULT") => self
                 .state
                 .borrow_mut()
-                .set_default(arguments[0].to_integer())
+                .set_default(context, arguments[0].to_integer())
                 .map(|_| None),
             CallableIdentifier::Method("SUB") => self
                 .state
                 .borrow_mut()
-                .sub(arguments[0].to_integer())
+                .sub(context, arguments[0].to_integer())
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("SWITCH") => self
                 .state
                 .borrow_mut()
-                .switch(arguments[0].to_integer(), arguments[1].to_integer())
+                .switch(
+                    context,
+                    arguments[0].to_integer(),
+                    arguments[1].to_integer(),
+                )
                 .map(|_| None),
             CallableIdentifier::Method("XOR") => self
                 .state
                 .borrow_mut()
-                .xor(arguments[0].to_integer())
+                .xor(context, arguments[0].to_integer())
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Event("ONBRUTALCHANGED") => {
                 if let Some(v) = self.event_handlers.on_brutal_changed.as_ref() {
@@ -328,153 +344,163 @@ impl CnvType for IntegerVar {
 }
 
 impl IntegerVarState {
-    pub fn abs(&mut self) -> RunnerResult<i32> {
+    pub fn abs(&mut self, context: RunnerContext) -> RunnerResult<i32> {
         // ABS
-        self.value = self.value.abs();
+        self.change_value(context, self.value.abs());
         Ok(self.value)
     }
 
-    pub fn add(&mut self, operand: i32) -> RunnerResult<i32> {
+    pub fn add(&mut self, context: RunnerContext, operand: i32) -> RunnerResult<i32> {
         // ADD
-        self.value += operand;
+        self.change_value(context, self.value + operand);
         Ok(self.value)
     }
 
-    pub fn and(&mut self, operand: i32) -> RunnerResult<i32> {
+    pub fn and(&mut self, context: RunnerContext, operand: i32) -> RunnerResult<i32> {
         // AND
-        self.value &= operand;
+        self.change_value(context, self.value & operand);
         Ok(self.value)
     }
 
-    pub fn clamp(&mut self, min: i32, max: i32) -> RunnerResult<i32> {
+    pub fn clamp(&mut self, context: RunnerContext, min: i32, max: i32) -> RunnerResult<i32> {
         // CLAMP
-        self.value = self.value.clamp(min, max);
+        self.change_value(context, self.value.clamp(min, max));
         Ok(self.value)
     }
 
-    pub fn clear(&mut self) -> RunnerResult<()> {
+    pub fn clear(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // CLEAR
-        self.value = 0;
+        self.change_value(context, 0);
         Ok(())
     }
 
-    pub fn copy_file(&mut self) -> RunnerResult<()> {
+    pub fn copy_file(&mut self, _context: RunnerContext) -> RunnerResult<()> {
         // COPYFILE
         todo!()
     }
 
-    pub fn dec(&mut self) -> RunnerResult<()> {
+    pub fn dec(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // DEC
-        self.value -= 1;
+        self.change_value(context, self.value - 1);
         Ok(())
     }
 
-    pub fn div(&mut self, divisor: i32) -> RunnerResult<()> {
+    pub fn div(&mut self, context: RunnerContext, divisor: i32) -> RunnerResult<()> {
         // DIV
-        self.value /= divisor;
+        self.change_value(context, self.value / divisor);
         Ok(())
     }
 
-    pub fn get(&self) -> RunnerResult<i32> {
+    pub fn get(&self, _context: RunnerContext) -> RunnerResult<i32> {
         // GET
         Ok(self.value)
     }
 
-    pub fn inc(&mut self) -> RunnerResult<()> {
+    pub fn inc(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // INC
-        self.value += 1;
+        self.change_value(context, self.value + 1);
         Ok(())
     }
 
-    pub fn modulus(&mut self, divisor: i32) -> RunnerResult<()> {
+    pub fn modulus(&mut self, context: RunnerContext, divisor: i32) -> RunnerResult<()> {
         // MOD
-        self.value %= divisor;
+        self.change_value(context, self.value % divisor);
         Ok(())
     }
 
-    pub fn mul(&mut self, operand: i32) -> RunnerResult<()> {
+    pub fn mul(&mut self, context: RunnerContext, operand: i32) -> RunnerResult<()> {
         // MUL
-        self.value *= operand;
+        self.change_value(context, self.value * operand);
         Ok(())
     }
 
-    pub fn not(&mut self) -> RunnerResult<i32> {
+    pub fn not(&mut self, context: RunnerContext) -> RunnerResult<i32> {
         // NOT
-        self.value = !self.value;
+        self.change_value(context, !self.value);
         Ok(self.value)
     }
 
-    pub fn or(&mut self, operand: i32) -> RunnerResult<i32> {
+    pub fn or(&mut self, context: RunnerContext, operand: i32) -> RunnerResult<i32> {
         // OR
-        self.value |= operand;
+        self.change_value(context, self.value | operand);
         Ok(self.value)
     }
 
-    pub fn power(&mut self, exponent: i32) -> RunnerResult<i32> {
+    pub fn power(&mut self, context: RunnerContext, exponent: i32) -> RunnerResult<i32> {
         // POWER
-        self.value = if exponent < 0 {
-            0i32
-        } else {
-            self.value.pow(exponent as u32)
-        };
+        self.change_value(
+            context,
+            if exponent < 0 {
+                0i32
+            } else {
+                self.value.pow(exponent as u32)
+            },
+        );
         Ok(self.value)
     }
 
-    pub fn random(&mut self) -> RunnerResult<()> {
+    pub fn random(&mut self, _context: RunnerContext) -> RunnerResult<()> {
         // RANDOM
         todo!()
     }
 
-    pub fn reset_ini(&mut self) -> RunnerResult<()> {
+    pub fn reset_ini(&mut self, _context: RunnerContext) -> RunnerResult<()> {
         // RESETINI
         todo!()
     }
 
-    pub fn set(
-        &mut self,
-        integer: &IntegerVar,
-        context: RunnerContext,
-        value: i32,
-    ) -> RunnerResult<()> {
+    pub fn set(&mut self, context: RunnerContext, value: i32) -> RunnerResult<()> {
         // SET
-        let changed_value = self.value != value;
-        self.value = value;
-        if changed_value {
-            integer.call_method(
-                CallableIdentifier::Event("ONCHANGED"),
-                &vec![CnvValue::Integer(self.value)],
-                context.clone(),
-            )?;
-        }
-        integer.call_method(
-            CallableIdentifier::Event("ONBRUTALCHANGED"),
-            &vec![CnvValue::Integer(self.value)],
-            context,
-        )?;
+        self.change_value(context, value);
         Ok(())
     }
 
-    pub fn set_default(&mut self, default_value: i32) -> RunnerResult<()> {
+    pub fn set_default(&mut self, _context: RunnerContext, default_value: i32) -> RunnerResult<()> {
         // SETDEFAULT
         self.default_value = default_value;
         Ok(())
     }
 
-    pub fn sub(&mut self, subtrahend: i32) -> RunnerResult<i32> {
+    pub fn sub(&mut self, context: RunnerContext, subtrahend: i32) -> RunnerResult<i32> {
         // SUB
-        self.value -= subtrahend;
+        self.change_value(context, self.value - subtrahend);
         Ok(self.value)
     }
 
-    pub fn switch(&mut self, first: i32, second: i32) -> RunnerResult<()> {
+    pub fn switch(&mut self, context: RunnerContext, first: i32, second: i32) -> RunnerResult<()> {
         // SWITCH
-        self.value = if self.value == first { second } else { first };
+        self.change_value(context, if self.value == first { second } else { first });
         Ok(())
     }
 
-    pub fn xor(&mut self, operand: i32) -> RunnerResult<i32> {
+    pub fn xor(&mut self, context: RunnerContext, operand: i32) -> RunnerResult<i32> {
         // XOR
-        self.value ^= operand;
+        self.change_value(context, self.value ^ operand);
         Ok(self.value)
+    }
+
+    ///
+
+    fn change_value(&mut self, context: RunnerContext, value: i32) {
+        let changed = self.value != value;
+        self.value = value;
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONBRUTALCHANGED").to_owned(),
+                    arguments: vec![CnvValue::Integer(self.value)],
+                });
+                if changed {
+                    events.push_back(InternalEvent {
+                        object: context.current_object.clone(),
+                        callable: CallableIdentifier::Event("ONCHANGED").to_owned(),
+                        arguments: vec![CnvValue::Integer(self.value)],
+                    });
+                }
+            });
     }
 }

@@ -2,7 +2,11 @@ use std::{any::Any, cell::RefCell};
 
 use parsers::{discard_if_empty, parse_program, ConditionOperator};
 
-use crate::{ast::ParsedScript, runner::CnvExpression};
+use crate::{
+    ast::ParsedScript,
+    common::DroppableRefMut,
+    runner::{CnvExpression, InternalEvent},
+};
 
 use super::*;
 
@@ -181,8 +185,8 @@ impl ConditionState {
         let runner = Arc::clone(&condition.parent.parent.runner);
         let context = RunnerContext {
             runner: Arc::clone(&runner),
-            self_object: condition.parent.name.clone(),
-            current_object: condition.parent.name.clone(),
+            self_object: condition.parent.clone(),
+            current_object: condition.parent.clone(),
         };
         let left = condition.left.calculate(context.clone())?.unwrap();
         let right = condition.right.calculate(context.clone())?.unwrap();
@@ -196,18 +200,30 @@ impl ConditionState {
         };
         match result {
             Ok(false) => {
-                condition.call_method(
-                    CallableIdentifier::Event("ONRUNTIMEFAILED"),
-                    &Vec::new(),
-                    context,
-                )?;
+                context
+                    .runner
+                    .internal_events
+                    .borrow_mut()
+                    .use_and_drop_mut(move |events| {
+                        events.push_back(InternalEvent {
+                            object: context.current_object.clone(),
+                            callable: CallableIdentifier::Event("ONRUNTIMEFAILED").to_owned(),
+                            arguments: Vec::new(),
+                        });
+                    });
             }
             Ok(true) => {
-                condition.call_method(
-                    CallableIdentifier::Event("ONRUNTIMESUCCESS"),
-                    &Vec::new(),
-                    context,
-                )?;
+                context
+                    .runner
+                    .internal_events
+                    .borrow_mut()
+                    .use_and_drop_mut(move |events| {
+                        events.push_back(InternalEvent {
+                            object: context.current_object.clone(),
+                            callable: CallableIdentifier::Event("ONRUNTIMESUCCESS").to_owned(),
+                            arguments: Vec::new(),
+                        });
+                    });
             }
             _ => {}
         }

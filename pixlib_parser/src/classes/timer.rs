@@ -278,9 +278,8 @@ impl TimerState {
                 .borrow_mut()
                 .use_and_drop_mut(|events| {
                     events.push_back(InternalEvent {
-                        script_path: timer.parent.parent.path.clone(),
-                        object_name: timer.parent.name.clone(),
-                        event_name: "ONTICK".into(),
+                        object: timer.parent.clone(),
+                        callable: CallableIdentifier::Event("ONTICK").to_owned(),
                         arguments: Vec::new(),
                     })
                 });

@@ -197,7 +197,7 @@ impl CnvType for Text {
                 .is_near()
                 .map(|v| Some(CnvValue::Boolean(v))),
             CallableIdentifier::Method("LOAD") => self.state.borrow_mut().load().map(|_| None),
-            CallableIdentifier::Method("MOVE") => self.state.borrow_mut().move_to().map(|_| None),
+            CallableIdentifier::Method("MOVE") => self.state.borrow_mut().move_by().map(|_| None),
             CallableIdentifier::Method("SEARCH") => self.state.borrow_mut().search().map(|_| None),
             CallableIdentifier::Method("SETCLIPPING") => {
                 self.state.borrow_mut().set_clipping().map(|_| None)
@@ -457,7 +457,7 @@ impl TextState {
         todo!()
     }
 
-    pub fn move_to(&mut self) -> RunnerResult<()> {
+    pub fn move_by(&mut self) -> RunnerResult<()> {
         // MOVE
         todo!()
     }
