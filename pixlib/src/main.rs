@@ -13,7 +13,14 @@ pub mod states;
 pub mod systems;
 pub mod util;
 
-use std::{cell::RefCell, env, sync::Arc};
+use std::{
+    cell::RefCell,
+    env,
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use bevy::{
     ecs::{
@@ -33,19 +40,20 @@ use graphics_plugin::GraphicsPlugin;
 use inputs_plugin::InputsPlugin;
 use pixlib_parser::{
     classes::{Application, CnvContent, Episode, ObjectBuilderError, Scene},
-    common::{Issue, IssueHandler, IssueKind, IssueManager},
-    runner::{CnvRunner, GamePaths, RunnerIssue, ScriptSource},
+    common::{DroppableRefMut, Issue, IssueHandler, IssueKind, IssueManager},
+    runner::{CnvRunner, FileSystem, GamePaths, RunnerIssue, ScenePath, ScriptSource},
     scanner::parse_cnv,
 };
 use resources::{
-    ChosenScene, DebugSettings, InsertedDisk, ObjectBuilderIssueManager, SceneDefinition,
-    ScriptRunner, WindowConfiguration,
+    ChosenScene, DebugSettings, InsertedDisk, InsertedDiskResource, ObjectBuilderIssueManager,
+    SceneDefinition, ScriptRunner, WindowConfiguration,
 };
 use states::AppState;
 use systems::{
     cleanup_root, detect_return_to_chooser, draw_cursor, handle_dropped_iso, navigate_chooser,
     setup, setup_chooser, update_chooser_labels,
 };
+use zip::{result::ZipError, ZipArchive};
 
 const WINDOW_SIZE: (usize, usize) = (800, 600);
 const WINDOW_TITLE: &str = "piXlib";
@@ -55,6 +63,19 @@ fn main() {
     issue_manager.set_handler(Box::new(IssuePrinter));
     let mut runner_issue_manager: IssueManager<RunnerIssue> = Default::default();
     runner_issue_manager.set_handler(Box::new(IssuePrinter));
+    let inserted_disk = Arc::new(RefCell::new(
+        InsertedDisk::try_from(env::args()).expect("Usage: pixlib path_to_iso [path_to_patch...]"),
+    ));
+    let layered_fs = Arc::new(RefCell::new(LayeredFileSystem::default()));
+    layered_fs.borrow_mut().use_and_drop_mut(|fs| {
+        fs.components.insert(0, inserted_disk.clone());
+        for arg in env::args().skip(2) {
+            let compressed_patch = Arc::new(RefCell::new(
+                CompressedPatch::try_from(PathBuf::from(&arg).as_ref()).unwrap(),
+            ));
+            fs.components.insert(0, compressed_patch);
+        }
+    });
     App::new()
         .add_plugins(
             DefaultPlugins
@@ -77,10 +98,10 @@ fn main() {
         .insert_resource(DebugSettings {
             force_animation_infinite_looping: false,
         })
-        .insert_resource(InsertedDisk::try_from(env::args()).expect("Usage: pixlib path_to_iso"))
+        .insert_non_send_resource(InsertedDiskResource(inserted_disk))
         .insert_resource(ChosenScene::default())
         .insert_non_send_resource(ScriptRunner(CnvRunner::new(
-            Arc::new(RefCell::new(InsertedDisk::try_from(env::args()).unwrap())),
+            layered_fs,
             Arc::new(GamePaths::default()),
             runner_issue_manager,
         )))
@@ -127,6 +148,96 @@ impl<I: Issue> IssueHandler<I> for IssuePrinter {
     }
 }
 
+#[derive(Default, Debug)]
+pub struct LayeredFileSystem {
+    components: Vec<Arc<RefCell<dyn FileSystem>>>,
+}
+
+impl FileSystem for LayeredFileSystem {
+    fn read_file(&mut self, filename: &str) -> std::io::Result<Vec<u8>> {
+        for filesystem in self.components.iter() {
+            match filesystem.borrow_mut().read_file(filename) {
+                Ok(v) => return Ok(v),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(e) => return Err(e),
+            }
+        }
+        Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+    }
+
+    fn write_file(&mut self, filename: &str, data: &[u8]) -> std::io::Result<()> {
+        for filesystem in self.components.iter() {
+            match filesystem.borrow_mut().write_file(filename, data) {
+                Err(e) => return Err(e),
+                _ => return Ok(()),
+            }
+        }
+        Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
+    }
+}
+
+pub struct CompressedPatch {
+    handle: ZipArchive<File>,
+}
+
+impl std::fmt::Debug for CompressedPatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CompressedPatch")
+            .field("handle", &"...")
+            .finish()
+    }
+}
+
+impl FileSystem for CompressedPatch {
+    fn read_file(&mut self, filename: &str) -> std::io::Result<Vec<u8>> {
+        let sought_name = self
+            .handle
+            .file_names()
+            .find(|n| n.eq_ignore_ascii_case(filename))
+            .map(|s| s.to_owned());
+        let Some(sought_name) = sought_name else {
+            return Err(std::io::Error::from(std::io::ErrorKind::NotFound));
+        };
+        let mut entry = self
+            .handle
+            .by_name(&sought_name)
+            .map_err(|e| match e {
+                ZipError::FileNotFound => std::io::Error::from(std::io::ErrorKind::NotFound),
+                ZipError::Io(io_error) => io_error,
+                _ => std::io::Error::from(std::io::ErrorKind::Other),
+            })
+            .inspect_err(|e| eprintln!("{}", e))?;
+        if entry.is_file() {
+            let mut vec = Vec::new();
+            entry.read_to_end(&mut vec)?;
+            Ok(vec)
+        } else {
+            Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        }
+    }
+
+    fn write_file(&mut self, _filename: &str, _data: &[u8]) -> std::io::Result<()> {
+        Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
+    }
+}
+
+impl CompressedPatch {
+    pub fn new(handle: File) -> Result<Self, ZipError> {
+        Ok(Self {
+            handle: ZipArchive::new(handle)?,
+        })
+    }
+}
+
+impl TryFrom<&Path> for CompressedPatch {
+    type Error = ZipError;
+
+    fn try_from(path: &Path) -> Result<Self, Self::Error> {
+        let file = File::open(path).map_err(|e| ZipError::Io(e))?;
+        Self::new(file)
+    }
+}
+
 fn step_script_runner(runner: NonSend<ScriptRunner>) {
     runner.0.step().unwrap();
 }
@@ -149,10 +260,11 @@ fn reload_scene_script(script_runner: NonSend<ScriptRunner>, chosen_scene: Res<C
     let scene: Option<&Scene> = (&*scene_guard).into();
     let scene = scene.unwrap();
     let path = scene.get_script_path().unwrap();
-    let (contents, path) = script_runner
+    let path = ScenePath::new(&path, &(scene_name.clone() + ".cnv"));
+    let contents = script_runner
         .filesystem
-        .borrow()
-        .read_scene_file(game_paths, Some(&path), &scene_name, Some("CNV"))
+        .borrow_mut()
+        .read_scene_file(game_paths, &path)
         .unwrap();
     let contents = parse_cnv(&contents);
     script_runner
@@ -167,7 +279,7 @@ fn reload_scene_script(script_runner: NonSend<ScriptRunner>, chosen_scene: Res<C
 }
 
 fn reload_main_script(
-    inserted_disk: Res<InsertedDisk>,
+    inserted_disk: NonSend<InsertedDiskResource>,
     script_runner: NonSend<ScriptRunner>,
     mut chosen_scene: ResMut<ChosenScene>,
 ) {
@@ -179,21 +291,18 @@ fn reload_main_script(
 
     //#region Loading application.def
     let root_script_path = script_runner.game_paths.game_definition_filename.clone();
-    let (contents, root_script_path) = script_runner
+    let root_script_path = ScenePath::new(".", &root_script_path);
+    let contents = script_runner
         .filesystem
-        .borrow()
-        .read_scene_file(
-            game_paths.clone(),
-            None,
-            &root_script_path.to_str().unwrap(),
-            None,
-        )
+        .borrow_mut()
+        .read_scene_file(game_paths.clone(), &root_script_path)
+        .inspect_err(|e| eprint!("{}", e))
         .unwrap();
     let contents = parse_cnv(&contents);
     script_runner
         .0
         .load_script(
-            root_script_path.clone(),
+            root_script_path,
             contents.as_parser_input(),
             None,
             ScriptSource::Root,
@@ -213,15 +322,14 @@ fn reload_main_script(
 
     //#region Loading application script
     if let Some(application_script_path) = application.get_script_path() {
-        let (contents, application_script_path) = script_runner
+        let application_script_path = ScenePath::new(
+            &application_script_path,
+            &(application_name.clone() + ".cnv"),
+        );
+        let contents = script_runner
             .filesystem
-            .borrow()
-            .read_scene_file(
-                game_paths.clone(),
-                Some(&application_script_path),
-                &application_name,
-                Some("CNV"),
-            )
+            .borrow_mut()
+            .read_scene_file(game_paths.clone(), &application_script_path)
             .unwrap();
         let contents = parse_cnv(&contents);
         script_runner
@@ -253,15 +361,12 @@ fn reload_main_script(
 
     //#region Loading the first episode script
     if let Some(episode_script_path) = episode.get_script_path() {
-        let (contents, episode_script_path) = script_runner
+        let episode_script_path =
+            ScenePath::new(&episode_script_path, &(episode_name.clone() + ".cnv"));
+        let contents = script_runner
             .filesystem
-            .borrow()
-            .read_scene_file(
-                game_paths,
-                Some(&episode_script_path),
-                &episode_name,
-                Some("CNV"),
-            )
+            .borrow_mut()
+            .read_scene_file(game_paths, &episode_script_path)
             .unwrap();
         let contents = parse_cnv(&contents);
         script_runner

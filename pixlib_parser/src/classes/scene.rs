@@ -4,7 +4,10 @@ use parsers::{discard_if_empty, parse_bool, parse_comma_separated, parse_datetim
 use pixlib_formats::file_formats::img::parse_img;
 use xxhash_rust::xxh3::xxh3_64;
 
-use crate::{ast::ParsedScript, runner::RunnerError};
+use crate::{
+    ast::ParsedScript,
+    runner::{RunnerError, ScenePath},
+};
 
 use super::*;
 
@@ -586,17 +589,15 @@ impl SceneState {
         let script = scene.parent.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
-            .borrow()
+            .borrow_mut()
             .read_scene_file(
                 Arc::clone(&script.runner.game_paths),
-                Some(scene.path.as_ref().unwrap()),
-                filename,
-                Some("IMG"),
+                &ScenePath::new(scene.path.as_ref().unwrap(), &filename),
             )
             .map_err(|_| RunnerError::IoError {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
             })?;
-        let data = parse_img(&data.0);
+        let data = parse_img(&data);
         let converted_data = data
             .image_data
             .to_rgba8888(data.header.color_format, data.header.compression_type);

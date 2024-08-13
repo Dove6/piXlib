@@ -1,16 +1,15 @@
 use std::{
     collections::{HashMap, VecDeque},
-    path::Path,
     slice::Iter,
     sync::Arc,
 };
 
-use super::{CnvScript, RunnerError, RunnerResult, ScriptSource};
+use super::{path::ScenePath, CnvScript, RunnerError, RunnerResult, ScriptSource};
 
 #[derive(Debug, Clone, Default)]
 pub struct ScriptContainer {
     vec: Vec<Arc<CnvScript>>,
-    map: HashMap<Arc<Path>, Arc<CnvScript>>,
+    map: HashMap<ScenePath, Arc<CnvScript>>,
     application_script: Option<Arc<CnvScript>>,
     episode_script: Option<Arc<CnvScript>>,
     scene_script: Option<Arc<CnvScript>>,
@@ -33,7 +32,7 @@ impl ScriptContainer {
         self.scene_script.as_ref().map(Arc::clone)
     }
 
-    pub fn get_script(&self, path: &Path) -> Option<Arc<CnvScript>> {
+    pub fn get_script(&self, path: &ScenePath) -> Option<Arc<CnvScript>> {
         self.map.get(path).cloned()
     }
 
@@ -49,9 +48,11 @@ impl ScriptContainer {
         self.vec.len()
     }
 
-    pub fn remove_script(&mut self, path: &Path) -> RunnerResult<()> {
-        let Some(index) = self.vec.iter().position(|s| *s.path == *path) else {
-            return Err(RunnerError::ScriptNotFound { path: path.into() });
+    pub fn remove_script(&mut self, path: &ScenePath) -> RunnerResult<()> {
+        let Some(index) = self.vec.iter().position(|s| s.path == *path) else {
+            return Err(RunnerError::ScriptNotFound {
+                path: path.to_string(),
+            });
         };
         self.remove_script_at(index)
     }

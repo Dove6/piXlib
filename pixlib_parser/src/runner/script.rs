@@ -1,15 +1,15 @@
-use std::{cell::RefCell, path::Path, sync::Arc};
+use std::{cell::RefCell, sync::Arc};
 
 use crate::classes::CnvObject;
 
-use super::{object_container::ObjectContainer, CnvRunner};
+use super::{object_container::ObjectContainer, path::ScenePath, CnvRunner};
 
 #[derive(Clone)]
 pub struct CnvScript {
     pub runner: Arc<CnvRunner>,
+    pub path: ScenePath,
     pub objects: RefCell<ObjectContainer>,
     pub source_kind: ScriptSource,
-    pub path: Arc<Path>,
     pub parent_object: Option<Arc<CnvObject>>,
 }
 
@@ -40,7 +40,7 @@ impl core::fmt::Debug for CnvScript {
 impl CnvScript {
     pub fn new(
         runner: Arc<CnvRunner>,
-        path: Arc<Path>,
+        path: ScenePath,
         parent_object: Option<Arc<CnvObject>>,
         source_kind: ScriptSource,
     ) -> Self {

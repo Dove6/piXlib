@@ -1,77 +1,37 @@
-use std::{
-    io::ErrorKind,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{io::ErrorKind, sync::Arc};
 
-pub trait FileSystem: std::fmt::Debug + Send + Sync {
-    fn read_file(&self, filename: &str) -> std::io::Result<Vec<u8>>;
+use super::path::{Path, ScenePath};
+
+pub trait FileSystem: std::fmt::Debug {
+    fn read_file(&mut self, filename: &str) -> std::io::Result<Vec<u8>>;
     fn write_file(&mut self, filename: &str, data: &[u8]) -> std::io::Result<()>;
 }
 
 impl dyn FileSystem {
     pub fn read_scene_file(
-        &self,
+        &mut self,
         game_paths: Arc<GamePaths>,
-        scene_dir: Option<&str>,
-        filename: &str,
-        extension: Option<&str>,
-    ) -> Result<(Vec<u8>, Arc<Path>), ()> {
+        scene_path: &ScenePath,
+    ) -> std::io::Result<Vec<u8>> {
         eprintln!(
-            "read_scene_file({:?}, {:?}, {:?}, {:?})",
-            game_paths.data_directory, scene_dir, filename, extension,
+            "read_scene_file({:?}, {:?})",
+            game_paths.data_directory, scene_path,
         );
-        let mut path = PathBuf::from(filename);
+        let mut path = scene_path.dir_path.with_appended(&scene_path.file_path);
         eprintln!("Trying path: {:?}", path);
-        match self.read_file(path.to_str().unwrap()) {
-            Ok(vec) => return Ok((vec, path.into())),
+        match self.read_file(&path) {
+            Ok(vec) => return Ok(vec),
             Err(e) if e.kind() == ErrorKind::NotFound => {}
-            Err(_) => return Err(()),
+            Err(e) => return Err(e),
         }
-        if let Some(extension) = extension {
-            let path = path.with_extension(extension);
-            eprintln!("Trying path: {:?}", path);
-            match self.read_file(path.to_str().unwrap()) {
-                Ok(vec) => return Ok((vec, path.into())),
-                Err(e) if e.kind() == ErrorKind::NotFound => {}
-                Err(_) => return Err(()),
-            }
-        }
-        if let Some(scene_dir) = scene_dir {
-            path = PathBuf::from(scene_dir).join(path);
-            eprintln!("Trying path: {:?}", path);
-            match self.read_file(path.to_str().unwrap()) {
-                Ok(vec) => return Ok((vec, path.into())),
-                Err(e) if e.kind() == ErrorKind::NotFound => {}
-                Err(_) => return Err(()),
-            }
-            if let Some(extension) = extension {
-                let path = path.with_extension(extension);
-                eprintln!("Trying path: {:?}", path);
-                match self.read_file(path.to_str().unwrap()) {
-                    Ok(vec) => return Ok((vec, path.into())),
-                    Err(e) if e.kind() == ErrorKind::NotFound => {}
-                    Err(_) => return Err(()),
-                }
-            }
-        }
-        path = game_paths.data_directory.join(path);
+        path.prepend(&game_paths.data_directory);
         eprintln!("Trying path: {:?}", path);
-        match self.read_file(path.to_str().unwrap()) {
-            Ok(vec) => return Ok((vec, path.into())),
+        match self.read_file(&path) {
+            Ok(vec) => return Ok(vec),
             Err(e) if e.kind() == ErrorKind::NotFound => {}
-            Err(_) => return Err(()),
+            Err(e) => return Err(e),
         }
-        if let Some(extension) = extension {
-            let path = path.with_extension(extension);
-            eprintln!("Trying path: {:?}", path);
-            match self.read_file(path.to_str().unwrap()) {
-                Ok(vec) => return Ok((vec, path.into())),
-                Err(e) if e.kind() == ErrorKind::NotFound => {}
-                Err(_) => return Err(()),
-            }
-        }
-        Err(())
+        Err(std::io::Error::from(std::io::ErrorKind::NotFound))
     }
 }
 
@@ -79,7 +39,7 @@ impl dyn FileSystem {
 pub struct DummyFileSystem;
 
 impl FileSystem for DummyFileSystem {
-    fn read_file(&self, _: &str) -> std::io::Result<Vec<u8>> {
+    fn read_file(&mut self, _: &str) -> std::io::Result<Vec<u8>> {
         Ok(Vec::new())
     }
 
@@ -90,25 +50,25 @@ impl FileSystem for DummyFileSystem {
 
 #[derive(Debug, Clone)]
 pub struct GamePaths {
-    pub data_directory: Arc<Path>,
-    pub game_definition_filename: Arc<Path>,
-    pub music_directory: Arc<Path>,
-    pub dialogues_directory: Arc<Path>,
-    pub sfx_directory: Arc<Path>,
-    pub common_directory: Arc<Path>,
-    pub classes_directory: Arc<Path>,
+    pub data_directory: Path,
+    pub game_definition_filename: Path,
+    pub music_directory: Path,
+    pub dialogues_directory: Path,
+    pub sfx_directory: Path,
+    pub common_directory: Path,
+    pub classes_directory: Path,
 }
 
 impl Default for GamePaths {
     fn default() -> Self {
         Self {
-            data_directory: PathBuf::from("./DANE/").into(),
-            game_definition_filename: PathBuf::from("./APPLICATION.DEF").into(),
-            music_directory: PathBuf::from("./").into(),
-            dialogues_directory: PathBuf::from("./WAVS/").into(),
-            sfx_directory: PathBuf::from("./WAVS/SFX/").into(),
-            common_directory: PathBuf::from("./COMMON/").into(),
-            classes_directory: PathBuf::from("./COMMON/CLASSES/").into(),
+            data_directory: "./DANE/".into(),
+            game_definition_filename: "./APPLICATION.DEF".into(),
+            music_directory: "./".into(),
+            dialogues_directory: "./WAVS/".into(),
+            sfx_directory: "./WAVS/SFX/".into(),
+            common_directory: "./COMMON/".into(),
+            classes_directory: "./COMMON/CLASSES/".into(),
         }
     }
 }

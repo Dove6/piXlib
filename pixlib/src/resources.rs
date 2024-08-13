@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     env::Args,
     fs::File,
     io::Read,
@@ -82,7 +83,9 @@ impl AsRef<Arc<CnvRunner>> for ScriptRunner {
     }
 }
 
-#[derive(Resource, Default)]
+pub struct InsertedDiskResource(pub Arc<RefCell<InsertedDisk>>);
+
+#[derive(Default)]
 pub struct InsertedDisk {
     handle: Option<ISO9660<File>>,
 }
@@ -96,11 +99,13 @@ impl std::fmt::Debug for InsertedDisk {
 }
 
 impl FileSystem for InsertedDisk {
-    fn read_file(&self, filename: &str) -> std::io::Result<Vec<u8>> {
+    fn read_file(&mut self, filename: &str) -> std::io::Result<Vec<u8>> {
         let Some(handle) = &self.handle else {
             return Err(std::io::Error::from(std::io::ErrorKind::Unsupported));
         };
-        if let Ok(Some(DirectoryEntry::File(file))) = handle.open(&filename.replace('\\', "/")) {
+        if let Ok(Some(DirectoryEntry::File(file))) =
+            handle.open(&filename.replace('\\', "/").to_ascii_lowercase())
+        {
             let mut buffer = Vec::new();
             let bytes_read = file.read().read_to_end(&mut buffer).unwrap();
             info!("Read file {:?} ({} bytes)", filename, bytes_read);

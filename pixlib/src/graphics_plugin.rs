@@ -1,5 +1,3 @@
-use std::{path::Path, sync::Arc};
-
 use bevy::{
     app::{App, Plugin, Startup, Update},
     asset::{Assets, Handle},
@@ -15,7 +13,7 @@ use bevy::{
 
 use pixlib_parser::{
     classes::{CnvContent, Scene},
-    runner::ScriptEvent,
+    runner::{ScenePath, ScriptEvent},
 };
 
 use crate::{
@@ -63,13 +61,13 @@ pub enum GraphicsMarker {
     BackgroundImage,
     Image {
         script_index: usize,
-        script_path: Arc<Path>,
+        script_path: ScenePath,
         object_index: usize,
         object_name: String,
     },
     Animation {
         script_index: usize,
-        script_path: Arc<Path>,
+        script_path: ScenePath,
         object_index: usize,
         object_name: String,
     },
@@ -164,7 +162,7 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
             let mut marker = iter.next().unwrap();
             *marker = GraphicsMarker::Image {
                 script_index,
-                script_path: Arc::clone(&script.path),
+                script_path: script.path.clone(),
                 object_index,
                 object_name: object.name.clone(),
             };
@@ -179,7 +177,7 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
             let mut marker = iter.next().unwrap();
             *marker = GraphicsMarker::Animation {
                 script_index,
-                script_path: Arc::clone(&script.path),
+                script_path: script.path.clone(),
                 object_index,
                 object_name: object.name.clone(),
             };

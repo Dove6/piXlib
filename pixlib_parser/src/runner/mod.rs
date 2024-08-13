@@ -2,6 +2,7 @@ mod events;
 mod expression;
 mod filesystem;
 mod object_container;
+mod path;
 mod script;
 mod script_container;
 mod statement;
@@ -15,6 +16,7 @@ pub use expression::CnvExpression;
 pub use filesystem::FileSystem;
 pub use filesystem::GamePaths;
 use object_container::ObjectContainer;
+pub use path::ScenePath;
 pub use script::{CnvScript, ScriptSource};
 use script_container::ScriptContainer;
 pub use statement::CnvStatement;
@@ -22,8 +24,7 @@ use thiserror::Error;
 pub use value::CnvValue;
 
 use std::collections::VecDeque;
-use std::path::PathBuf;
-use std::{cell::RefCell, collections::HashMap, path::Path, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use events::{IncomingEvents, OutgoingEvents};
 
@@ -76,7 +77,7 @@ pub enum RunnerError {
 
     MissingFilenameToLoad,
 
-    ScriptNotFound { path: Arc<Path> },
+    ScriptNotFound { path: String },
     RootScriptAlreadyLoaded,
     ApplicationScriptAlreadyLoaded,
     EpisodeScriptAlreadyLoaded,
@@ -168,7 +169,10 @@ impl CnvRunner {
         });
         let global_script = Arc::new(CnvScript::new(
             Arc::clone(&runner),
-            PathBuf::from("__GLOBAL__").into(),
+            ScenePath {
+                dir_path: ".".into(),
+                file_path: "__GLOBAL__".into(),
+            },
             None,
             ScriptSource::Root,
         ));
@@ -233,7 +237,7 @@ impl CnvRunner {
 
     pub fn load_script(
         self: &Arc<Self>,
-        path: Arc<Path>,
+        path: ScenePath,
         contents: impl Iterator<Item = declarative_parser::ParserInput>,
         parent_object: Option<Arc<CnvObject>>,
         source_kind: ScriptSource,
@@ -248,7 +252,7 @@ impl CnvRunner {
         let mut name_to_object: HashMap<String, usize> = HashMap::new();
         let script = Arc::new(CnvScript::new(
             Arc::clone(self),
-            Arc::clone(&path),
+            path.clone(),
             parent_object.clone(),
             source_kind,
         ));
@@ -306,13 +310,11 @@ impl CnvRunner {
         self.events_out
             .script
             .borrow_mut()
-            .push_back(ScriptEvent::ScriptLoaded {
-                path: Arc::clone(&path),
-            });
+            .push_back(ScriptEvent::ScriptLoaded { path: path.clone() });
         Ok(())
     }
 
-    pub fn get_script(&self, path: &Path) -> Option<Arc<CnvScript>> {
+    pub fn get_script(&self, path: &ScenePath) -> Option<Arc<CnvScript>> {
         self.scripts.borrow().get_script(path)
     }
 
@@ -337,7 +339,7 @@ impl CnvRunner {
         self.scripts.borrow_mut().remove_all_scripts();
     }
 
-    pub fn unload_script(&self, path: &Path) -> RunnerResult<()> {
+    pub fn unload_script(&self, path: &ScenePath) -> RunnerResult<()> {
         self.scripts.borrow_mut().remove_script(path)
     }
 
@@ -396,10 +398,10 @@ impl CnvRunner {
 
     pub fn run_behavior(
         self: &Arc<CnvRunner>,
-        script_name: Arc<Path>,
+        script_path: &ScenePath,
         name: &str,
     ) -> Result<Option<CnvValue>, BehaviorRunningError> {
-        let Some(script) = self.get_script(&script_name) else {
+        let Some(script) = self.get_script(&script_path) else {
             return Err(BehaviorRunningError::ScriptNotFound);
         };
         let Some(init_beh_obj) = script.get_object(name) else {
@@ -434,19 +436,17 @@ impl CnvRunner {
         let scene: Option<&Scene> = (&*scene_guard).into();
         let scene = scene.unwrap();
         let scene_name = scene_object.name.clone();
-        let scene_path = scene.get_script_path();
-        let (contents, path) = (*self.filesystem)
-            .borrow()
+        let scene_path = scene.get_script_path().unwrap();
+        let contents = (*self.filesystem)
+            .borrow_mut()
             .read_scene_file(
                 self.game_paths.clone(),
-                Some(&scene_path.unwrap()),
-                &scene_name,
-                Some("CNV"),
+                &ScenePath::new(&scene_path, &(scene_name.clone() + ".cnv")),
             )
             .unwrap();
         let contents = parse_cnv(&contents);
         self.load_script(
-            path,
+            ScenePath::new(&scene_path, &scene_name),
             contents.as_parser_input(),
             Some(Arc::clone(&scene_object)),
             ScriptSource::Scene,

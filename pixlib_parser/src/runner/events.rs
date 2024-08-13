@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::VecDeque, path::Path, sync::Arc};
+use std::{cell::RefCell, collections::VecDeque, sync::Arc};
 
 #[derive(Debug, Clone)]
 pub struct InternalEvent {
@@ -29,7 +29,7 @@ pub use keyboard_types::Code as KeyboardKey;
 
 use crate::classes::{CallableIdentifierOwned, CnvObject, SoundFileData};
 
-use super::CnvValue;
+use super::{path::ScenePath, CnvValue};
 
 #[derive(Debug, Clone)]
 pub enum KeyboardEvent {
@@ -48,14 +48,14 @@ pub struct OutgoingEvents {
 
 #[derive(Debug, Clone)]
 pub enum ScriptEvent {
-    ScriptLoaded { path: Arc<Path> },
-    ScriptUnloaded { path: Arc<Path> },
+    ScriptLoaded { path: ScenePath },
+    ScriptUnloaded { path: ScenePath },
 }
 
 #[derive(Debug, Clone)]
 pub enum FileEvent {
-    FileRead { path: Arc<Path> },
-    FileWritten { path: Arc<Path> },
+    FileRead { path: ScenePath },
+    FileWritten { path: ScenePath },
 }
 
 #[derive(Debug, Clone)]

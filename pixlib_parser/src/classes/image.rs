@@ -661,17 +661,15 @@ impl ImageState {
         let script = image.parent.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
-            .borrow()
+            .borrow_mut()
             .read_scene_file(
                 Arc::clone(&script.runner.game_paths),
-                Some(script.path.with_file_name("").to_str().unwrap()),
-                filename,
-                Some("IMG"),
+                &script.path.with_file_path(filename),
             )
             .map_err(|_| RunnerError::IoError {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
             })?;
-        let data = parse_img(&data.0);
+        let data = parse_img(&data);
         let converted_data = data
             .image_data
             .to_rgba8888(data.header.color_format, data.header.compression_type);

@@ -30,3 +30,7 @@ bevy = { version = "0.13", default_features = false, features = [
 ] }
 bevy_kira_audio = { version = "0.19" }
 regex = "1.10"
+zip = { version = "2.1", default_features = false, features = [
+    "deflate",
+    "time",
+] }

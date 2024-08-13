@@ -1076,17 +1076,15 @@ impl AnimationState {
         let script = animation.parent.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
-            .borrow()
+            .borrow_mut()
             .read_scene_file(
                 Arc::clone(&script.runner.game_paths),
-                Some(script.path.with_file_name("").to_str().unwrap()),
-                filename,
-                Some("ANN"),
+                &script.path.with_file_path(filename),
             )
             .map_err(|_| RunnerError::IoError {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
             })?;
-        let data = parse_ann(&data.0);
+        let data = parse_ann(&data);
         self.file_data = AnimationFileData::Loaded(LoadedAnimation {
             filename: Some(filename.to_owned()),
             sequences: data
