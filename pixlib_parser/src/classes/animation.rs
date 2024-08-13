@@ -1,3 +1,4 @@
+use initable::Initable;
 use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
 use pixlib_formats::file_formats::ann::{parse_ann, LoopingSettings};
 use std::{any::Any, cell::RefCell, sync::Arc};
@@ -45,8 +46,6 @@ pub struct AnimationProperties {
 
 #[derive(Debug, Clone, Default)]
 struct AnimationState {
-    pub initialized: bool,
-
     // initialized from properties
     pub is_button: bool,
     pub file_data: AnimationFileData,
@@ -145,15 +144,7 @@ impl Animation {
             should_draw_to_canvas: props.to_canvas.unwrap_or(true),
         };
         if let Some(filename) = props.filename {
-            if animation.should_preload {
-                animation
-                    .state
-                    .borrow_mut()
-                    .load(&animation, &filename)
-                    .unwrap();
-            } else {
-                animation.state.borrow_mut().file_data = AnimationFileData::NotLoaded(filename);
-            }
+            animation.state.borrow_mut().file_data = AnimationFileData::NotLoaded(filename);
         }
         animation
     }
@@ -219,35 +210,6 @@ impl CnvType for Animation {
 
     fn get_type_id(&self) -> &'static str {
         "ANIMO"
-    }
-
-    fn has_event(&self, name: &str) -> bool {
-        matches!(
-            name,
-            "ONCLICK"
-                | "ONCOLLISION"
-                | "ONCOLLISIONFINISHED"
-                | "ONDONE"
-                | "ONFINISHED"
-                | "ONFIRSTFRAME"
-                | "ONFOCUSOFF"
-                | "ONFOCUSON"
-                | "ONFRAMECHANGED"
-                | "ONINIT"
-                | "ONPAUSED"
-                | "ONRELEASE"
-                | "ONRESUMED"
-                | "ONSIGNAL"
-                | "ONSTARTED"
-        )
-    }
-
-    fn has_property(&self, _name: &str) -> bool {
-        todo!()
-    }
-
-    fn has_method(&self, _name: &str) -> bool {
-        todo!()
     }
 
     fn call_method(
@@ -432,7 +394,7 @@ impl CnvType for Animation {
             CallableIdentifier::Method("LOAD") => {
                 self.state
                     .borrow_mut()
-                    .load(&self, &arguments[0].to_string())?;
+                    .load(context, &arguments[0].to_string())?;
                 Ok(None)
             }
             CallableIdentifier::Method("MERGEALPHA") => {
@@ -703,12 +665,6 @@ impl CnvType for Animation {
         }
     }
 
-    fn get_property(&self, name: &str) -> Option<PropertyValue> {
-        match name {
-            _ => todo!(),
-        }
-    }
-
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
@@ -870,6 +826,30 @@ impl CnvType for Animation {
                 on_started,
             },
         )))
+    }
+}
+
+impl Initable for Animation {
+    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+        let mut state = self.state.borrow_mut();
+        if self.should_preload {
+            if let AnimationFileData::NotLoaded(filename) = &state.file_data {
+                let filename = filename.clone();
+                state.load(context.clone(), &filename)?;
+            };
+        }
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONINIT").to_owned(),
+                    arguments: Vec::new(),
+                })
+            });
+        Ok(())
     }
 }
 
@@ -1071,9 +1051,9 @@ impl AnimationState {
         Ok(self.is_visible)
     }
 
-    pub fn load(&mut self, animation: &Animation, filename: &str) -> RunnerResult<()> {
+    pub fn load(&mut self, context: RunnerContext, filename: &str) -> RunnerResult<()> {
         // LOAD
-        let script = animation.parent.parent.as_ref();
+        let script = context.current_object.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
             .borrow_mut()
@@ -1139,9 +1119,9 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn monitor_collision(&self) {
+    pub fn monitor_collision(&mut self) {
         // MONITORCOLLISION
-        todo!()
+        self.does_monitor_collision = true;
     }
 
     pub fn move_by(&mut self, x: isize, y: isize) -> RunnerResult<()> {
@@ -1182,7 +1162,7 @@ impl AnimationState {
                 events.push_back(InternalEvent {
                     object: context.current_object.clone(),
                     callable: CallableIdentifier::Event("ONPAUSED").to_owned(),
-                    arguments: arguments.clone(),
+                    arguments: arguments,
                 });
             });
         Ok(())
@@ -1190,6 +1170,10 @@ impl AnimationState {
 
     pub fn play(&mut self, context: RunnerContext, sequence_name: &str) -> RunnerResult<()> {
         // PLAY (STRING)
+        if let AnimationFileData::NotLoaded(filename) = &self.file_data {
+            let filename = filename.clone();
+            self.load(context.clone(), &filename)?;
+        };
         let AnimationFileData::Loaded(loaded_data) = &self.file_data else {
             return Err(RunnerError::NoDataLoaded);
         };
@@ -1259,9 +1243,9 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn remove_monitor_collision(&self) {
+    pub fn remove_monitor_collision(&mut self) {
         // REMOVEMONITORCOLLISION
-        todo!()
+        self.does_monitor_collision = false;
     }
 
     pub fn replace_color(&self) {
@@ -1296,7 +1280,7 @@ impl AnimationState {
                 events.push_back(InternalEvent {
                     object: context.current_object.clone(),
                     callable: CallableIdentifier::Event("ONRESUMED").to_owned(),
-                    arguments: arguments.clone(),
+                    arguments: arguments,
                 });
             });
         Ok(())

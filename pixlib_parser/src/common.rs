@@ -198,7 +198,7 @@ pub trait DroppableRefMut {
         r
     }
 
-    fn use_and_drop_mut<R>(mut self, mut f: impl FnMut(&mut Self) -> R) -> R
+    fn use_and_drop_mut<R>(mut self, f: impl FnOnce(&mut Self) -> R) -> R
     where
         Self: Sized,
     {

@@ -1,8 +1,9 @@
 use std::{any::Any, cell::RefCell};
 
+use initable::Initable;
 use parsers::{discard_if_empty, parse_program};
 
-use crate::ast::ParsedScript;
+use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
 use super::*;
 
@@ -63,18 +64,6 @@ impl CnvType for Group {
 
     fn get_type_id(&self) -> &'static str {
         "GROUP"
-    }
-
-    fn has_event(&self, name: &str) -> bool {
-        matches!(name, "ONDONE" | "ONINIT" | "ONSIGNAL")
-    }
-
-    fn has_property(&self, _name: &str) -> bool {
-        todo!()
-    }
-
-    fn has_method(&self, _name: &str) -> bool {
-        todo!()
     }
 
     fn call_method(
@@ -163,10 +152,6 @@ impl CnvType for Group {
         }
     }
 
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
-    }
-
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
@@ -194,6 +179,23 @@ impl CnvType for Group {
                 on_signal,
             },
         )))
+    }
+}
+
+impl Initable for Group {
+    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONINIT").to_owned(),
+                    arguments: Vec::new(),
+                })
+            });
+        Ok(())
     }
 }
 

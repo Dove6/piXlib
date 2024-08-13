@@ -76,18 +76,6 @@ impl CnvType for ComplexCondition {
         "COMPLEXCONDITION"
     }
 
-    fn has_event(&self, name: &str) -> bool {
-        matches!(name, "ONRUNTIMEFAILED" | "ONRUNTIMESUCCESS")
-    }
-
-    fn has_property(&self, _name: &str) -> bool {
-        todo!()
-    }
-
-    fn has_method(&self, _name: &str) -> bool {
-        todo!()
-    }
-
     fn call_method(
         &self,
         name: CallableIdentifier,
@@ -120,10 +108,6 @@ impl CnvType for ComplexCondition {
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
-    }
-
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
     }
 
     fn new(

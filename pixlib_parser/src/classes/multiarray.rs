@@ -55,18 +55,6 @@ impl CnvType for MultiArray {
         "MULTIARRAY"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
-    }
-
-    fn has_property(&self, _name: &str) -> bool {
-        todo!()
-    }
-
-    fn has_method(&self, _name: &str) -> bool {
-        todo!()
-    }
-
     fn call_method(
         &self,
         name: CallableIdentifier,
@@ -87,10 +75,6 @@ impl CnvType for MultiArray {
             CallableIdentifier::Method("SET") => self.state.borrow_mut().set().map(|_| None),
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
-    }
-
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
     }
 
     fn new(

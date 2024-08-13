@@ -35,7 +35,7 @@ use crate::common::DroppableRefMut;
 use crate::common::IssueKind;
 use crate::scanner::parse_cnv;
 use crate::{
-    classes::{CallableIdentifier, CnvObject, CnvObjectBuilder, ObjectBuilderError},
+    classes::{CnvObject, CnvObjectBuilder, ObjectBuilderError},
     common::{Issue, IssueHandler, IssueManager},
     declarative_parser::{self, CnvDeclaration, DeclarativeParser, ParserFatal, ParserIssue},
 };
@@ -195,7 +195,7 @@ impl CnvRunner {
         runner
     }
 
-    pub fn step(self: &Arc<CnvRunner>) -> Result<(), RunnerError> {
+    pub fn step(self: &Arc<CnvRunner>) -> RunnerResult<()> {
         let mut timer_events = self.events_in.timer.borrow_mut();
         while let Some(evt) = timer_events.pop_front() {
             match evt {
@@ -217,12 +217,7 @@ impl CnvRunner {
         let mut to_init = Vec::new();
         self.find_objects(|o| !*o.initialized.borrow(), &mut to_init);
         for object in to_init {
-            if !object.content.borrow().has_event("ONINIT") {
-                *object.initialized.borrow_mut() = true;
-                continue;
-            }
-            object.call_method(CallableIdentifier::Event("ONINIT"), &Vec::new(), None)?;
-            *object.initialized.borrow_mut() = true;
+            object.init(None)?;
         }
         while let Some(evt) = self
             .internal_events

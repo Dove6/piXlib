@@ -1,8 +1,9 @@
 use std::{any::Any, cell::RefCell};
 
+use initable::Initable;
 use parsers::{discard_if_empty, parse_program};
 
-use crate::ast::ParsedScript;
+use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
 use super::*;
 
@@ -46,7 +47,10 @@ impl Behavior {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: BehaviorProperties) -> Self {
         Self {
             parent,
-            state: RefCell::new(BehaviorState { is_enabled: true }),
+            state: RefCell::new(BehaviorState {
+                is_enabled: true,
+                ..Default::default()
+            }),
             event_handlers: BehaviorEventHandlers {
                 on_done: props.on_done,
                 on_init: props.on_init,
@@ -73,18 +77,6 @@ impl CnvType for Behavior {
 
     fn get_type_id(&self) -> &'static str {
         "BEHAVIOUR"
-    }
-
-    fn has_event(&self, name: &str) -> bool {
-        matches!(name, "ONDONE" | "ONINIT" | "ONSIGNAL")
-    }
-
-    fn has_property(&self, _name: &str) -> bool {
-        todo!()
-    }
-
-    fn has_method(&self, _name: &str) -> bool {
-        todo!()
     }
 
     fn call_method(
@@ -137,10 +129,6 @@ impl CnvType for Behavior {
         }
     }
 
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
-    }
-
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
@@ -180,6 +168,30 @@ impl CnvType for Behavior {
                 on_signal,
             },
         )))
+    }
+}
+
+impl Initable for Behavior {
+    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONINIT").to_owned(),
+                    arguments: Vec::new(),
+                });
+                if context.current_object.name == "__INIT__" {
+                    events.push_back(InternalEvent {
+                        object: context.current_object.clone(),
+                        callable: CallableIdentifierOwned::Method("RUN".into()),
+                        arguments: Vec::new(),
+                    });
+                }
+            });
+        Ok(())
     }
 }
 

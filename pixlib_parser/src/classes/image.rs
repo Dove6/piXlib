@@ -1,10 +1,15 @@
 use std::{any::Any, cell::RefCell};
 
+use initable::Initable;
 use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
 use pixlib_formats::file_formats::img::parse_img;
 use xxhash_rust::xxh3::xxh3_64;
 
-use crate::{ast::ParsedScript, runner::RunnerError};
+use crate::{
+    ast::ParsedScript,
+    common::DroppableRefMut,
+    runner::{InternalEvent, RunnerError},
+};
 
 use super::*;
 
@@ -35,8 +40,6 @@ pub struct ImageProperties {
 
 #[derive(Debug, Clone, Default)]
 struct ImageState {
-    pub initialized: bool,
-
     // initialized from properties
     pub is_button: bool,
     pub file_data: ImageFileData,
@@ -110,11 +113,7 @@ impl Image {
             should_draw_to_canvas: props.to_canvas.unwrap_or(true),
         };
         if let Some(filename) = filename {
-            if image.should_preload {
-                image.state.borrow_mut().load(&image, &filename).unwrap();
-            } else {
-                image.state.borrow_mut().file_data = ImageFileData::NotLoaded(filename);
-            }
+            image.state.borrow_mut().file_data = ImageFileData::NotLoaded(filename);
         }
         image
     }
@@ -157,29 +156,6 @@ impl CnvType for Image {
 
     fn get_type_id(&self) -> &'static str {
         "IMAGE"
-    }
-
-    fn has_event(&self, name: &str) -> bool {
-        matches!(
-            name,
-            "ONCLICK"
-                | "ONCOLLISION"
-                | "ONCOLLISIONFINISHED"
-                | "ONDONE"
-                | "ONFOCUSOFF"
-                | "ONFOCUSON"
-                | "ONINIT"
-                | "ONRELEASE"
-                | "ONSIGNAL"
-        )
-    }
-
-    fn has_property(&self, _name: &str) -> bool {
-        todo!()
-    }
-
-    fn has_method(&self, _name: &str) -> bool {
-        todo!()
     }
 
     fn call_method(
@@ -263,7 +239,7 @@ impl CnvType for Image {
             CallableIdentifier::Method("LOAD") => self
                 .state
                 .borrow_mut()
-                .load(self, &arguments[0].to_string())
+                .load(context, &arguments[0].to_string())
                 .map(|_| None),
             CallableIdentifier::Method("MERGEALPHA") => {
                 self.state.borrow_mut().merge_alpha().map(|_| None)
@@ -394,12 +370,6 @@ impl CnvType for Image {
         }
     }
 
-    fn get_property(&self, name: &str) -> Option<PropertyValue> {
-        match name {
-            _ => todo!(),
-        }
-    }
-
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
@@ -519,6 +489,30 @@ impl CnvType for Image {
                 on_signal,
             },
         )))
+    }
+}
+
+impl Initable for Image {
+    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+        let mut state = self.state.borrow_mut();
+        if self.should_preload {
+            if let ImageFileData::NotLoaded(filename) = &state.file_data {
+                let filename = filename.clone();
+                state.load(context.clone(), &filename)?;
+            };
+        }
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONINIT").to_owned(),
+                    arguments: Vec::new(),
+                })
+            });
+        Ok(())
     }
 }
 
@@ -656,9 +650,9 @@ impl ImageState {
         todo!()
     }
 
-    pub fn load(&mut self, image: &Image, filename: &str) -> RunnerResult<()> {
+    pub fn load(&mut self, context: RunnerContext, filename: &str) -> RunnerResult<()> {
         // LOAD
-        let script = image.parent.parent.as_ref();
+        let script = context.current_object.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
             .borrow_mut()

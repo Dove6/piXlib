@@ -111,7 +111,7 @@ impl ConditionOperator {
             "GREATER" => Ok(Self::Greater),
             "LESSEQUAL" => Ok(Self::LessEqual),
             "GREATEREQUAL" => Ok(Self::GreaterEqual),
-            _ => Err(TypeParsingError::InvalidConditionOperator(s)), // TODO: error
+            _ => Err(TypeParsingError::InvalidConditionOperator(s)),
         }
     }
 }
@@ -127,7 +127,7 @@ impl ComplexConditionOperator {
         match s.as_ref() {
             "AND" => Ok(Self::And),
             "OR" => Ok(Self::Or),
-            _ => Err(TypeParsingError::InvalidComplexConditionOperator(s)), // TODO: error
+            _ => Err(TypeParsingError::InvalidComplexConditionOperator(s)),
         }
     }
 }
@@ -155,7 +155,7 @@ impl ExpressionOperator {
             "MUL" => Ok(Self::Mul),
             "DIV" => Ok(Self::Div),
             "MOD" => Ok(Self::Mod),
-            _ => Err(TypeParsingError::InvalidExpressionOperator(s)), // TODO: something better
+            _ => Err(TypeParsingError::InvalidExpressionOperator(s)),
         }
     }
 }

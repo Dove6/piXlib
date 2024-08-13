@@ -9,12 +9,13 @@ use lalrpop_util::ParseError;
 use thiserror::Error;
 
 use crate::{
-    common::Issue,
+    common::{DroppableRefMut, Issue},
     declarative_parser::ParserIssue,
     runner::{CnvScript, CnvValue, RunnerContext},
 };
 
 use super::{
+    initable::Initable,
     parsers::{discard_if_empty, ProgramParsingError, TypeParsingError},
     CallableIdentifier, CnvContent, CnvTypeFactory, DummyCnvType, PropertyValue, RunnerResult,
 };
@@ -151,10 +152,25 @@ impl CnvObject {
         // println!("Result is {:?}", result);
     }
 
-    pub fn get_property(&self, name: &str) -> Option<PropertyValue> {
-        let value = self.content.borrow().get_property(name);
-        println!("Got property: {:?} of: {:?}: {:?}", name, self.name, value);
-        value
+    pub fn init(self: &Arc<Self>, context: Option<RunnerContext>) -> RunnerResult<()> {
+        let mut content = self.content.borrow_mut();
+        let as_initable: Option<&mut dyn Initable> = (&mut *content).into();
+        let Some(initable) = as_initable else {
+            *self.initialized.borrow_mut() = true;
+            return Ok(());
+        };
+        let context = context
+            .map(|c| c.with_current_object(self.clone()))
+            .unwrap_or(RunnerContext {
+                runner: self.parent.runner.clone(),
+                self_object: self.clone(),
+                current_object: self.clone(),
+            });
+        initable.initialize(context).inspect(|_| {
+            self.initialized
+                .borrow_mut()
+                .use_and_drop_mut(|i| **i = true)
+        })
     }
 }
 

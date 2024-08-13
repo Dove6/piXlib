@@ -11,14 +11,9 @@ use crate::runner::{CnvStatement, CnvValue, RunnerContext};
 
 pub trait CnvType: std::fmt::Debug {
     fn get_type_id(&self) -> &'static str;
-    fn has_event(&self, name: &str) -> bool;
-    fn has_property(&self, name: &str) -> bool;
-    fn has_method(&self, name: &str) -> bool;
-
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    fn get_property(&self, name: &str) -> Option<PropertyValue>;
     fn call_method(
         &self,
         identifier: CallableIdentifier,
@@ -74,28 +69,12 @@ impl CnvType for DummyCnvType {
         "DUMMY"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        false
-    }
-
-    fn has_property(&self, _name: &str) -> bool {
-        false
-    }
-
-    fn has_method(&self, _name: &str) -> bool {
-        false
-    }
-
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self as &mut dyn Any
-    }
-
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        None
     }
 
     fn call_method(
@@ -301,6 +280,7 @@ mod expression;
 mod font;
 mod group;
 mod image;
+mod initable;
 mod int;
 mod keyboard;
 mod mouse;

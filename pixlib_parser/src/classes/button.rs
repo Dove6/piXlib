@@ -1,8 +1,9 @@
 use std::{any::Any, cell::RefCell};
 
+use initable::Initable;
 use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program, parse_rect, Rect};
 
-use crate::ast::ParsedScript;
+use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
 use super::*;
 
@@ -38,8 +39,6 @@ pub struct ButtonProperties {
 
 #[derive(Debug, Clone, Default)]
 pub struct ButtonState {
-    pub initialized: bool,
-
     // initialized from properties
     pub is_enabled: bool,
     pub is_accented: bool,
@@ -128,32 +127,6 @@ impl CnvType for Button {
 
     fn get_type_id(&self) -> &'static str {
         "BUTTON"
-    }
-
-    fn has_event(&self, name: &str) -> bool {
-        matches!(
-            name,
-            "ONACTION"
-                | "ONCLICKED"
-                | "ONDONE"
-                | "ONDRAGGING"
-                | "ONENDDRAGGING"
-                | "ONFOCUSOFF"
-                | "ONFOCUSON"
-                | "ONINIT"
-                | "ONPAUSED"
-                | "ONRELEASED"
-                | "ONSIGNAL"
-                | "ONSTARTDRAGGING"
-        )
-    }
-
-    fn has_property(&self, _name: &str) -> bool {
-        todo!()
-    }
-
-    fn has_method(&self, _name: &str) -> bool {
-        todo!()
     }
 
     fn call_method(
@@ -288,10 +261,6 @@ impl CnvType for Button {
         }
     }
 
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
-    }
-
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
@@ -421,6 +390,23 @@ impl CnvType for Button {
                 on_start_dragging,
             },
         )))
+    }
+}
+
+impl Initable for Button {
+    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONINIT").to_owned(),
+                    arguments: Vec::new(),
+                })
+            });
+        Ok(())
     }
 }
 

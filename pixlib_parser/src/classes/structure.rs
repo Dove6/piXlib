@@ -1,8 +1,9 @@
 use std::{any::Any, cell::RefCell};
 
+use initable::Initable;
 use parsers::{discard_if_empty, parse_program, STRUCT_FIELDS_REGEX};
 
-use crate::ast::ParsedScript;
+use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
 use super::*;
 
@@ -18,8 +19,6 @@ pub struct StructProperties {
 
 #[derive(Debug, Clone, Default)]
 struct StructState {
-    pub initialized: bool,
-
     // deduced from methods
     pub fields: HashMap<String, CnvValue>,
 }
@@ -71,18 +70,6 @@ impl CnvType for Struct {
         "STRUCT"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        todo!()
-    }
-
-    fn has_property(&self, _name: &str) -> bool {
-        todo!()
-    }
-
-    fn has_method(&self, _name: &str) -> bool {
-        todo!()
-    }
-
     fn call_method(
         &self,
         name: CallableIdentifier,
@@ -126,10 +113,6 @@ impl CnvType for Struct {
         }
     }
 
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
-    }
-
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
@@ -169,6 +152,23 @@ impl CnvType for Struct {
                 on_signal,
             },
         )))
+    }
+}
+
+impl Initable for Struct {
+    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONINIT").to_owned(),
+                    arguments: Vec::new(),
+                })
+            });
+        Ok(())
     }
 }
 

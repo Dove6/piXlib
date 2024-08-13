@@ -50,18 +50,6 @@ impl CnvType for Rand {
         "RANDOM"
     }
 
-    fn has_event(&self, _name: &str) -> bool {
-        false
-    }
-
-    fn has_property(&self, _name: &str) -> bool {
-        todo!()
-    }
-
-    fn has_method(&self, _name: &str) -> bool {
-        todo!()
-    }
-
     fn call_method(
         &self,
         name: CallableIdentifier,
@@ -93,10 +81,6 @@ impl CnvType for Rand {
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
-    }
-
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
     }
 
     fn new(

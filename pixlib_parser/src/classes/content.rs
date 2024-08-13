@@ -34,7 +34,7 @@ pub enum CnvContent {
     System(System),
     Text(Text),
     Timer(Timer),
-    Custom(Box<dyn CnvType>),
+    Custom(Box<dyn CnvType>), // TODO: allow for ONINIT here
     None(DummyCnvType),
 }
 

@@ -1,8 +1,9 @@
 use std::{any::Any, cell::RefCell};
 
+use initable::Initable;
 use parsers::{discard_if_empty, parse_bool, parse_program};
 
-use crate::ast::ParsedScript;
+use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
 use super::*;
 
@@ -19,8 +20,6 @@ pub struct ArrayProperties {
 
 #[derive(Debug, Clone, Default)]
 struct ArrayState {
-    pub initialized: bool,
-
     // initialized from properties
     pub should_send_on_change_event: bool,
 
@@ -75,18 +74,6 @@ impl CnvType for Array {
 
     fn get_type_id(&self) -> &'static str {
         "ARRAY"
-    }
-
-    fn has_event(&self, name: &str) -> bool {
-        matches!(name, "ONCHANGE" | "ONDONE" | "ONINIT" | "ONSIGNAL")
-    }
-
-    fn has_property(&self, _name: &str) -> bool {
-        todo!()
-    }
-
-    fn has_method(&self, _name: &str) -> bool {
-        todo!()
     }
 
     fn call_method(
@@ -222,10 +209,6 @@ impl CnvType for Array {
         }
     }
 
-    fn get_property(&self, _name: &str) -> Option<PropertyValue> {
-        todo!()
-    }
-
     fn new(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
@@ -235,7 +218,7 @@ impl CnvType for Array {
             .and_then(discard_if_empty)
             .map(parse_bool)
             .transpose()?;
-        // TODO: too many properties
+        // TODO: error when there are superfluous properties
         let on_change = properties
             .remove("ONCHANGE")
             .and_then(discard_if_empty)
@@ -266,6 +249,23 @@ impl CnvType for Array {
                 on_signal,
             },
         )))
+    }
+}
+
+impl Initable for Array {
+    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONINIT").to_owned(),
+                    arguments: Vec::new(),
+                })
+            });
+        Ok(())
     }
 }
 
