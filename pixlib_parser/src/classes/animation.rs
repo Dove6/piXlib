@@ -165,11 +165,7 @@ impl Animation {
 
     pub fn step(&self, seconds: f64) -> RunnerResult<()> {
         self.state.borrow_mut().step(
-            RunnerContext {
-                runner: self.parent.parent.runner.clone(),
-                self_object: self.parent.clone(),
-                current_object: self.parent.clone(),
-            },
+            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
             seconds,
         )
     }

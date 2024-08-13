@@ -141,11 +141,7 @@ impl CnvObject {
         // println!("Calling method: {:?} of: {:?}", identifier, self.name);
         let context = context
             .map(|c| c.with_current_object(self.clone()))
-            .unwrap_or(RunnerContext {
-                runner: self.parent.runner.clone(),
-                self_object: self.clone(),
-                current_object: self.clone(),
-            });
+            .unwrap_or(RunnerContext::new_minimal(&self.parent.runner, self));
         self.content
             .borrow()
             .call_method(identifier, arguments, context)
@@ -161,11 +157,7 @@ impl CnvObject {
         };
         let context = context
             .map(|c| c.with_current_object(self.clone()))
-            .unwrap_or(RunnerContext {
-                runner: self.parent.runner.clone(),
-                self_object: self.clone(),
-                current_object: self.clone(),
-            });
+            .unwrap_or(RunnerContext::new_minimal(&self.parent.runner, self));
         initable.initialize(context).inspect(|_| {
             self.initialized
                 .borrow_mut()

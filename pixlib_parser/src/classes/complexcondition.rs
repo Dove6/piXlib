@@ -159,17 +159,15 @@ impl ComplexConditionState {
     }
 
     pub fn check(&self, complex_condition: &ComplexCondition) -> RunnerResult<bool> {
-        let runner = Arc::clone(&complex_condition.parent.parent.runner);
-        let context = RunnerContext {
-            runner: Arc::clone(&runner),
-            self_object: complex_condition.parent.clone(),
-            current_object: complex_condition.parent.clone(),
-        };
-        let left_object = runner.get_object(&complex_condition.left).unwrap();
+        let context = RunnerContext::new_minimal(
+            &complex_condition.parent.parent.runner,
+            &complex_condition.parent,
+        );
+        let left_object = context.runner.get_object(&complex_condition.left).unwrap();
         let left_guard = left_object.content.borrow();
         let left: Option<&Condition> = (&*left_guard).into();
         let left = left.unwrap();
-        let right_object = runner.get_object(&complex_condition.right).unwrap();
+        let right_object = context.runner.get_object(&complex_condition.right).unwrap();
         let right_guard = right_object.content.borrow();
         let right: Option<&Condition> = (&*right_guard).into();
         let right = right.unwrap();

@@ -75,11 +75,10 @@ impl IntegerVar {
     }
 
     pub fn get(&self) -> RunnerResult<i32> {
-        self.state.borrow().get(RunnerContext {
-            runner: self.parent.parent.runner.clone(),
-            self_object: self.parent.clone(),
-            current_object: self.parent.clone(),
-        })
+        self.state.borrow().get(RunnerContext::new_minimal(
+            &self.parent.parent.runner,
+            &self.parent,
+        ))
     }
 }
 

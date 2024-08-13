@@ -140,11 +140,7 @@ impl Scene {
     pub fn get_background_to_show(&self) -> RunnerResult<Option<(ImageDefinition, ImageData)>> {
         let mut state = self.state.borrow_mut();
         if let ImageFileData::NotLoaded(filename) = &state.background_data {
-            let context = RunnerContext {
-                runner: self.parent.parent.runner.clone(),
-                self_object: self.parent.clone(),
-                current_object: self.parent.clone(),
-            };
+            let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
             let path = ScenePath::new(self.path.as_ref().unwrap(), &filename);
             state.load_background(context, &path)?;
         } else if let ImageFileData::Empty = &state.background_data {

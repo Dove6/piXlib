@@ -6,6 +6,8 @@ mod path;
 mod script;
 mod script_container;
 mod statement;
+#[cfg(test)]
+mod tests;
 mod value;
 
 pub use events::{
@@ -15,6 +17,7 @@ pub use events::{
 pub use expression::CnvExpression;
 pub use filesystem::FileSystem;
 pub use filesystem::GamePaths;
+use itertools::Itertools;
 use object_container::ObjectContainer;
 pub use path::ScenePath;
 pub use script::{CnvScript, ScriptSource};
@@ -24,6 +27,7 @@ use thiserror::Error;
 pub use value::CnvValue;
 
 use std::collections::VecDeque;
+use std::fmt::Display;
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use events::{IncomingEvents, OutgoingEvents};
@@ -66,18 +70,37 @@ where
 
 #[derive(Debug)]
 pub enum RunnerError {
-    TooManyArguments { expected_max: usize, actual: usize },
-    TooFewArguments { expected_min: usize, actual: usize },
-    MissingLeftOperand { object_name: String },
-    MissingRightOperand { object_name: String },
-    MissingOperator { object_name: String },
-    ObjectNotFound { name: String },
+    TooManyArguments {
+        expected_max: usize,
+        actual: usize,
+    },
+    TooFewArguments {
+        expected_min: usize,
+        actual: usize,
+    },
+    MissingLeftOperand {
+        object_name: String,
+    },
+    MissingRightOperand {
+        object_name: String,
+    },
+    MissingOperator {
+        object_name: String,
+    },
+    ObjectNotFound {
+        name: String,
+    },
     NoDataLoaded,
-    SequenceNameNotFound { object_name: String, sequence_name: String },
+    SequenceNameNotFound {
+        object_name: String,
+        sequence_name: String,
+    },
 
     MissingFilenameToLoad,
 
-    ScriptNotFound { path: String },
+    ScriptNotFound {
+        path: String,
+    },
     RootScriptAlreadyLoaded,
     ApplicationScriptAlreadyLoaded,
     EpisodeScriptAlreadyLoaded,
@@ -85,7 +108,9 @@ pub enum RunnerError {
 
     ParserError(ParserFatal),
 
-    IoError { source: std::io::Error },
+    IoError {
+        source: std::io::Error,
+    },
     Other,
 }
 
@@ -140,14 +165,54 @@ pub struct RunnerContext {
     pub runner: Arc<CnvRunner>,
     pub self_object: Arc<CnvObject>,
     pub current_object: Arc<CnvObject>,
+    pub arguments: Vec<CnvValue>,
+}
+
+impl Display for RunnerContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "RunnerContext {{ self: {}, current: {}, arguments: [{}] }}",
+            self.self_object.name,
+            self.current_object.name,
+            self.arguments.iter().map(|v| format!("{}", v)).join(", ")
+        )
+    }
 }
 
 impl RunnerContext {
+    pub fn new(
+        runner: &Arc<CnvRunner>,
+        self_object: &Arc<CnvObject>,
+        current_object: &Arc<CnvObject>,
+        arguments: &[CnvValue],
+    ) -> Self {
+        Self {
+            runner: runner.clone(),
+            self_object: self_object.clone(),
+            current_object: current_object.clone(),
+            arguments: arguments.to_owned(),
+        }
+    }
+
+    pub fn new_minimal(runner: &Arc<CnvRunner>, current_object: &Arc<CnvObject>) -> Self {
+        Self {
+            runner: runner.clone(),
+            self_object: current_object.clone(),
+            current_object: current_object.clone(),
+            arguments: Vec::new(),
+        }
+    }
+
     pub fn with_current_object(self, current_object: Arc<CnvObject>) -> Self {
         Self {
             current_object,
             ..self
         }
+    }
+
+    pub fn with_arguments(self, arguments: Vec<CnvValue>) -> Self {
+        Self { arguments, ..self }
     }
 }
 

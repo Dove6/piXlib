@@ -49,21 +49,21 @@ impl Expression {
     ///
 
     pub fn calculate(&self) -> RunnerResult<CnvValue> {
-        let runner = Arc::clone(&self.parent.parent.runner);
-        let context = RunnerContext {
-            runner: Arc::clone(&runner),
-            self_object: self.parent.clone(),
-            current_object: self.parent.clone(),
-        };
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         let left = self.left.calculate(context.clone())?.unwrap();
         let right = self.right.calculate(context.clone())?.unwrap();
-        Ok(match self.operator {
+        let result = Ok(match self.operator {
             ExpressionOperator::Add => &left + &right,
             ExpressionOperator::Sub => &left - &right,
             ExpressionOperator::Mul => &left * &right,
             ExpressionOperator::Div => &left / &right,
             ExpressionOperator::Mod => &left % &right,
-        })
+        });
+        eprintln!("{}.calculate() -> {:?}", self.parent.name, result);
+        if self.parent.name == "KIERFINAL" {
+            panic!();  // FIXME: remove this
+        }
+        result
     }
 }
 

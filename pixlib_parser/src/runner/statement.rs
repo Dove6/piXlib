@@ -8,7 +8,7 @@ pub trait CnvStatement {
 
 impl CnvStatement for Statement {
     fn run(&self, context: RunnerContext) -> RunnerResult<()> {
-        println!("Statement::run: {:?}", self);
+        // println!("Statement::run: {:?}", self);
         match self {
             Statement::ExpressionStatement(expression) => {
                 expression.calculate(context)?;
@@ -20,7 +20,7 @@ impl CnvStatement for Statement {
 
 impl CnvStatement for ParsedScript {
     fn run(&self, context: RunnerContext) -> RunnerResult<()> {
-        println!("ParsedScript::run: {:?}", self);
+        // println!("ParsedScript::run: {:?}", self);
         self.calculate(context)?;
         Ok(())
     }

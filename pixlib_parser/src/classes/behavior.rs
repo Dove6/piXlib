@@ -1,9 +1,14 @@
 use std::{any::Any, cell::RefCell};
 
 use initable::Initable;
+use itertools::Itertools;
 use parsers::{discard_if_empty, parse_program};
 
-use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
+use crate::{
+    ast::ParsedScript,
+    common::DroppableRefMut,
+    runner::{CnvExpression, InternalEvent},
+};
 
 use super::*;
 
@@ -61,21 +66,29 @@ impl Behavior {
         }
     }
 
-    pub fn run(&self, context: RunnerContext, arguments: Vec<CnvValue>) -> RunnerResult<()> {
+    pub fn run(
+        &self,
+        context: RunnerContext,
+        arguments: Vec<CnvValue>,
+    ) -> RunnerResult<Option<CnvValue>> {
         if let Some(code) = self.code.as_ref() {
             self.state.borrow().run(context, code.clone(), arguments)
         } else {
-            Ok(())
+            Ok(None)
         }
     }
 
-    pub fn run_c(&self, context: RunnerContext, arguments: Vec<CnvValue>) -> RunnerResult<()> {
+    pub fn run_c(
+        &self,
+        context: RunnerContext,
+        arguments: Vec<CnvValue>,
+    ) -> RunnerResult<Option<CnvValue>> {
         if let Some(code) = self.code.as_ref() {
             self.state
                 .borrow()
                 .run_c(context, code.clone(), self.condition.as_deref(), arguments)
         } else {
-            Ok(())
+            Ok(None)
         }
     }
 }
@@ -240,10 +253,22 @@ impl BehaviorState {
         &self,
         context: RunnerContext,
         code: Arc<ParsedScript>,
-        _arguments: Vec<CnvValue>,
-    ) -> RunnerResult<()> {
+        arguments: Vec<CnvValue>,
+    ) -> RunnerResult<Option<CnvValue>> {
         // RUN
-        code.run(context)
+        eprintln!(
+            "Running behavior {} with arguments [{}]",
+            context.current_object.name,
+            arguments.iter().join(", ")
+        );
+        let cloned_context = context.clone();
+        let context = context.with_arguments(
+            arguments
+                .into_iter()
+                .map(|a| a.resolve(cloned_context.clone()))
+                .collect(),
+        );
+        code.calculate(context)
     }
 
     pub fn disable(&mut self) -> RunnerResult<()> {
@@ -257,8 +282,8 @@ impl BehaviorState {
         context: RunnerContext,
         code: Arc<ParsedScript>,
         condition_name: Option<&str>,
-        _arguments: Vec<CnvValue>,
-    ) -> RunnerResult<()> {
+        arguments: Vec<CnvValue>,
+    ) -> RunnerResult<Option<CnvValue>> {
         // RUNC
         if let Some(condition) = condition_name {
             let condition_object = context.runner.get_object(condition).unwrap();
@@ -266,17 +291,17 @@ impl BehaviorState {
             let condition: Option<&Condition> = (&*condition_guard).into();
             if let Some(condition) = condition {
                 if !condition.check()? {
-                    return Ok(());
+                    return Ok(None);
                 }
             } else {
                 let condition: Option<&ComplexCondition> = (&*condition_guard).into(); // TODO: generalize
                 let condition = condition.unwrap();
                 if !condition.check()? {
-                    return Ok(());
+                    return Ok(None);
                 }
             }
         }
-        code.run(context)
+        self.run(context, code, arguments)
     }
 
     pub fn run_looped(&self) -> RunnerResult<()> {

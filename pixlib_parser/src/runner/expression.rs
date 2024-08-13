@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     ast::{Expression, IgnorableExpression, Invocation, Operation},
-    classes::{CallableIdentifier, CnvContent},
+    classes::CallableIdentifier,
     runner::RunnerError,
 };
 
@@ -14,7 +14,7 @@ pub trait CnvExpression {
 
 impl CnvExpression for IgnorableExpression {
     fn calculate(&self, context: RunnerContext) -> RunnerResult<Option<CnvValue>> {
-        println!("IgnorableExpression::calculate: {:?}", self);
+        // println!("IgnorableExpression::calculate: {:?}", self);
         if self.ignored {
             return Ok(None);
         }
@@ -22,28 +22,32 @@ impl CnvExpression for IgnorableExpression {
     }
 }
 
+fn trim_one_quotes_level(string: &str) -> &str {
+    let start: usize = if string.starts_with('"') { 1 } else { 0 };
+    let end: usize = string.len() - if string.ends_with('"') { 1 } else { 0 };
+    &string[start..end]
+}
+
 impl CnvExpression for Expression {
     fn calculate(&self, context: RunnerContext) -> RunnerResult<Option<CnvValue>> {
-        println!("Expression::calculate: {:?}", self);
-        match self {
+        // println!("Expression::calculate: {:?} with context: {}", self, context);
+        let result = match self {
             Expression::LiteralBool(b) => Ok(Some(CnvValue::Boolean(*b))),
             Expression::Identifier(name) => Ok(context
                 .runner
-                .get_object(name[..].trim_matches('\"'))
-                .and_then(|o| {
-                    match &*o.content.borrow() {
-                        CnvContent::Behavior(b) => b.run_c(context, Vec::new()).map(|_| None),
-                        _ => Ok(Some(CnvValue::Reference(Arc::clone(&o)))),
-                    }
-                    .transpose()
-                })
-                .transpose()?
-                .or_else(|| Some(CnvValue::String(name.trim_matches('\"').to_owned())))),
+                .get_object(&name)
+                .and_then(|o| Some(CnvValue::Reference(Arc::clone(&o))))
+                .or(Some(CnvValue::String(
+                    trim_one_quotes_level(name).to_owned(),
+                )))),
             Expression::Invocation(invocation) => invocation.calculate(context.clone()),
             Expression::SelfReference => {
                 Ok(Some(context.self_object.clone()).map(CnvValue::Reference))
             } // error
-            Expression::Parameter(_name) => Ok(None), // access function scope and retrieve arguments
+            Expression::Parameter(name) => Ok(context
+                .arguments
+                .get(usize::from_str_radix(&name, 10).unwrap() - 1)
+                .cloned()), // access function scope and retrieve arguments
             Expression::NameResolution(expression) => {
                 let name = &expression.calculate(context.clone())?.unwrap();
                 let name = name.to_string();
@@ -79,13 +83,15 @@ impl CnvExpression for Expression {
                 }
                 Ok(None)
             }
-        }
+        };
+        // println!("    result: {:?}", result);
+        result
     }
 }
 
 impl CnvExpression for Invocation {
     fn calculate(&self, context: RunnerContext) -> RunnerResult<Option<CnvValue>> {
-        println!("Invocation::calculate: {:?}", self);
+        // println!("Invocation::calculate: {:?} with context {}", self, context);
         if self.parent.is_none() {
             Ok(None) // TODO: match &self.name
         } else {
@@ -106,7 +112,7 @@ impl CnvExpression for Invocation {
                 CnvValue::Reference(obj) => obj.call_method(
                     CallableIdentifier::Method(&self.name),
                     &arguments,
-                    Some(context),
+                    Some(context.with_arguments(arguments.clone())),
                 ),
                 any_type => {
                     let name = any_type.to_string();
@@ -117,7 +123,7 @@ impl CnvExpression for Invocation {
                         .call_method(
                             CallableIdentifier::Method(&self.name),
                             &arguments,
-                            Some(context),
+                            Some(context.with_arguments(arguments.clone())),
                         )
                 }
             }

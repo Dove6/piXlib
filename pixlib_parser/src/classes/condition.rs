@@ -166,12 +166,8 @@ impl ConditionState {
     }
 
     pub fn check(&self, condition: &Condition) -> RunnerResult<bool> {
-        let runner = Arc::clone(&condition.parent.parent.runner);
-        let context = RunnerContext {
-            runner: Arc::clone(&runner),
-            self_object: condition.parent.clone(),
-            current_object: condition.parent.clone(),
-        };
+        let context =
+            RunnerContext::new_minimal(&condition.parent.parent.runner, &condition.parent);
         let left = condition.left.calculate(context.clone())?.unwrap();
         let right = condition.right.calculate(context.clone())?.unwrap();
         let result = match condition.operator {

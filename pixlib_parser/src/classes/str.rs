@@ -98,6 +98,7 @@ impl CnvType for StringVar {
         arguments: &[CnvValue],
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
+        eprintln!("Calling method {:?} with arguments {:?}", name, arguments);
         match name {
             CallableIdentifier::Method("ADD") => self
                 .state

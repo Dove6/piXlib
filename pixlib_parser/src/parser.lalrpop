@@ -5,6 +5,10 @@ use crate::lexer::CnvToken;
 grammar(settings: &ast::ParsingSettings, issue_manager: &mut IssueManager<ast::ParserIssue>);
 
 pub Code: ast::IgnorableExpression = {
+    <IgnorableExpression>,
+};
+
+IgnorableExpression: ast::IgnorableExpression = {
     <i:"!"?> <e:Expression> => ast::IgnorableExpression { ignored: i.is_some(), value: e },
 };
 
@@ -48,7 +52,7 @@ Arguments: Vec<ast::Expression> = {
 }
 
 Statement: ast::Statement = {
-    <Code> => ast::Statement::ExpressionStatement(<>),
+    <IgnorableExpression> => ast::Statement::ExpressionStatement(<>),
 }
 
 Resolvable: ast::Expression = {
