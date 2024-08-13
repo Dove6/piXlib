@@ -32,7 +32,7 @@ impl CnvExpression for Expression {
                 .get_object(name[..].trim_matches('\"'))
                 .and_then(|o| {
                     match &*o.content.borrow() {
-                        CnvContent::Behavior(b) => b.run(context).map(|_| None),
+                        CnvContent::Behavior(b) => b.run_c(context, Vec::new()).map(|_| None),
                         _ => Ok(Some(CnvValue::Reference(Arc::clone(&o)))),
                     }
                     .transpose()

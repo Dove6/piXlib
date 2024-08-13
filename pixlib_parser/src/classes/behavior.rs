@@ -61,8 +61,22 @@ impl Behavior {
         }
     }
 
-    pub fn run(&self, context: RunnerContext) -> RunnerResult<()> {
-        self.state.borrow().run(self, context)
+    pub fn run(&self, context: RunnerContext, arguments: Vec<CnvValue>) -> RunnerResult<()> {
+        if let Some(code) = self.code.as_ref() {
+            self.state.borrow().run(context, code.clone(), arguments)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn run_c(&self, context: RunnerContext, arguments: Vec<CnvValue>) -> RunnerResult<()> {
+        if let Some(code) = self.code.as_ref() {
+            self.state
+                .borrow()
+                .run_c(context, code.clone(), self.condition.as_deref(), arguments)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -93,9 +107,30 @@ impl CnvType for Behavior {
                 self.state.borrow_mut().disable().map(|_| None)
             }
             CallableIdentifier::Method("RUN") => {
-                self.state.borrow().run(self, context).map(|_| None)
+                if let Some(code) = self.code.as_ref() {
+                    self.state
+                        .borrow()
+                        .run(context, code.clone(), arguments.to_owned())
+                        .map(|_| None)
+                } else {
+                    Ok(None)
+                }
             }
-            CallableIdentifier::Method("RUNC") => self.state.borrow().run_c().map(|_| None),
+            CallableIdentifier::Method("RUNC") => {
+                if let Some(code) = self.code.as_ref() {
+                    self.state
+                        .borrow()
+                        .run_c(
+                            context,
+                            code.clone(),
+                            self.condition.as_deref(),
+                            arguments.to_owned(),
+                        )
+                        .map(|_| None)
+                } else {
+                    Ok(None)
+                }
+            }
             CallableIdentifier::Method("RUNLOOPED") => {
                 self.state.borrow().run_looped().map(|_| None)
             }
@@ -201,9 +236,31 @@ impl BehaviorState {
         todo!()
     }
 
-    pub fn run(&self, behavior: &Behavior, context: RunnerContext) -> RunnerResult<()> {
+    pub fn run(
+        &self,
+        context: RunnerContext,
+        code: Arc<ParsedScript>,
+        _arguments: Vec<CnvValue>,
+    ) -> RunnerResult<()> {
         // RUN
-        if let Some(condition) = behavior.condition.as_ref() {
+        code.run(context)
+    }
+
+    pub fn disable(&mut self) -> RunnerResult<()> {
+        // DISABLE
+        self.is_enabled = false;
+        Ok(())
+    }
+
+    pub fn run_c(
+        &self,
+        context: RunnerContext,
+        code: Arc<ParsedScript>,
+        condition_name: Option<&str>,
+        _arguments: Vec<CnvValue>,
+    ) -> RunnerResult<()> {
+        // RUNC
+        if let Some(condition) = condition_name {
             let condition_object = context.runner.get_object(condition).unwrap();
             let condition_guard = condition_object.content.borrow();
             let condition: Option<&Condition> = (&*condition_guard).into();
@@ -219,22 +276,7 @@ impl BehaviorState {
                 }
             }
         }
-        if let Some(v) = behavior.code.as_ref() {
-            v.run(context)
-        } else {
-            Ok(())
-        }
-    }
-
-    pub fn disable(&mut self) -> RunnerResult<()> {
-        // DISABLE
-        self.is_enabled = false;
-        Ok(())
-    }
-
-    pub fn run_c(&self) -> RunnerResult<()> {
-        // RUNC
-        todo!()
+        code.run(context)
     }
 
     pub fn run_looped(&self) -> RunnerResult<()> {

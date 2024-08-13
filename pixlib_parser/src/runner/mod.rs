@@ -73,7 +73,7 @@ pub enum RunnerError {
     MissingOperator { object_name: String },
     ObjectNotFound { name: String },
     NoDataLoaded,
-    SequenceNameNotFound { name: String },
+    SequenceNameNotFound { object_name: String, sequence_name: String },
 
     MissingFilenameToLoad,
 
@@ -389,35 +389,6 @@ impl CnvRunner {
                 }
             }
         }
-    }
-
-    pub fn run_behavior(
-        self: &Arc<CnvRunner>,
-        script_path: &ScenePath,
-        name: &str,
-    ) -> Result<Option<CnvValue>, BehaviorRunningError> {
-        let Some(script) = self.get_script(&script_path) else {
-            return Err(BehaviorRunningError::ScriptNotFound);
-        };
-        let Some(init_beh_obj) = script.get_object(name) else {
-            return Err(BehaviorRunningError::ObjectNotFound);
-        };
-        init_beh_obj
-            .content
-            .borrow()
-            .use_and_drop(|content| match &**content {
-                CnvContent::Behavior(b) => {
-                    let context = RunnerContext {
-                        runner: Arc::clone(self),
-                        self_object: init_beh_obj.clone(),
-                        current_object: init_beh_obj.clone(),
-                    };
-                    b.run(context.clone())
-                        .map(|_| None)
-                        .map_err(|e| BehaviorRunningError::RunnerError(e))
-                }
-                _ => Err(BehaviorRunningError::InvalidType),
-            })
     }
 
     pub fn change_scene(self: &Arc<Self>, scene_name: &str) -> RunnerResult<()> {

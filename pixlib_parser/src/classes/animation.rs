@@ -1201,7 +1201,8 @@ impl AnimationState {
                     .iter()
                     .position(|s| s.name == sequence_name)
                     .ok_or(RunnerError::SequenceNameNotFound {
-                        name: sequence_name.to_owned(),
+                        object_name: context.current_object.name.clone(),
+                        sequence_name: sequence_name.to_owned(),
                     })?,
                 frame_idx: 0,
             };

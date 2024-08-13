@@ -174,7 +174,7 @@ impl CnvType for Scene {
     fn call_method(
         &self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
+        arguments: &[CnvValue],
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
@@ -233,7 +233,16 @@ impl CnvType for Scene {
             CallableIdentifier::Method("RESUMESEQONLY") => {
                 self.state.borrow_mut().resume_seq_only().map(|_| None)
             }
-            CallableIdentifier::Method("RUN") => self.state.borrow_mut().run().map(|_| None),
+            CallableIdentifier::Method("RUN") => self
+                .state
+                .borrow_mut()
+                .run(
+                    context,
+                    arguments[0].to_string(),
+                    arguments[1].to_string(),
+                    arguments.iter().skip(2).map(|v| v.to_owned()).collect(),
+                )
+                .map(|_| None),
             CallableIdentifier::Method("RUNCLONES") => {
                 self.state.borrow_mut().run_clones().map(|_| None)
             }
@@ -532,9 +541,29 @@ impl SceneState {
         todo!()
     }
 
-    pub fn run(&mut self) -> RunnerResult<()> {
+    pub fn run(
+        &mut self,
+        context: RunnerContext,
+        object_name: String,
+        method_name: String,
+        arguments: Vec<CnvValue>,
+    ) -> RunnerResult<()> {
         // RUN
-        todo!()
+        let Some(object) = context.runner.get_object(&object_name) else {
+            return Err(RunnerError::ObjectNotFound { name: object_name });
+        };
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(move |events| {
+                events.push_back(InternalEvent {
+                    object,
+                    callable: CallableIdentifierOwned::Method(method_name),
+                    arguments,
+                })
+            });
+        Ok(())
     }
 
     pub fn run_clones(&mut self) -> RunnerResult<()> {
