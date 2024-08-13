@@ -1,7 +1,8 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use initable::Initable;
-use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
+use parsers::{discard_if_empty, parse_bool, parse_event_handler, parse_i32};
 
 use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
@@ -38,6 +39,18 @@ pub struct TimerEventHandlers {
     pub on_init: Option<Arc<ParsedScript>>,   // ONINIT signal
     pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
     pub on_tick: Option<Arc<ParsedScript>>,   // ONTICK signal
+}
+
+impl EventHandler for TimerEventHandlers {
+    fn get(&self, name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        match name {
+            "ONDONE" => self.on_done.as_ref(),
+            "ONINIT" => self.on_init.as_ref(),
+            "ONSIGNAL" => self.on_signal.as_ref(),
+            "ONTICK" => self.on_tick.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -122,12 +135,14 @@ impl CnvType for Timer {
                 .borrow_mut()
                 .set_elapse(arguments[0].to_integer() as usize)
                 .map(|_| None),
-            CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.event_handlers.on_init.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
                 }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
@@ -155,22 +170,22 @@ impl CnvType for Timer {
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_init = properties
             .remove("ONINIT")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_signal = properties
             .remove("ONSIGNAL")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_tick = properties
             .remove("ONTICK")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         Ok(CnvContent::Timer(Self::from_initial_properties(
             parent,

@@ -1,6 +1,9 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use parsers::discard_if_empty;
+
+use crate::ast::ParsedScript;
 
 use super::*;
 
@@ -17,6 +20,12 @@ struct MusicState {
 
 #[derive(Debug, Clone)]
 pub struct MusicEventHandlers {}
+
+impl EventHandler for MusicEventHandlers {
+    fn get(&self, _name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        None
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Music {
@@ -58,10 +67,19 @@ impl CnvType for Music {
     fn call_method(
         &self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
-        _context: RunnerContext,
+        arguments: &[CnvValue],
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
+                }
+                Ok(None)
+            }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }

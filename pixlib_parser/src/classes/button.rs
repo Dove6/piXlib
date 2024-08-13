@@ -1,7 +1,8 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use initable::Initable;
-use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program, parse_rect, Rect};
+use parsers::{discard_if_empty, parse_bool, parse_event_handler, parse_i32, parse_rect, Rect};
 
 use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
@@ -64,6 +65,26 @@ pub struct ButtonEventHandlers {
     pub on_released: Option<Arc<ParsedScript>>, // ONRELEASED signal
     pub on_signal: Option<Arc<ParsedScript>>,  // ONSIGNAL signal
     pub on_start_dragging: Option<Arc<ParsedScript>>, // ONSTARTDRAGGING signal
+}
+
+impl EventHandler for ButtonEventHandlers {
+    fn get(&self, name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        match name {
+            "ONACTION" => self.on_action.as_ref(),
+            "ONCLICKED" => self.on_clicked.as_ref(),
+            "ONDONE" => self.on_done.as_ref(),
+            "ONDRAGGING" => self.on_dragging.as_ref(),
+            "ONENDDRAGGING" => self.on_end_dragging.as_ref(),
+            "ONFOCUSOFF" => self.on_focus_off.as_ref(),
+            "ONFOCUSON" => self.on_focus_on.as_ref(),
+            "ONINIT" => self.on_init.as_ref(),
+            "ONPAUSED" => self.on_paused.as_ref(),
+            "ONRELEASED" => self.on_released.as_ref(),
+            "ONSIGNAL" => self.on_signal.as_ref(),
+            "ONSTARTDRAGGING" => self.on_start_dragging.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -132,7 +153,7 @@ impl CnvType for Button {
     fn call_method(
         &self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
+        arguments: &[CnvValue],
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
@@ -173,89 +194,14 @@ impl CnvType for Button {
             }
             CallableIdentifier::Method("SETSTD") => self.state.borrow_mut().set_std().map(|_| None),
             CallableIdentifier::Method("SYN") => self.state.borrow_mut().syn().map(|_| None),
-            CallableIdentifier::Event("ONACTION") => {
-                if let Some(v) = self.event_handlers.on_action.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
                 }
-            }
-            CallableIdentifier::Event("ONCLICKED") => {
-                if let Some(v) = self.event_handlers.on_clicked.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONDONE") => {
-                if let Some(v) = self.event_handlers.on_done.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONDRAGGING") => {
-                if let Some(v) = self.event_handlers.on_dragging.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONENDDRAGGING") => {
-                if let Some(v) = self.event_handlers.on_end_dragging.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONFOCUSOFF") => {
-                if let Some(v) = self.event_handlers.on_focus_off.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONFOCUSON") => {
-                if let Some(v) = self.event_handlers.on_focus_on.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.event_handlers.on_init.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONPAUSED") => {
-                if let Some(v) = self.event_handlers.on_paused.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONRELEASED") => {
-                if let Some(v) = self.event_handlers.on_released.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONSIGNAL") => {
-                if let Some(v) = self.event_handlers.on_signal.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONSTARTDRAGGING") => {
-                if let Some(v) = self.event_handlers.on_start_dragging.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
@@ -304,62 +250,62 @@ impl CnvType for Button {
         let on_action = properties
             .remove("ONACTION")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_clicked = properties
             .remove("ONCLICKED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_dragging = properties
             .remove("ONDRAGGING")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_end_dragging = properties
             .remove("ONENDDRAGGING")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_focus_off = properties
             .remove("ONFOCUSOFF")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_focus_on = properties
             .remove("ONFOCUSON")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_init = properties
             .remove("ONINIT")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_paused = properties
             .remove("ONPAUSED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_released = properties
             .remove("ONRELEASED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_signal = properties
             .remove("ONSIGNAL")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_start_dragging = properties
             .remove("ONSTARTDRAGGING")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         Ok(CnvContent::Button(Button::from_initial_properties(
             parent,

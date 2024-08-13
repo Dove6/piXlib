@@ -1,5 +1,6 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use parsers::{discard_if_empty, parse_program, ExpressionOperator};
 
 use crate::{ast::ParsedScript, runner::CnvExpression};
@@ -19,6 +20,12 @@ pub struct ExpressionState {}
 
 #[derive(Debug, Clone)]
 pub struct ExpressionEventHandlers {}
+
+impl EventHandler for ExpressionEventHandlers {
+    fn get(&self, _name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        None
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Expression {
@@ -50,20 +57,35 @@ impl Expression {
 
     pub fn calculate(&self) -> RunnerResult<CnvValue> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
-        let left = self.left.calculate(context.clone())?.unwrap();
-        let right = self.right.calculate(context.clone())?.unwrap();
-        let result = Ok(match self.operator {
+        let left = self
+            .left
+            .calculate(context.clone())?
+            .map(|v| {
+                if let crate::ast::Expression::Identifier(_) = &self.left.value {
+                    v.resolve(context.clone())
+                } else {
+                    v
+                }
+            })
+            .unwrap();
+        let right = self
+            .right
+            .calculate(context.clone())?
+            .map(|v| {
+                if let crate::ast::Expression::Identifier(_) = &self.right.value {
+                    v.resolve(context.clone())
+                } else {
+                    v
+                }
+            })
+            .unwrap();
+        Ok(match self.operator {
             ExpressionOperator::Add => &left + &right,
             ExpressionOperator::Sub => &left - &right,
             ExpressionOperator::Mul => &left * &right,
             ExpressionOperator::Div => &left / &right,
             ExpressionOperator::Mod => &left % &right,
-        });
-        eprintln!("{}.calculate() -> {:?}", self.parent.name, result);
-        if self.parent.name == "KIERFINAL" {
-            panic!();  // FIXME: remove this
-        }
-        result
+        })
     }
 }
 
@@ -83,10 +105,19 @@ impl CnvType for Expression {
     fn call_method(
         &self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
-        _context: RunnerContext,
+        arguments: &[CnvValue],
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
+                }
+                Ok(None)
+            }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }

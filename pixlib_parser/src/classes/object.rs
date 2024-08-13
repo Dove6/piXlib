@@ -142,9 +142,14 @@ impl CnvObject {
         let context = context
             .map(|c| c.with_current_object(self.clone()))
             .unwrap_or(RunnerContext::new_minimal(&self.parent.runner, self));
-        self.content
-            .borrow()
-            .call_method(identifier, arguments, context)
+        self.content.borrow().call_method(
+            identifier,
+            &arguments
+                .into_iter()
+                .map(|v| v.to_owned().resolve(context.clone()))
+                .collect::<Vec<_>>(),
+            context,
+        )
         // println!("Result is {:?}", result);
     }
 

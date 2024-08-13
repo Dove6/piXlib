@@ -1,5 +1,7 @@
 use std::ops::Deref;
 
+use crate::ast::ParsedScript;
+
 use super::*;
 
 #[derive(Debug)]
@@ -36,6 +38,10 @@ pub enum CnvContent {
     Timer(Timer),
     Custom(Box<dyn CnvType>), // TODO: allow for ONINIT here
     None(DummyCnvType),
+}
+
+pub trait EventHandler {
+    fn get(&self, name: &str, argument: Option<&str>) -> Option<&Arc<ParsedScript>>;
 }
 
 impl AsRef<dyn CnvType> for CnvContent {

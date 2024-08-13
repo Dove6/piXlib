@@ -1,6 +1,9 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use parsers::{discard_if_empty, parse_comma_separated, parse_datetime};
+
+use crate::ast::ParsedScript;
 
 use super::*;
 
@@ -21,6 +24,12 @@ pub struct EpisodeState {}
 
 #[derive(Debug, Clone)]
 pub struct EpisodeEventHandlers {}
+
+impl EventHandler for EpisodeEventHandlers {
+    fn get(&self, _name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        None
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Episode {
@@ -91,7 +100,7 @@ impl CnvType for Episode {
         &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
-        _context: RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
@@ -111,6 +120,15 @@ impl CnvType for Episode {
             CallableIdentifier::Method("PREV") => self.state.borrow_mut().prev().map(|_| None),
             CallableIdentifier::Method("RESTART") => {
                 self.state.borrow_mut().restart().map(|_| None)
+            }
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
+                }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

@@ -1,6 +1,9 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use parsers::discard_if_empty;
+
+use crate::ast::ParsedScript;
 
 use super::*;
 
@@ -15,6 +18,12 @@ struct SystemState {}
 
 #[derive(Debug, Clone)]
 pub struct SystemEventHandlers {}
+
+impl EventHandler for SystemEventHandlers {
+    fn get(&self, _name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        None
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct System {
@@ -55,8 +64,8 @@ impl CnvType for System {
     fn call_method(
         &self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
-        _context: RunnerContext,
+        arguments: &[CnvValue],
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("COPYFILE") => {
@@ -161,17 +170,26 @@ impl CnvType for System {
                 .state
                 .borrow()
                 .is_cmd_line_parameter()
-                .map(|v| Some(CnvValue::Boolean(v))),
+                .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("ISFILEEXIST") => self
                 .state
                 .borrow()
                 .is_file_exist()
-                .map(|v| Some(CnvValue::Boolean(v))),
+                .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("MINIMIZE") => {
                 self.state.borrow_mut().minimize().map(|_| None)
             }
             CallableIdentifier::Method("UNINSTALL") => {
                 self.state.borrow_mut().uninstall().map(|_| None)
+            }
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
+                }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

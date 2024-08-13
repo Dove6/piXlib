@@ -1,7 +1,8 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use initable::Initable;
-use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
+use parsers::{discard_if_empty, parse_bool, parse_event_handler, parse_i32};
 use pixlib_formats::file_formats::img::parse_img;
 use xxhash_rust::xxh3::xxh3_64;
 
@@ -66,6 +67,23 @@ pub struct ImageEventHandlers {
     pub on_init: Option<Arc<ParsedScript>>,      // ONINIT signal
     pub on_release: Option<Arc<ParsedScript>>,   // ONRELEASE signal
     pub on_signal: Option<Arc<ParsedScript>>,    // ONSIGNAL signal
+}
+
+impl EventHandler for ImageEventHandlers {
+    fn get(&self, name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        match name {
+            "ONCLICK" => self.on_click.as_ref(),
+            "ONCOLLISION" => self.on_collision.as_ref(),
+            "ONCOLLISIONFINISHED" => self.on_collision_finished.as_ref(),
+            "ONDONE" => self.on_done.as_ref(),
+            "ONFOCUSOFF" => self.on_focus_off.as_ref(),
+            "ONFOCUSON" => self.on_focus_on.as_ref(),
+            "ONINIT" => self.on_init.as_ref(),
+            "ONRELEASE" => self.on_release.as_ref(),
+            "ONSIGNAL" => self.on_signal.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -234,7 +252,7 @@ impl CnvType for Image {
                 .state
                 .borrow_mut()
                 .is_visible()
-                .map(|v| Some(CnvValue::Boolean(v))),
+                .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("LINK") => self.state.borrow_mut().link().map(|_| None),
             CallableIdentifier::Method("LOAD") => self
                 .state
@@ -303,68 +321,14 @@ impl CnvType for Image {
                 self.state.borrow_mut().set_scale_factor().map(|_| None)
             }
             CallableIdentifier::Method("SHOW") => self.state.borrow_mut().show().map(|_| None),
-            CallableIdentifier::Event("ONCLICK") => {
-                if let Some(v) = self.event_handlers.on_click.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
                 }
-            }
-            CallableIdentifier::Event("ONCOLLISION") => {
-                if let Some(v) = self.event_handlers.on_collision.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONCOLLISIONFINISHED") => {
-                if let Some(v) = self.event_handlers.on_collision_finished.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONDONE") => {
-                if let Some(v) = self.event_handlers.on_done.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONFOCUSOFF") => {
-                if let Some(v) = self.event_handlers.on_focus_off.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONFOCUSON") => {
-                if let Some(v) = self.event_handlers.on_focus_on.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.event_handlers.on_init.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONRELEASE") => {
-                if let Some(v) = self.event_handlers.on_release.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONSIGNAL") => {
-                if let Some(v) = self.event_handlers.on_signal.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
@@ -423,47 +387,47 @@ impl CnvType for Image {
         let on_click = properties
             .remove("ONCLICK")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_collision = properties
             .remove("ONCOLLISION")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_collision_finished = properties
             .remove("ONCOLLISIONFINISHED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_focus_off = properties
             .remove("ONFOCUSOFF")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_focus_on = properties
             .remove("ONFOCUSON")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_init = properties
             .remove("ONINIT")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_release = properties
             .remove("ONRELEASE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_signal = properties
             .remove("ONSIGNAL")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         Ok(CnvContent::Image(Image::from_initial_properties(
             parent,

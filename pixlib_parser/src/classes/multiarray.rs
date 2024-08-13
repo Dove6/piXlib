@@ -1,6 +1,9 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use parsers::{discard_if_empty, parse_i32};
+
+use crate::ast::ParsedScript;
 
 use super::*;
 
@@ -18,6 +21,12 @@ struct MultiArrayState {
 
 #[derive(Debug, Clone)]
 pub struct MultiArrayEventHandlers {}
+
+impl EventHandler for MultiArrayEventHandlers {
+    fn get(&self, _name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        None
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct MultiArray {
@@ -58,8 +67,8 @@ impl CnvType for MultiArray {
     fn call_method(
         &self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
-        _context: RunnerContext,
+        arguments: &[CnvValue],
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("COUNT") => self.state.borrow_mut().count().map(|_| None),
@@ -73,6 +82,15 @@ impl CnvType for MultiArray {
             CallableIdentifier::Method("SAFEGET") => self.state.borrow().safe_get(),
             CallableIdentifier::Method("SAVE") => self.state.borrow_mut().save().map(|_| None),
             CallableIdentifier::Method("SET") => self.state.borrow_mut().set().map(|_| None),
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
+                }
+                Ok(None)
+            }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
     }

@@ -1,7 +1,8 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use initable::Initable;
-use parsers::{discard_if_empty, parse_i32, parse_program, Rect};
+use parsers::{discard_if_empty, parse_event_handler, parse_i32, Rect};
 
 use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
@@ -40,6 +41,21 @@ pub struct MouseEventHandlers {
     pub on_move: Option<Arc<ParsedScript>>,      // ONMOVE signal
     pub on_release: Option<Arc<ParsedScript>>,   // ONRELEASE signal
     pub on_signal: Option<Arc<ParsedScript>>,    // ONSIGNAL signal
+}
+
+impl EventHandler for MouseEventHandlers {
+    fn get(&self, name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        match name {
+            "ONCLICK" => self.on_click.as_ref(),
+            "ONDBLCLICK" => self.on_dbl_click.as_ref(),
+            "ONDONE" => self.on_done.as_ref(),
+            "ONINIT" => self.on_init.as_ref(),
+            "ONMOVE" => self.on_move.as_ref(),
+            "ONRELEASE" => self.on_release.as_ref(),
+            "ONSIGNAL" => self.on_signal.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -94,7 +110,7 @@ impl CnvType for Mouse {
     fn call_method(
         &self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
+        arguments: &[CnvValue],
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
@@ -135,12 +151,12 @@ impl CnvType for Mouse {
                 .state
                 .borrow()
                 .is_l_button_down()
-                .map(|v| Some(CnvValue::Boolean(v))),
+                .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("ISRBUTTONDOWN") => self
                 .state
                 .borrow()
                 .is_r_button_down()
-                .map(|v| Some(CnvValue::Boolean(v))),
+                .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("LOCKACTIVECURSOR") => {
                 self.state.borrow_mut().lock_active_cursor().map(|_| None)
             }
@@ -159,55 +175,14 @@ impl CnvType for Mouse {
                 self.state.borrow_mut().set_position().map(|_| None)
             }
             CallableIdentifier::Method("SHOW") => self.state.borrow_mut().show().map(|_| None),
-
-            CallableIdentifier::Event("ONCLICK") => {
-                if let Some(v) = self.event_handlers.on_click.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
                 }
-            }
-            CallableIdentifier::Event("ONDBLCLICK") => {
-                if let Some(v) = self.event_handlers.on_dbl_click.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONDONE") => {
-                if let Some(v) = self.event_handlers.on_done.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.event_handlers.on_init.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONMOVE") => {
-                if let Some(v) = self.event_handlers.on_move.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONRELEASE") => {
-                if let Some(v) = self.event_handlers.on_release.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONSIGNAL") => {
-                if let Some(v) = self.event_handlers.on_signal.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
@@ -226,37 +201,37 @@ impl CnvType for Mouse {
         let on_click = properties
             .remove("ONCLICK")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_dbl_click = properties
             .remove("ONDBLCLICK")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_init = properties
             .remove("ONINIT")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_move = properties
             .remove("ONMOVE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_release = properties
             .remove("ONRELEASE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_signal = properties
             .remove("ONSIGNAL")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         Ok(CnvContent::Mouse(Self::from_initial_properties(
             parent,

@@ -1,7 +1,8 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use initable::Initable;
-use parsers::{discard_if_empty, parse_program};
+use parsers::{discard_if_empty, parse_event_handler};
 
 use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
@@ -41,6 +42,19 @@ pub struct SequenceEventHandlers {
     pub on_init: Option<Arc<ParsedScript>>,     // ONINIT signal
     pub on_signal: Option<Arc<ParsedScript>>,   // ONSIGNAL signal
     pub on_started: Option<Arc<ParsedScript>>,  // ONSTARTED signal
+}
+
+impl EventHandler for SequenceEventHandlers {
+    fn get(&self, name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        match name {
+            "ONDONE" => self.on_done.as_ref(),
+            "ONFINISHED" => self.on_finished.as_ref(),
+            "ONINIT" => self.on_init.as_ref(),
+            "ONSIGNAL" => self.on_signal.as_ref(),
+            "ONSTARTED" => self.on_started.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -92,7 +106,7 @@ impl CnvType for Sequence {
     fn call_method(
         &self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
+        arguments: &[CnvValue],
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
@@ -112,7 +126,7 @@ impl CnvType for Sequence {
                 .state
                 .borrow()
                 .is_playing()
-                .map(|v| Some(CnvValue::Boolean(v))),
+                .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("PAUSE") => self.state.borrow_mut().pause().map(|_| None),
             CallableIdentifier::Method("PLAY") => self.state.borrow_mut().play().map(|_| None),
             CallableIdentifier::Method("RESUME") => self.state.borrow_mut().resume().map(|_| None),
@@ -125,40 +139,14 @@ impl CnvType for Sequence {
             }
             CallableIdentifier::Method("SHOW") => self.state.borrow_mut().show().map(|_| None),
             CallableIdentifier::Method("STOP") => self.state.borrow_mut().stop().map(|_| None),
-            CallableIdentifier::Event("ONDONE") => {
-                if let Some(v) = self.event_handlers.on_done.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
                 }
-            }
-            CallableIdentifier::Event("ONFINISHED") => {
-                if let Some(v) = self.event_handlers.on_finished.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.event_handlers.on_init.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONSIGNAL") => {
-                if let Some(v) = self.event_handlers.on_signal.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONSTARTED") => {
-                if let Some(v) = self.event_handlers.on_started.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
@@ -172,27 +160,27 @@ impl CnvType for Sequence {
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_finished = properties
             .remove("ONFINISHED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_init = properties
             .remove("ONINIT")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_signal = properties
             .remove("ONSIGNAL")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_started = properties
             .remove("ONSTARTED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         Ok(CnvContent::Sequence(Self::from_initial_properties(
             parent,

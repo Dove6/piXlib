@@ -1,7 +1,8 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use initable::Initable;
-use parsers::{discard_if_empty, parse_bool, parse_program};
+use parsers::{discard_if_empty, parse_bool, parse_event_handler};
 
 use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
@@ -38,6 +39,20 @@ pub struct StringVarEventHandlers {
     pub on_init: Option<Arc<ParsedScript>>,           // ONINIT signal
     pub on_net_changed: Option<Arc<ParsedScript>>,    // ONNETCHANGED signal
     pub on_signal: Option<Arc<ParsedScript>>,         // ONSIGNAL signal
+}
+
+impl EventHandler for StringVarEventHandlers {
+    fn get(&self, name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        match name {
+            "ONBRUTALCHANGED" => self.on_brutal_changed.as_ref(),
+            "ONCHANGED" => self.on_changed.as_ref(),
+            "ONDONE" => self.on_done.as_ref(),
+            "ONINIT" => self.on_init.as_ref(),
+            "ONNETCHANGED" => self.on_net_changed.as_ref(),
+            "ONSIGNAL" => self.on_signal.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -98,7 +113,11 @@ impl CnvType for StringVar {
         arguments: &[CnvValue],
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
-        eprintln!("Calling method {:?} with arguments {:?}", name, arguments);
+        // eprintln!(
+        //     "Calling method {:?} with arguments [{}]",
+        //     name,
+        //     arguments.iter().join(", ")
+        // );
         match name {
             CallableIdentifier::Method("ADD") => self
                 .state
@@ -154,7 +173,7 @@ impl CnvType for StringVar {
                 .state
                 .borrow()
                 .is_upper_letter(arguments[0].to_integer() as usize)
-                .map(|v| Some(CnvValue::Boolean(v))),
+                .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("LENGTH") => self
                 .state
                 .borrow_mut()
@@ -219,47 +238,14 @@ impl CnvType for StringVar {
             CallableIdentifier::Method("UPPER") => {
                 self.state.borrow_mut().upper(context).map(|_| None)
             }
-            CallableIdentifier::Event("ONBRUTALCHANGED") => {
-                if let Some(v) = self.event_handlers.on_brutal_changed.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
                 }
-            }
-            CallableIdentifier::Event("ONCHANGED") => {
-                if let Some(v) = self.event_handlers.on_changed.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONDONE") => {
-                if let Some(v) = self.event_handlers.on_done.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.event_handlers.on_init.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONNETCHANGED") => {
-                if let Some(v) = self.event_handlers.on_net_changed.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONSIGNAL") => {
-                if let Some(v) = self.event_handlers.on_signal.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
@@ -284,32 +270,32 @@ impl CnvType for StringVar {
         let on_brutal_changed = properties
             .remove("ONBRUTALCHANGED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_changed = properties
             .remove("ONCHANGED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_init = properties
             .remove("ONINIT")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_net_changed = properties
             .remove("ONNETCHANGED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_signal = properties
             .remove("ONSIGNAL")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         Ok(CnvContent::String(StringVar::from_initial_properties(
             parent,

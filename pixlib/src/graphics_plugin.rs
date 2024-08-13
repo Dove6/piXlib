@@ -380,9 +380,15 @@ pub fn update_animations(
             *handle = animation_data_to_handle(&mut textures, &sprite_definition, &sprite_data);
             ident.0 = Some(sprite_data.hash);
             info!(
-                "Updated animation {} with priority {}",
+                "Updated animation {} with priority {} to position ({}, {})+({}, {})+({}, {})",
                 &object.name,
-                animation.get_priority().unwrap()
+                animation.get_priority().unwrap(),
+                base_position.0,
+                base_position.1,
+                sprite_definition.offset_px.0,
+                sprite_definition.offset_px.1,
+                frame_definition.offset_px.0,
+                frame_definition.offset_px.1,
             );
         }
     }

@@ -95,6 +95,19 @@ pub enum RunnerError {
         object_name: String,
         sequence_name: String,
     },
+    SequenceIndexNotFound {
+        object_name: String,
+        index: usize,
+    },
+    FrameIndexNotFound {
+        object_name: String,
+        sequence_name: String,
+        index: usize,
+    },
+    SpriteIndexNotFound {
+        object_name: String,
+        index: usize,
+    },
 
     MissingFilenameToLoad,
 
@@ -457,6 +470,9 @@ impl CnvRunner {
     }
 
     pub fn change_scene(self: &Arc<Self>, scene_name: &str) -> RunnerResult<()> {
+        self.internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| events.clear());
         self.scripts.borrow_mut().remove_scene_script()?;
         let Some(scene_object) = self.get_object(scene_name) else {
             return Err(RunnerError::ObjectNotFound {

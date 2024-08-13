@@ -1,6 +1,7 @@
 use std::{any::Any, cell::RefCell};
 
-use parsers::{discard_if_empty, parse_program, ComplexConditionOperator};
+use content::EventHandler;
+use parsers::{discard_if_empty, parse_event_handler, ComplexConditionOperator};
 
 use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
@@ -24,6 +25,16 @@ pub struct ComplexConditionState {}
 pub struct ComplexConditionEventHandlers {
     pub on_runtime_failed: Option<Arc<ParsedScript>>, // ONRUNTIMEFAILED signal
     pub on_runtime_success: Option<Arc<ParsedScript>>, // ONRUNTIMESUCCESS signal
+}
+
+impl EventHandler for ComplexConditionEventHandlers {
+    fn get(&self, name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        match name {
+            "ONRUNTIMEFAILED" => self.on_runtime_failed.as_ref(),
+            "ONRUNTIMESUCCESS" => self.on_runtime_success.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -79,7 +90,7 @@ impl CnvType for ComplexCondition {
     fn call_method(
         &self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
+        arguments: &[CnvValue],
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
@@ -88,23 +99,18 @@ impl CnvType for ComplexCondition {
                 .state
                 .borrow()
                 .check(self)
-                .map(|v| Some(CnvValue::Boolean(v))),
+                .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("ONE_BREAK") => {
                 self.state.borrow().one_break().map(|_| None)
             }
-            CallableIdentifier::Event("ONRUNTIMEFAILED") => {
-                if let Some(v) = self.event_handlers.on_runtime_failed.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
                 }
-            }
-            CallableIdentifier::Event("ONRUNTIMESUCCESS") => {
-                if let Some(v) = self.event_handlers.on_runtime_success.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
@@ -132,12 +138,12 @@ impl CnvType for ComplexCondition {
         let on_runtime_failed = properties
             .remove("ONRUNTIMEFAILED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_runtime_success = properties
             .remove("ONRUNTIMESUCCESS")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         Ok(CnvContent::ComplexCondition(Self::from_initial_properties(
             parent,

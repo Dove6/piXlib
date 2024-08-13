@@ -1,5 +1,6 @@
+use content::EventHandler;
 use initable::Initable;
-use parsers::{discard_if_empty, parse_bool, parse_i32, parse_program};
+use parsers::{discard_if_empty, parse_bool, parse_event_handler, parse_i32};
 use pixlib_formats::file_formats::ann::{parse_ann, LoopingSettings};
 use std::{any::Any, cell::RefCell, sync::Arc};
 use xxhash_rust::xxh3::xxh3_64;
@@ -91,6 +92,29 @@ pub struct AnimationEventHandlers {
     pub on_resumed: Option<Arc<ParsedScript>>,   // ONRESUMED signal
     pub on_signal: Option<Arc<ParsedScript>>,    // ONSIGNAL signal
     pub on_started: Option<Arc<ParsedScript>>,   // ONSTARTED signal
+}
+
+impl EventHandler for AnimationEventHandlers {
+    fn get(&self, name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        match name {
+            "ONCLICK" => self.on_click.as_ref(),
+            "ONCOLLISION" => self.on_collision.as_ref(),
+            "ONCOLLISIONFINISHED" => self.on_collision_finished.as_ref(),
+            "ONDONE" => self.on_done.as_ref(),
+            "ONFINISHED" => self.on_finished.as_ref(),
+            "ONFIRSTFRAME" => self.on_first_frame.as_ref(),
+            "ONFOCUSOFF" => self.on_focus_off.as_ref(),
+            "ONFOCUSON" => self.on_focus_on.as_ref(),
+            "ONFRAMECHANGED" => self.on_frame_changed.as_ref(),
+            "ONINIT" => self.on_init.as_ref(),
+            "ONPAUSED" => self.on_paused.as_ref(),
+            "ONRELEASE" => self.on_release.as_ref(),
+            "ONRESUMED" => self.on_resumed.as_ref(),
+            "ONSIGNAL" => self.on_signal.as_ref(),
+            "ONSTARTED" => self.on_started.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -329,12 +353,12 @@ impl CnvType for Animation {
             CallableIdentifier::Method("GETPOSITIONX") => self
                 .state
                 .borrow()
-                .get_position_x()
+                .get_frame_position_x(context)
                 .map(|v| Some(CnvValue::Integer(v as i32))),
             CallableIdentifier::Method("GETPOSITIONY") => self
                 .state
                 .borrow()
-                .get_position_y()
+                .get_frame_position_y(context)
                 .map(|v| Some(CnvValue::Integer(v as i32))),
             CallableIdentifier::Method("GETPRIORITY") => self
                 .state
@@ -362,21 +386,17 @@ impl CnvType for Animation {
                 Ok(None)
             }
             CallableIdentifier::Method("ISNEAR") => {
-                let other = match &arguments[0] {
-                    CnvValue::Reference(r) => Arc::clone(r),
-                    any_type => {
-                        let name = any_type.to_string();
-                        self.parent
-                            .parent
-                            .runner
-                            .get_object(&name)
-                            .ok_or(RunnerError::ObjectNotFound { name })?
-                    }
-                };
+                let name = arguments[0].to_string();
+                let other = self
+                    .parent
+                    .parent
+                    .runner
+                    .get_object(&name)
+                    .ok_or(RunnerError::ObjectNotFound { name })?;
                 self.state
                     .borrow()
                     .is_near(other, arguments[1].to_integer() as usize)
-                    .map(|v| Some(CnvValue::Boolean(v)))
+                    .map(|v| Some(CnvValue::Bool(v)))
             }
             CallableIdentifier::Method("ISPLAYING") => {
                 self.state.borrow().is_playing();
@@ -386,7 +406,7 @@ impl CnvType for Animation {
                 .state
                 .borrow()
                 .is_visible()
-                .map(|v| Some(CnvValue::Boolean(v))),
+                .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("LOAD") => {
                 self.state
                     .borrow_mut()
@@ -404,7 +424,7 @@ impl CnvType for Animation {
             CallableIdentifier::Method("MOVE") => {
                 self.state.borrow_mut().move_by(
                     arguments[0].to_integer() as isize,
-                    arguments[0].to_integer() as isize,
+                    arguments[1].to_integer() as isize,
                 )?;
                 Ok(None)
             }
@@ -552,110 +572,14 @@ impl CnvType for Animation {
                 });
                 Ok(None)
             }
-            CallableIdentifier::Event("ONCLICK") => {
-                if let Some(v) = self.event_handlers.on_click.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
                 }
-            }
-            CallableIdentifier::Event("ONCOLLISION") => {
-                if let Some(v) = self.event_handlers.on_collision.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONCOLLISIONFINISHED") => {
-                if let Some(v) = self.event_handlers.on_collision_finished.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONDONE") => {
-                if let Some(v) = self.event_handlers.on_done.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONFINISHED") => {
-                if let Some(v) = self.event_handlers.on_finished.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONFIRSTFRAME") => {
-                if let Some(v) = self.event_handlers.on_first_frame.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONFOCUSOFF") => {
-                if let Some(v) = self.event_handlers.on_focus_off.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONFOCUSON") => {
-                if let Some(v) = self.event_handlers.on_focus_on.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONFRAMECHANGED") => {
-                if let Some(v) = self.event_handlers.on_frame_changed.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.event_handlers.on_init.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONPAUSED") => {
-                if let Some(v) = self.event_handlers.on_paused.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONRELEASE") => {
-                if let Some(v) = self.event_handlers.on_release.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONRESUMED") => {
-                if let Some(v) = self.event_handlers.on_resumed.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONSIGNAL") => {
-                if let Some(v) = self.event_handlers.on_signal.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONSTARTED") => {
-                if let Some(v) = self.event_handlers.on_started.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
@@ -719,77 +643,77 @@ impl CnvType for Animation {
         let on_click = properties
             .remove("ONCLICK")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_collision = properties
             .remove("ONCOLLISION")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_collision_finished = properties
             .remove("ONCOLLISIONFINISHED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_finished = properties
             .remove("ONFINISHED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_first_frame = properties
             .remove("ONFIRSTFRAME")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_focus_off = properties
             .remove("ONFOCUSOFF")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_focus_on = properties
             .remove("ONFOCUSON")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_frame_changed = properties
             .remove("ONFRAMECHANGED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_init = properties
             .remove("ONINIT")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_paused = properties
             .remove("ONPAUSED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_release = properties
             .remove("ONRELEASE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_resumed = properties
             .remove("ONRESUMED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_signal = properties
             .remove("ONSIGNAL")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_started = properties
             .remove("ONSTARTED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         Ok(CnvContent::Animation(Animation::from_initial_properties(
             parent,
@@ -985,14 +909,58 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn get_position_x(&self) -> RunnerResult<isize> {
+    pub fn get_frame_position_x(&self, context: RunnerContext) -> RunnerResult<isize> {
         // GETPOSITIONX
-        Ok(self.position.0)
+        let AnimationFileData::Loaded(loaded_file) = &self.file_data else {
+            return Err(RunnerError::NoDataLoaded);
+        };
+        let Some(sequence) = loaded_file.sequences.get(self.current_frame.sequence_idx) else {
+            return Err(RunnerError::SequenceIndexNotFound {
+                object_name: context.current_object.name.clone(),
+                index: self.current_frame.sequence_idx,
+            });
+        };
+        let Some(frame) = sequence.frames.get(self.current_frame.frame_idx) else {
+            return Err(RunnerError::FrameIndexNotFound {
+                object_name: context.current_object.name.clone(),
+                sequence_name: sequence.name.clone(),
+                index: self.current_frame.frame_idx,
+            });
+        };
+        let Some(sprite) = loaded_file.sprites.get(frame.sprite_idx) else {
+            return Err(RunnerError::SpriteIndexNotFound {
+                object_name: context.current_object.name.clone(),
+                index: frame.sprite_idx,
+            });
+        };
+        Ok(self.position.0 + frame.offset_px.0 as isize + sprite.0.offset_px.0 as isize)
     }
 
-    pub fn get_position_y(&self) -> RunnerResult<isize> {
+    pub fn get_frame_position_y(&self, context: RunnerContext) -> RunnerResult<isize> {
         // GETPOSITIONY
-        Ok(self.position.1)
+        let AnimationFileData::Loaded(loaded_file) = &self.file_data else {
+            return Err(RunnerError::NoDataLoaded);
+        };
+        let Some(sequence) = loaded_file.sequences.get(self.current_frame.sequence_idx) else {
+            return Err(RunnerError::SequenceIndexNotFound {
+                object_name: context.current_object.name.clone(),
+                index: self.current_frame.sequence_idx,
+            });
+        };
+        let Some(frame) = sequence.frames.get(self.current_frame.frame_idx) else {
+            return Err(RunnerError::FrameIndexNotFound {
+                object_name: context.current_object.name.clone(),
+                sequence_name: sequence.name.clone(),
+                index: self.current_frame.frame_idx,
+            });
+        };
+        let Some(sprite) = loaded_file.sprites.get(frame.sprite_idx) else {
+            return Err(RunnerError::SpriteIndexNotFound {
+                object_name: context.current_object.name.clone(),
+                index: frame.sprite_idx,
+            });
+        };
+        Ok(self.position.1 + frame.offset_px.1 as isize + sprite.0.offset_px.1 as isize)
     }
 
     pub fn get_priority(&self) -> RunnerResult<isize> {

@@ -13,7 +13,7 @@ use regex::Regex;
 use thiserror::Error;
 
 use crate::{
-    ast::{ParsedScript, ParserFatal, ParserIssue},
+    ast::{Invocation, ParsedScript, ParserFatal, ParserIssue},
     common::{Issue, IssueHandler, IssueManager, Position},
     lexer::{CnvLexer, CnvToken},
     parser::CodeParser,
@@ -199,6 +199,8 @@ pub enum TypeParsingError {
     MissingRightOperand,
     #[error("Missing dimension count")]
     MissingDimensionCount,
+    #[error("Event handler not callable")]
+    EventHandlerNotCallable,
 }
 
 #[derive(Debug, Error)]
@@ -269,6 +271,22 @@ pub fn parse_program(s: String) -> Result<Arc<ParsedScript>, TypeParsingError> {
         &mut parser_issue_manager,
         lexer,
     )?))
+}
+
+pub fn parse_event_handler(s: String) -> Result<Arc<ParsedScript>, TypeParsingError> {
+    let program = parse_program(s)?;
+    match &program.value {
+        crate::ast::Expression::Invocation(_) | crate::ast::Expression::Block(_) => Ok(program),
+        identifier @ crate::ast::Expression::Identifier(_) => Ok(Arc::new(ParsedScript {
+            ignored: program.ignored,
+            value: crate::ast::Expression::Invocation(Box::new(Invocation {
+                parent: Some(identifier.clone()),
+                name: "RUNC".into(),
+                arguments: Vec::new(),
+            })),
+        })),
+        _ => Err(TypeParsingError::EventHandlerNotCallable),
+    }
 }
 
 pub fn parse_rect(s: String) -> Result<Rect, TypeParsingError> {

@@ -1,7 +1,8 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use initable::Initable;
-use parsers::{discard_if_empty, parse_program};
+use parsers::{discard_if_empty, parse_event_handler};
 
 use crate::{ast::ParsedScript, common::DroppableRefMut, runner::InternalEvent};
 
@@ -35,6 +36,20 @@ pub struct KeyboardEventHandlers {
     pub on_key_down: Option<Arc<ParsedScript>>, // ONKEYDOWN signal
     pub on_key_up: Option<Arc<ParsedScript>>,   // ONKEYUP signal
     pub on_signal: Option<Arc<ParsedScript>>,   // ONSIGNAL signal
+}
+
+impl EventHandler for KeyboardEventHandlers {
+    fn get(&self, name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        match name {
+            "ONCHAR" => self.on_char.as_ref(),
+            "ONDONE" => self.on_done.as_ref(),
+            "ONINIT" => self.on_init.as_ref(),
+            "ONKEYDOWN" => self.on_key_down.as_ref(),
+            "ONKEYUP" => self.on_key_up.as_ref(),
+            "ONSIGNAL" => self.on_signal.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -84,7 +99,7 @@ impl CnvType for Keyboard {
     fn call_method(
         &self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
+        arguments: &[CnvValue],
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
@@ -107,47 +122,14 @@ impl CnvType for Keyboard {
             CallableIdentifier::Method("SETAUTOREPEAT") => {
                 self.state.borrow_mut().set_auto_repeat().map(|_| None)
             }
-            CallableIdentifier::Event("ONCHAR") => {
-                if let Some(v) = self.event_handlers.on_char.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
                 }
-            }
-            CallableIdentifier::Event("ONDONE") => {
-                if let Some(v) = self.event_handlers.on_done.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.event_handlers.on_init.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONKEYDOWN") => {
-                if let Some(v) = self.event_handlers.on_key_down.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONKEYUP") => {
-                if let Some(v) = self.event_handlers.on_key_up.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONSIGNAL") => {
-                if let Some(v) = self.event_handlers.on_signal.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
@@ -161,32 +143,32 @@ impl CnvType for Keyboard {
         let on_char = properties
             .remove("ONCHAR")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_init = properties
             .remove("ONINIT")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_key_down = properties
             .remove("ONKEYDOWN")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_key_up = properties
             .remove("ONKEYUP")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_signal = properties
             .remove("ONSIGNAL")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         Ok(CnvContent::Keyboard(Self::from_initial_properties(
             parent,

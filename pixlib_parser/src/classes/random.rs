@@ -1,8 +1,9 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use rand::Rng;
 
-use crate::runner::RunnerError;
+use crate::{ast::ParsedScript, runner::RunnerError};
 
 use super::*;
 
@@ -16,6 +17,12 @@ struct RandState {}
 
 #[derive(Debug, Clone)]
 pub struct RandEventHandlers {}
+
+impl EventHandler for RandEventHandlers {
+    fn get(&self, _name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        None
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Rand {
@@ -54,7 +61,7 @@ impl CnvType for Rand {
         &self,
         name: CallableIdentifier,
         arguments: &[CnvValue],
-        _context: RunnerContext,
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("GET") => match arguments.len() {
@@ -78,6 +85,15 @@ impl CnvType for Rand {
             .map(|v| Some(CnvValue::Integer(v as i32))),
             CallableIdentifier::Method("GETPLENTY") => {
                 self.state.borrow().get_plenty().map(|_| None)
+            }
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
+                }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

@@ -1,6 +1,9 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use parsers::{discard_if_empty, parse_comma_separated, parse_datetime};
+
+use crate::ast::ParsedScript;
 
 use super::*;
 
@@ -28,6 +31,12 @@ struct ApplicationState {
 
 #[derive(Debug, Clone)]
 pub struct ApplicationEventHandlers {}
+
+impl EventHandler for ApplicationEventHandlers {
+    fn get(&self, _name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        None
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Application {
@@ -100,8 +109,8 @@ impl CnvType for Application {
     fn call_method(
         &self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
-        _context: RunnerContext,
+        arguments: &[CnvValue],
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("DISABLEMUSIC") => {
@@ -114,7 +123,7 @@ impl CnvType for Application {
                 .state
                 .borrow()
                 .exists_env()
-                .map(|v| Some(CnvValue::Boolean(v))),
+                .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("EXIT") => self.state.borrow_mut().exit().map(|_| None),
             CallableIdentifier::Method("GETLANGUAGE") => self
                 .state
@@ -147,6 +156,15 @@ impl CnvType for Application {
             }
             CallableIdentifier::Method("STOREBINARY") => {
                 self.state.borrow_mut().store_binary().map(|_| None)
+            }
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
+                }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

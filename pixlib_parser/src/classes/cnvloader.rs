@@ -1,6 +1,9 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use parsers::discard_if_empty;
+
+use crate::ast::ParsedScript;
 
 use super::*;
 
@@ -15,6 +18,12 @@ struct CnvLoaderState {}
 
 #[derive(Debug, Clone)]
 pub struct CnvLoaderEventHandlers {}
+
+impl EventHandler for CnvLoaderEventHandlers {
+    fn get(&self, _name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        None
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct CnvLoader {
@@ -55,13 +64,22 @@ impl CnvType for CnvLoader {
     fn call_method(
         &self,
         name: CallableIdentifier,
-        _arguments: &[CnvValue],
-        _context: RunnerContext,
+        arguments: &[CnvValue],
+        context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("LOAD") => self.state.borrow_mut().load().map(|_| None),
             CallableIdentifier::Method("RELEASE") => {
                 self.state.borrow_mut().release().map(|_| None)
+            }
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
+                }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }

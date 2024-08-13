@@ -1,7 +1,10 @@
 use std::{any::Any, cell::RefCell};
 
+use content::EventHandler;
 use initable::Initable;
-use parsers::{discard_if_empty, parse_bool, parse_comma_separated, parse_datetime, parse_program};
+use parsers::{
+    discard_if_empty, parse_bool, parse_comma_separated, parse_datetime, parse_event_handler,
+};
 use pixlib_formats::file_formats::img::parse_img;
 use xxhash_rust::xxh3::xxh3_64;
 
@@ -63,6 +66,22 @@ pub struct SceneEventHandlers {
     pub on_music_looped: Option<Arc<ParsedScript>>, // ONMUSICLOOPED signal
     pub on_restart: Option<Arc<ParsedScript>>,  // ONRESTART signal
     pub on_signal: Option<Arc<ParsedScript>>,   // ONSIGNAL signal
+}
+
+impl EventHandler for SceneEventHandlers {
+    fn get(&self, name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+        match name {
+            "ONACTIVATE" => self.on_activate.as_ref(),
+            "ONDEACTIVATE" => self.on_deactivate.as_ref(),
+            "ONDOMODAL" => self.on_do_modal.as_ref(),
+            "ONDONE" => self.on_done.as_ref(),
+            "ONINIT" => self.on_init.as_ref(),
+            "ONMUSICLOOPED" => self.on_music_looped.as_ref(),
+            "ONRESTART" => self.on_restart.as_ref(),
+            "ONSIGNAL" => self.on_signal.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -216,7 +235,7 @@ impl CnvType for Scene {
                 .state
                 .borrow()
                 .is_paused()
-                .map(|v| Some(CnvValue::Boolean(v))),
+                .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("PAUSE") => self.state.borrow_mut().pause().map(|_| None),
             CallableIdentifier::Method("REMOVE") => self.state.borrow_mut().remove().map(|_| None),
             CallableIdentifier::Method("REMOVECLONES") => {
@@ -264,61 +283,14 @@ impl CnvType for Scene {
                 self.state.borrow_mut().stop_music().map(|_| None)
             }
             CallableIdentifier::Method("TOTIME") => self.state.borrow_mut().to_time().map(|_| None),
-            CallableIdentifier::Event("ONACTIVATE") => {
-                if let Some(v) = self.event_handlers.on_activate.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
+            CallableIdentifier::Event(event_name) => {
+                if let Some(code) = self.event_handlers.get(
+                    event_name,
+                    arguments.get(0).map(|v| v.to_string()).as_deref(),
+                ) {
+                    code.run(context)?;
                 }
-            }
-            CallableIdentifier::Event("ONDEACTIVATE") => {
-                if let Some(v) = self.event_handlers.on_deactivate.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONDOMODAL") => {
-                if let Some(v) = self.event_handlers.on_do_modal.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONDONE") => {
-                if let Some(v) = self.event_handlers.on_done.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONINIT") => {
-                if let Some(v) = self.event_handlers.on_init.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONMUSICLOOPED") => {
-                if let Some(v) = self.event_handlers.on_music_looped.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONRESTART") => {
-                if let Some(v) = self.event_handlers.on_restart.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
-            }
-            CallableIdentifier::Event("ONSIGNAL") => {
-                if let Some(v) = self.event_handlers.on_signal.as_ref() {
-                    v.run(context).map(|_| None)
-                } else {
-                    Ok(None)
-                }
+                Ok(None)
             }
             ident => todo!("{:?} {:?}", self.get_type_id(), ident),
         }
@@ -361,42 +333,42 @@ impl CnvType for Scene {
         let on_activate = properties
             .remove("ONACTIVATE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_deactivate = properties
             .remove("ONDEACTIVATE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_do_modal = properties
             .remove("ONDOMODAL")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_init = properties
             .remove("ONINIT")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_music_looped = properties
             .remove("ONMUSICLOOPED")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_restart = properties
             .remove("ONRESTART")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         let on_signal = properties
             .remove("ONSIGNAL")
             .and_then(discard_if_empty)
-            .map(parse_program)
+            .map(parse_event_handler)
             .transpose()?;
         Ok(CnvContent::Scene(Self::from_initial_properties(
             parent,
