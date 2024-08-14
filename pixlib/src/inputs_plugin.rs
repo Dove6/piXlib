@@ -48,17 +48,21 @@ pub fn queue_mouse_input(
         .single()
         .cursor_position()
         .unwrap_or(Vec2::new(0f32, 0f32));
+    in_events.push_back(MouseEvent::MovedTo {
+        x: cursor_position.x as isize,
+        y: cursor_position.y as isize,
+    });
     if buttons.just_pressed(MouseButton::Left) {
-        in_events.push_back(MouseEvent::LeftButtonPressed {
-            x: cursor_position.x as u32,
-            y: cursor_position.y as u32,
-        });
+        in_events.push_back(MouseEvent::LeftButtonPressed);
     }
-    if buttons.pressed(MouseButton::Right) {
-        in_events.push_back(MouseEvent::RightButtonPressed {
-            x: cursor_position.x as u32,
-            y: cursor_position.y as u32,
-        });
+    if buttons.just_pressed(MouseButton::Right) {
+        in_events.push_back(MouseEvent::RightButtonPressed);
+    }
+    if buttons.just_released(MouseButton::Left) {
+        in_events.push_back(MouseEvent::LeftButtonReleased);
+    }
+    if buttons.just_released(MouseButton::Right) {
+        in_events.push_back(MouseEvent::RightButtonReleased);
     }
 }
 

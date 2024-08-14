@@ -21,8 +21,11 @@ pub enum TimerEvent {
 
 #[derive(Debug, Clone)]
 pub enum MouseEvent {
-    LeftButtonPressed { x: u32, y: u32 },
-    RightButtonPressed { x: u32, y: u32 },
+    MovedTo { x: isize, y: isize },
+    LeftButtonPressed,
+    LeftButtonReleased,
+    RightButtonPressed,
+    RightButtonReleased,
 }
 
 pub use keyboard_types::Code as KeyboardKey;

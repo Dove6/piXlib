@@ -18,7 +18,7 @@ pub struct TimerProperties {
     pub on_done: Option<Arc<ParsedScript>>,   // ONDONE signal
     pub on_init: Option<Arc<ParsedScript>>,   // ONINIT signal
     pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
-    pub on_tick: Option<Arc<ParsedScript>>,   // ONTICK signal
+    pub on_tick: HashMap<String, Arc<ParsedScript>>, // ONTICK signal
 }
 
 #[derive(Debug, Clone, Default)]
@@ -38,16 +38,18 @@ pub struct TimerEventHandlers {
     pub on_done: Option<Arc<ParsedScript>>,   // ONDONE signal
     pub on_init: Option<Arc<ParsedScript>>,   // ONINIT signal
     pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
-    pub on_tick: Option<Arc<ParsedScript>>,   // ONTICK signal
+    pub on_tick: HashMap<String, Arc<ParsedScript>>, // ONTICK signal
 }
 
 impl EventHandler for TimerEventHandlers {
-    fn get(&self, name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+    fn get(&self, name: &str, argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
         match name {
             "ONDONE" => self.on_done.as_ref(),
             "ONINIT" => self.on_init.as_ref(),
             "ONSIGNAL" => self.on_signal.as_ref(),
-            "ONTICK" => self.on_tick.as_ref(),
+            "ONTICK" => argument
+                .and_then(|a| self.on_tick.get(a))
+                .or(self.on_tick.get("")),
             _ => None,
         }
     }
@@ -182,11 +184,14 @@ impl CnvType for Timer {
             .and_then(discard_if_empty)
             .map(parse_event_handler)
             .transpose()?;
-        let on_tick = properties
-            .remove("ONTICK")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
+        let mut on_tick = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONTICK" {
+                on_tick.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONTICK^") {
+                on_tick.insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
         Ok(CnvContent::Timer(Self::from_initial_properties(
             parent,
             TimerProperties {
@@ -295,7 +300,7 @@ impl TimerState {
                     events.push_back(InternalEvent {
                         object: timer.parent.clone(),
                         callable: CallableIdentifier::Event("ONTICK").to_owned(),
-                        arguments: Vec::new(),
+                        arguments: vec![CnvValue::Integer(self.current_ticks as i32)],
                     })
                 });
         }

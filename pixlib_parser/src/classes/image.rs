@@ -50,6 +50,7 @@ struct ImageState {
 
     // general graphics state
     pub position: (isize, isize),
+    pub default_position: (isize, isize),
     pub opacity: usize,
     // anchor: ???,
     pub is_flipped_horizontally: bool,
@@ -222,12 +223,16 @@ impl CnvType for Image {
             CallableIdentifier::Method("GETPIXEL") => {
                 self.state.borrow_mut().get_pixel().map(|_| None)
             }
-            CallableIdentifier::Method("GETPOSITIONX") => {
-                self.state.borrow_mut().get_position_x().map(|_| None)
-            }
-            CallableIdentifier::Method("GETPOSITIONY") => {
-                self.state.borrow_mut().get_position_y().map(|_| None)
-            }
+            CallableIdentifier::Method("GETPOSITIONX") => self
+                .state
+                .borrow()
+                .get_position_x()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
+            CallableIdentifier::Method("GETPOSITIONY") => self
+                .state
+                .borrow()
+                .get_position_y()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
             CallableIdentifier::Method("GETPRIORITY") => self
                 .state
                 .borrow_mut()
@@ -314,9 +319,14 @@ impl CnvType for Image {
             CallableIdentifier::Method("SETPRIORITY") => {
                 self.state.borrow_mut().set_priority().map(|_| None)
             }
-            CallableIdentifier::Method("SETRESETPOSITION") => {
-                self.state.borrow_mut().set_reset_position().map(|_| None)
-            }
+            CallableIdentifier::Method("SETRESETPOSITION") => self
+                .state
+                .borrow_mut()
+                .set_reset_position(
+                    arguments[0].to_int() as isize,
+                    arguments[1].to_int() as isize,
+                )
+                .map(|_| None),
             CallableIdentifier::Method("SETSCALEFACTOR") => {
                 self.state.borrow_mut().set_scale_factor().map(|_| None)
             }
@@ -553,14 +563,14 @@ impl ImageState {
         todo!()
     }
 
-    pub fn get_position_x(&mut self) -> RunnerResult<()> {
+    pub fn get_position_x(&self) -> RunnerResult<isize> {
         // GETPOSITIONX
-        todo!()
+        Ok(self.position.0)
     }
 
-    pub fn get_position_y(&mut self) -> RunnerResult<()> {
+    pub fn get_position_y(&self) -> RunnerResult<isize> {
         // GETPOSITIONY
-        todo!()
+        Ok(self.position.1)
     }
 
     pub fn get_priority(&self) -> RunnerResult<isize> {
@@ -631,6 +641,11 @@ impl ImageState {
         let converted_data = data
             .image_data
             .to_rgba8888(data.header.color_format, data.header.compression_type);
+        self.default_position = (
+            data.header.x_position_px as isize,
+            data.header.y_position_px as isize,
+        );
+        self.position = self.default_position;
         self.file_data = ImageFileData::Loaded(LoadedImage {
             filename: Some(filename.to_owned()),
             image: (
@@ -685,7 +700,8 @@ impl ImageState {
 
     pub fn reset_position(&mut self) -> RunnerResult<()> {
         // RESETPOSITION
-        todo!()
+        self.position = self.default_position;
+        Ok(())
     }
 
     pub fn save(&mut self) -> RunnerResult<()> {
@@ -724,9 +740,10 @@ impl ImageState {
         todo!()
     }
 
-    pub fn set_reset_position(&mut self) -> RunnerResult<()> {
+    pub fn set_reset_position(&mut self, x: isize, y: isize) -> RunnerResult<()> {
         // SETRESETPOSITION
-        todo!()
+        self.default_position = (x, y);
+        Ok(())
     }
 
     pub fn set_scale_factor(&mut self) -> RunnerResult<()> {

@@ -29,20 +29,20 @@ pub struct AnimationProperties {
     pub visible: Option<bool>,                 // VISIBLE
 
     pub on_click: Option<Arc<ParsedScript>>, // ONCLICK signal
-    pub on_collision: Option<Arc<ParsedScript>>, // ONCOLLISION signal
-    pub on_collision_finished: Option<Arc<ParsedScript>>, // ONCOLLISIONFINISHED signal
+    pub on_collision: HashMap<String, Arc<ParsedScript>>, // ONCOLLISION signal
+    pub on_collision_finished: HashMap<String, Arc<ParsedScript>>, // ONCOLLISIONFINISHED signal
     pub on_done: Option<Arc<ParsedScript>>,  // ONDONE signal
-    pub on_finished: Option<Arc<ParsedScript>>, // ONFINISHED signal
-    pub on_first_frame: Option<Arc<ParsedScript>>, // ONFIRSTFRAME signal
+    pub on_finished: HashMap<String, Arc<ParsedScript>>, // ONFINISHED signal
+    pub on_first_frame: HashMap<String, Arc<ParsedScript>>, // ONFIRSTFRAME signal
     pub on_focus_off: Option<Arc<ParsedScript>>, // ONFOCUSOFF signal
     pub on_focus_on: Option<Arc<ParsedScript>>, // ONFOCUSON signal
-    pub on_frame_changed: Option<Arc<ParsedScript>>, // ONFRAMECHANGED signal
+    pub on_frame_changed: HashMap<String, Arc<ParsedScript>>, // ONFRAMECHANGED signal
     pub on_init: Option<Arc<ParsedScript>>,  // ONINIT signal
-    pub on_paused: Option<Arc<ParsedScript>>, // ONPAUSED signal
+    pub on_paused: HashMap<String, Arc<ParsedScript>>, // ONPAUSED signal
     pub on_release: Option<Arc<ParsedScript>>, // ONRELEASE signal
-    pub on_resumed: Option<Arc<ParsedScript>>, // ONRESUMED signal
-    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
-    pub on_started: Option<Arc<ParsedScript>>, // ONSTARTED signal
+    pub on_resumed: HashMap<String, Arc<ParsedScript>>, // ONRESUMED signal
+    pub on_signal: HashMap<String, Arc<ParsedScript>>, // ONSIGNAL signal
+    pub on_started: HashMap<String, Arc<ParsedScript>>, // ONSTARTED signal
 }
 
 #[derive(Debug, Clone, Default)]
@@ -77,41 +77,59 @@ struct AnimationState {
 
 #[derive(Debug, Clone)]
 pub struct AnimationEventHandlers {
-    pub on_click: Option<Arc<ParsedScript>>,     // ONCLICK signal
-    pub on_collision: Option<Arc<ParsedScript>>, // ONCOLLISION signal
-    pub on_collision_finished: Option<Arc<ParsedScript>>, // ONCOLLISIONFINISHED signal
-    pub on_done: Option<Arc<ParsedScript>>,      // ONDONE signal
-    pub on_finished: Option<Arc<ParsedScript>>,  // ONFINISHED signal
-    pub on_first_frame: Option<Arc<ParsedScript>>, // ONFIRSTFRAME signal
+    pub on_click: Option<Arc<ParsedScript>>, // ONCLICK signal
+    pub on_collision: HashMap<String, Arc<ParsedScript>>, // ONCOLLISION signal
+    pub on_collision_finished: HashMap<String, Arc<ParsedScript>>, // ONCOLLISIONFINISHED signal
+    pub on_done: Option<Arc<ParsedScript>>,  // ONDONE signal
+    pub on_finished: HashMap<String, Arc<ParsedScript>>, // ONFINISHED signal
+    pub on_first_frame: HashMap<String, Arc<ParsedScript>>, // ONFIRSTFRAME signal
     pub on_focus_off: Option<Arc<ParsedScript>>, // ONFOCUSOFF signal
-    pub on_focus_on: Option<Arc<ParsedScript>>,  // ONFOCUSON signal
-    pub on_frame_changed: Option<Arc<ParsedScript>>, // ONFRAMECHANGED signal
-    pub on_init: Option<Arc<ParsedScript>>,      // ONINIT signal
-    pub on_paused: Option<Arc<ParsedScript>>,    // ONPAUSED signal
-    pub on_release: Option<Arc<ParsedScript>>,   // ONRELEASE signal
-    pub on_resumed: Option<Arc<ParsedScript>>,   // ONRESUMED signal
-    pub on_signal: Option<Arc<ParsedScript>>,    // ONSIGNAL signal
-    pub on_started: Option<Arc<ParsedScript>>,   // ONSTARTED signal
+    pub on_focus_on: Option<Arc<ParsedScript>>, // ONFOCUSON signal
+    pub on_frame_changed: HashMap<String, Arc<ParsedScript>>, // ONFRAMECHANGED signal
+    pub on_init: Option<Arc<ParsedScript>>,  // ONINIT signal
+    pub on_paused: HashMap<String, Arc<ParsedScript>>, // ONPAUSED signal
+    pub on_release: Option<Arc<ParsedScript>>, // ONRELEASE signal
+    pub on_resumed: HashMap<String, Arc<ParsedScript>>, // ONRESUMED signal
+    pub on_signal: HashMap<String, Arc<ParsedScript>>, // ONSIGNAL signal
+    pub on_started: HashMap<String, Arc<ParsedScript>>, // ONSTARTED signal
 }
 
 impl EventHandler for AnimationEventHandlers {
-    fn get(&self, name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+    fn get(&self, name: &str, argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
         match name {
             "ONCLICK" => self.on_click.as_ref(),
-            "ONCOLLISION" => self.on_collision.as_ref(),
-            "ONCOLLISIONFINISHED" => self.on_collision_finished.as_ref(),
+            "ONCOLLISION" => argument
+                .and_then(|a| self.on_collision.get(a))
+                .or(self.on_collision.get("")),
+            "ONCOLLISIONFINISHED" => argument
+                .and_then(|a| self.on_collision_finished.get(a))
+                .or(self.on_collision_finished.get("")),
             "ONDONE" => self.on_done.as_ref(),
-            "ONFINISHED" => self.on_finished.as_ref(),
-            "ONFIRSTFRAME" => self.on_first_frame.as_ref(),
+            "ONFINISHED" => argument
+                .and_then(|a| self.on_finished.get(a))
+                .or(self.on_finished.get("")),
+            "ONFIRSTFRAME" => argument
+                .and_then(|a| self.on_first_frame.get(a))
+                .or(self.on_first_frame.get("")),
             "ONFOCUSOFF" => self.on_focus_off.as_ref(),
             "ONFOCUSON" => self.on_focus_on.as_ref(),
-            "ONFRAMECHANGED" => self.on_frame_changed.as_ref(),
+            "ONFRAMECHANGED" => argument
+                .and_then(|a| self.on_frame_changed.get(a))
+                .or(self.on_frame_changed.get("")),
             "ONINIT" => self.on_init.as_ref(),
-            "ONPAUSED" => self.on_paused.as_ref(),
+            "ONPAUSED" => argument
+                .and_then(|a| self.on_paused.get(a))
+                .or(self.on_paused.get("")),
             "ONRELEASE" => self.on_release.as_ref(),
-            "ONRESUMED" => self.on_resumed.as_ref(),
-            "ONSIGNAL" => self.on_signal.as_ref(),
-            "ONSTARTED" => self.on_started.as_ref(),
+            "ONRESUMED" => argument
+                .and_then(|a| self.on_resumed.get(a))
+                .or(self.on_resumed.get("")),
+            "ONSIGNAL" => argument
+                .and_then(|a| self.on_signal.get(a))
+                .or(self.on_signal.get("")),
+            "ONSTARTED" => argument
+                .and_then(|a| self.on_started.get(a))
+                .or(self.on_started.get("")),
             _ => None,
         }
     }
@@ -198,6 +216,7 @@ impl Animation {
         &self,
     ) -> RunnerResult<Option<(FrameDefinition, SpriteDefinition, SpriteData)>> {
         // eprintln!("[ANIMO: {}] is_visible: {}", self.parent.name, self.is_visible);
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         let state = self.state.borrow();
         if !state.is_visible {
             return Ok(None);
@@ -212,8 +231,19 @@ impl Animation {
         if sequence.frames.is_empty() {
             return Ok(None);
         }
-        let frame = &sequence.frames[state.current_frame.frame_idx];
-        let sprite = &loaded_data.sprites[frame.sprite_idx];
+        let Some(frame) = sequence.frames.get(state.current_frame.frame_idx) else {
+            return Err(RunnerError::FrameIndexNotFound {
+                object_name: context.current_object.name.clone(),
+                sequence_name: sequence.name.clone(),
+                index: state.current_frame.frame_idx,
+            });
+        };
+        let Some(sprite) = loaded_data.sprites.get(frame.sprite_idx) else {
+            return Err(RunnerError::SpriteIndexNotFound {
+                object_name: context.current_object.name.clone(),
+                index: frame.sprite_idx,
+            });
+        };
         // eprintln!("[ANIMO: {}] [current frame] position: {:?} + {:?}, hash: {:?}", self.parent.name, sprite.0.offset_px, frame.offset_px, sprite.1.hash);
         Ok(Some((frame.clone(), sprite.0.clone(), sprite.1.clone())))
     }
@@ -292,12 +322,13 @@ impl CnvType for Animation {
                 self.state.borrow().get_end_y();
                 Ok(None)
             }
-            CallableIdentifier::Method("GETEVENTNAME") => {
-                self.state.borrow().get_event_name();
-                Ok(None)
-            }
+            CallableIdentifier::Method("GETEVENTNAME") => self
+                .state
+                .borrow()
+                .get_sequence_name(context)
+                .map(|v| Some(CnvValue::String(v))),
             CallableIdentifier::Method("GETEVENTNUMBER") => {
-                self.state.borrow().get_event_number();
+                self.state.borrow().get_sequence_index();
                 Ok(None)
             }
             CallableIdentifier::Method("GETFPS") => {
@@ -312,10 +343,11 @@ impl CnvType for Animation {
                 self.state.borrow().get_frame_name();
                 Ok(None)
             }
-            CallableIdentifier::Method("GETFRAMENO") => {
-                self.state.borrow().get_frame_no();
-                Ok(None)
-            }
+            CallableIdentifier::Method("GETFRAMENO") => self
+                .state
+                .borrow()
+                .get_frame_index()
+                .map(|v| Some(CnvValue::Integer(v as i32))),
             CallableIdentifier::Method("GETHEIGHT") => {
                 self.state.borrow().get_height();
                 Ok(None)
@@ -329,15 +361,17 @@ impl CnvType for Animation {
                 Ok(None)
             }
             CallableIdentifier::Method("GETNOE") => {
-                self.state.borrow().get_noe();
+                self.state.borrow().get_sequence_count();
                 Ok(None)
             }
             CallableIdentifier::Method("GETNOF") => {
-                self.state.borrow().get_nof();
+                self.state.borrow().get_total_frame_count();
                 Ok(None)
             }
             CallableIdentifier::Method("GETNOFINEVENT") => {
-                self.state.borrow().get_nof_in_event(&arguments[0].to_str());
+                self.state
+                    .borrow()
+                    .get_sequence_frame_count(&arguments[0].to_str());
                 Ok(None)
             }
             CallableIdentifier::Method("GETOPACITY") => {
@@ -641,31 +675,44 @@ impl CnvType for Animation {
             .and_then(discard_if_empty)
             .map(parse_event_handler)
             .transpose()?;
-        let on_collision = properties
-            .remove("ONCOLLISION")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
-        let on_collision_finished = properties
-            .remove("ONCOLLISIONFINISHED")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
+        let mut on_collision = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONCOLLISION" {
+                on_collision.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONCOLLISION^") {
+                on_collision.insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
+        let mut on_collision_finished = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONCOLLISIONFINISHED" {
+                on_collision_finished.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONCOLLISIONFINISHED^") {
+                on_collision_finished
+                    .insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
             .map(parse_event_handler)
             .transpose()?;
-        let on_finished = properties
-            .remove("ONFINISHED")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
-        let on_first_frame = properties
-            .remove("ONFIRSTFRAME")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
+        let mut on_finished = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONFINISHED" {
+                on_finished.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONFINISHED^") {
+                on_finished.insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
+        let mut on_first_frame = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONFIRSTFRAME" {
+                on_first_frame.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONFIRSTFRAME^") {
+                on_first_frame.insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
         let on_focus_off = properties
             .remove("ONFOCUSOFF")
             .and_then(discard_if_empty)
@@ -676,41 +723,56 @@ impl CnvType for Animation {
             .and_then(discard_if_empty)
             .map(parse_event_handler)
             .transpose()?;
-        let on_frame_changed = properties
-            .remove("ONFRAMECHANGED")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
+        let mut on_frame_changed = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONFRAMECHANGED" {
+                on_frame_changed.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONFRAMECHANGED^") {
+                on_frame_changed.insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
         let on_init = properties
             .remove("ONINIT")
             .and_then(discard_if_empty)
             .map(parse_event_handler)
             .transpose()?;
-        let on_paused = properties
-            .remove("ONPAUSED")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
+        let mut on_paused = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONPAUSED" {
+                on_paused.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONPAUSED^") {
+                on_paused.insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
         let on_release = properties
             .remove("ONRELEASE")
             .and_then(discard_if_empty)
             .map(parse_event_handler)
             .transpose()?;
-        let on_resumed = properties
-            .remove("ONRESUMED")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
-        let on_signal = properties
-            .remove("ONSIGNAL")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
-        let on_started = properties
-            .remove("ONSTARTED")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
+        let mut on_resumed = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONRESUMED" {
+                on_resumed.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONRESUMED^") {
+                on_resumed.insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
+        let mut on_signal = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONSIGNAL" {
+                on_signal.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONSIGNAL^") {
+                on_signal.insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
+        let mut on_started = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONSTARTED" {
+                on_started.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONSTARTED^") {
+                on_started.insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
         Ok(CnvContent::Animation(Animation::from_initial_properties(
             parent,
             AnimationProperties {
@@ -835,12 +897,21 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn get_event_name(&self) {
+    pub fn get_sequence_name(&self, context: RunnerContext) -> RunnerResult<String> {
         // GETEVENTNAME
-        todo!()
+        let AnimationFileData::Loaded(loaded_file) = &self.file_data else {
+            return Err(RunnerError::NoDataLoaded);
+        };
+        let Some(sequence) = loaded_file.sequences.get(self.current_frame.sequence_idx) else {
+            return Err(RunnerError::SequenceIndexNotFound {
+                object_name: context.current_object.name.clone(),
+                index: self.current_frame.sequence_idx,
+            });
+        };
+        Ok(sequence.name.clone())
     }
 
-    pub fn get_event_number(&self) {
+    pub fn get_sequence_index(&self) {
         // GETEVENTNUMBER
         todo!()
     }
@@ -860,9 +931,9 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn get_frame_no(&self) -> usize {
+    pub fn get_frame_index(&self) -> RunnerResult<usize> {
         // GETFRAMENO INTEGER
-        todo!()
+        Ok(self.current_frame.frame_idx)
     }
 
     pub fn get_height(&self) {
@@ -880,17 +951,17 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn get_noe(&self) {
+    pub fn get_sequence_count(&self) {
         // GETNOE
         todo!()
     }
 
-    pub fn get_nof(&self) {
+    pub fn get_total_frame_count(&self) {
         // GETNOF
         todo!()
     }
 
-    pub fn get_nof_in_event(&self, _sequence_name: &str) -> usize {
+    pub fn get_sequence_frame_count(&self, _sequence_name: &str) -> usize {
         // GETNOFINEVENT INTEGER (STRING event)
         todo!()
     }
@@ -1025,6 +1096,10 @@ impl AnimationState {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
             })?;
         let data = parse_ann(&data);
+        self.current_frame = FrameIdentifier {
+            sequence_idx: data.sequences.len().saturating_sub(1),
+            frame_idx: 0,
+        };
         self.file_data = AnimationFileData::Loaded(LoadedAnimation {
             filename: Some(filename.to_owned()),
             sequences: data
@@ -1186,6 +1261,7 @@ impl AnimationState {
                     })
                 });
         }
+        self.is_visible = true;
         Ok(())
     }
 

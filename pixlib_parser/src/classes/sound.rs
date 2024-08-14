@@ -257,6 +257,38 @@ impl SoundState {
             .use_and_drop_mut(|events| {
                 events.push_back(SoundEvent::SoundStarted(self.file_data.clone()))
             });
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONSTARTED").to_owned(),
+                    arguments: Vec::new(),
+                })
+            });
+        // FIXME: short-circuiting
+        self.is_playing = false;
+        context
+            .runner
+            .events_out
+            .sound
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(SoundEvent::SoundStopped(self.file_data.clone()))
+            });
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONFINISHED").to_owned(),
+                    arguments: Vec::new(),
+                })
+            });
         Ok(())
     }
 

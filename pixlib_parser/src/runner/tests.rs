@@ -21,11 +21,12 @@ fn surrounding_quotes_should_be_handled_correctly_with_direct_set(
     argument: &str,
     expected: &str,
 ) {
-    let runner = CnvRunner::new(
+    let runner = CnvRunner::try_new(
         Arc::new(RefCell::new(DummyFileSystem)),
         Default::default(),
         Default::default(),
-    );
+    )
+    .unwrap();
     let script = format!(
         r"
         OBJECT=TESTSTR
@@ -75,11 +76,12 @@ fn surrounding_quotes_should_be_handled_correctly_with_direct_set_and_inconvenie
     argument: &str,
     expected: &str,
 ) {
-    let runner = CnvRunner::new(
+    let runner = CnvRunner::try_new(
         Arc::new(RefCell::new(DummyFileSystem)),
         Default::default(),
         Default::default(),
-    );
+    )
+    .unwrap();
     let script = format!(
         r"
         OBJECT=TESTSTR
@@ -141,11 +143,12 @@ fn surrounding_quotes_should_be_handled_correctly_with_one_level_indirect_set(
     argument: &str,
     expected: &str,
 ) {
-    let runner = CnvRunner::new(
+    let runner = CnvRunner::try_new(
         Arc::new(RefCell::new(DummyFileSystem)),
         Default::default(),
         Default::default(),
-    );
+    )
+    .unwrap();
     let script = format!(
         r"
         OBJECT=TESTSTR
@@ -199,11 +202,12 @@ fn surrounding_quotes_should_be_handled_correctly_with_two_level_indirect_set_an
     argument: &str,
     expected: &str,
 ) {
-    let runner = CnvRunner::new(
+    let runner = CnvRunner::try_new(
         Arc::new(RefCell::new(DummyFileSystem)),
         Default::default(),
         Default::default(),
-    );
+    )
+    .unwrap();
     let script = format!(
         r"
         OBJECT=TESTSTR

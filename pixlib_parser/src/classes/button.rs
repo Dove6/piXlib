@@ -34,7 +34,7 @@ pub struct ButtonProperties {
     pub on_init: Option<Arc<ParsedScript>>,   // ONINIT signal
     pub on_paused: Option<Arc<ParsedScript>>, // ONPAUSED signal
     pub on_released: Option<Arc<ParsedScript>>, // ONRELEASED signal
-    pub on_signal: Option<Arc<ParsedScript>>, // ONSIGNAL signal
+    pub on_signal: HashMap<String, Arc<ParsedScript>>, // ONSIGNAL signal
     pub on_start_dragging: Option<Arc<ParsedScript>>, // ONSTARTDRAGGING signal
 }
 
@@ -49,6 +49,9 @@ pub struct ButtonState {
     pub graphics_on_click: Option<String>,
     pub priority: isize,
     pub rect: Option<Rect>,
+
+    // deduced from methods
+    pub is_visible: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -63,12 +66,12 @@ pub struct ButtonEventHandlers {
     pub on_init: Option<Arc<ParsedScript>>,    // ONINIT signal
     pub on_paused: Option<Arc<ParsedScript>>,  // ONPAUSED signal
     pub on_released: Option<Arc<ParsedScript>>, // ONRELEASED signal
-    pub on_signal: Option<Arc<ParsedScript>>,  // ONSIGNAL signal
+    pub on_signal: HashMap<String, Arc<ParsedScript>>, // ONSIGNAL signal
     pub on_start_dragging: Option<Arc<ParsedScript>>, // ONSTARTDRAGGING signal
 }
 
 impl EventHandler for ButtonEventHandlers {
-    fn get(&self, name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+    fn get(&self, name: &str, argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
         match name {
             "ONACTION" => self.on_action.as_ref(),
             "ONCLICKED" => self.on_clicked.as_ref(),
@@ -80,7 +83,9 @@ impl EventHandler for ButtonEventHandlers {
             "ONINIT" => self.on_init.as_ref(),
             "ONPAUSED" => self.on_paused.as_ref(),
             "ONRELEASED" => self.on_released.as_ref(),
-            "ONSIGNAL" => self.on_signal.as_ref(),
+            "ONSIGNAL" => argument
+                .and_then(|a| self.on_signal.get(a))
+                .or(self.on_signal.get("")),
             "ONSTARTDRAGGING" => self.on_start_dragging.as_ref(),
             _ => None,
         }
@@ -102,10 +107,11 @@ pub struct Button {
 
 impl Button {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: ButtonProperties) -> Self {
+        let is_enabled = props.enable.unwrap_or(true);
         Self {
             parent,
             state: RefCell::new(ButtonState {
-                is_enabled: props.enable.unwrap_or_default(),
+                is_enabled,
                 is_accented: props.accent.unwrap_or_default(),
                 is_draggable: props.draggable.unwrap_or_default(),
                 graphics_normal: props.gfx_standard,
@@ -113,6 +119,7 @@ impl Button {
                 graphics_on_click: props.gfx_on_click,
                 priority: props.priority.unwrap_or_default() as isize,
                 rect: props.rect,
+                is_visible: is_enabled,
             }),
             event_handlers: ButtonEventHandlers {
                 on_action: props.on_action,
@@ -133,6 +140,12 @@ impl Button {
             sound_on_hover: props.snd_on_move,
             sound_on_click: props.snd_on_click,
         }
+    }
+
+    // custom
+
+    pub fn update(&self, context: RunnerContext) -> RunnerResult<()> {
+        Ok(())
     }
 }
 
@@ -296,11 +309,14 @@ impl CnvType for Button {
             .and_then(discard_if_empty)
             .map(parse_event_handler)
             .transpose()?;
-        let on_signal = properties
-            .remove("ONSIGNAL")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
+        let mut on_signal = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONSIGNAL" {
+                on_signal.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONSIGNAL^") {
+                on_signal.insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
         let on_start_dragging = properties
             .remove("ONSTARTDRAGGING")
             .and_then(discard_if_empty)

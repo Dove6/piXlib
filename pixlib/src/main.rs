@@ -101,11 +101,14 @@ fn main() {
         })
         .insert_non_send_resource(InsertedDiskResource(inserted_disk))
         .insert_resource(ChosenScene::default())
-        .insert_non_send_resource(ScriptRunner(CnvRunner::new(
-            layered_fs,
-            Arc::new(GamePaths::default()),
-            runner_issue_manager,
-        )))
+        .insert_non_send_resource(ScriptRunner(
+            CnvRunner::try_new(
+                layered_fs,
+                Arc::new(GamePaths::default()),
+                runner_issue_manager,
+            )
+            .unwrap(),
+        ))
         .insert_resource(ObjectBuilderIssueManager(issue_manager))
         .init_state::<AppState>()
         .add_systems(Startup, setup)

@@ -33,7 +33,10 @@ use std::{cell::RefCell, collections::HashMap, sync::Arc};
 use events::{IncomingEvents, OutgoingEvents};
 
 use crate::classes::Animation;
+use crate::classes::CallableIdentifier;
 use crate::classes::CnvContent;
+use crate::classes::InternalMouseEvent;
+use crate::classes::Mouse;
 use crate::classes::Scene;
 use crate::common::DroppableRefMut;
 use crate::common::IssueKind;
@@ -124,7 +127,16 @@ pub enum RunnerError {
     IoError {
         source: std::io::Error,
     },
+    ObjectBuilderError {
+        source: ObjectBuilderError,
+    },
     Other,
+}
+
+impl From<ObjectBuilderError> for RunnerError {
+    fn from(value: ObjectBuilderError) -> Self {
+        Self::ObjectBuilderError { source: value }
+    }
 }
 
 pub type RunnerResult<T> = std::result::Result<T, RunnerError>;
@@ -231,11 +243,11 @@ impl RunnerContext {
 
 #[allow(clippy::arc_with_non_send_sync)]
 impl CnvRunner {
-    pub fn new(
+    pub fn try_new(
         filesystem: Arc<RefCell<dyn FileSystem>>,
         game_paths: Arc<GamePaths>,
         issue_manager: IssueManager<RunnerIssue>,
-    ) -> Arc<Self> {
+    ) -> RunnerResult<Arc<Self>> {
         let runner = Arc::new(Self {
             scripts: RefCell::new(ScriptContainer::default()),
             filesystem,
@@ -258,46 +270,139 @@ impl CnvRunner {
         runner
             .global_objects
             .borrow_mut()
-            .use_and_drop_mut(|objects| {
+            .use_and_drop_mut::<RunnerResult<()>>(|objects| {
+                let mut range = 0usize..;
                 objects
                     .push_object({
                         let mut builder = CnvObjectBuilder::new(
                             Arc::clone(&global_script),
                             "RANDOM".to_owned(),
-                            0,
+                            range.next().unwrap(),
                         );
-                        builder.add_property("TYPE".into(), "RAND".to_owned());
+                        builder.add_property("TYPE".into(), "RAND".to_owned())?;
                         builder.build().unwrap()
                     })
-                    .unwrap()
-            });
-        runner
+                    .unwrap();
+                objects
+                    .push_object({
+                        let mut builder = CnvObjectBuilder::new(
+                            Arc::clone(&global_script),
+                            "KEYBOARD".to_owned(),
+                            range.next().unwrap(),
+                        );
+                        builder.add_property("TYPE".into(), "KEYBOARD".to_owned())?;
+                        builder.build().unwrap()
+                    })
+                    .unwrap();
+                objects
+                    .push_object({
+                        let mut builder = CnvObjectBuilder::new(
+                            Arc::clone(&global_script),
+                            "MOUSE".to_owned(),
+                            range.next().unwrap(),
+                        );
+                        builder.add_property("TYPE".into(), "MOUSE".to_owned())?;
+                        builder.build().unwrap()
+                    })
+                    .unwrap();
+                objects
+                    .push_object({
+                        let mut builder = CnvObjectBuilder::new(
+                            Arc::clone(&global_script),
+                            "SYSTEM".to_owned(),
+                            range.next().unwrap(),
+                        );
+                        builder.add_property("TYPE".into(), "SYSTEM".to_owned())?;
+                        builder.build().unwrap()
+                    })
+                    .unwrap();
+                Ok(())
+            })?;
+        Ok(runner)
     }
 
     pub fn step(self: &Arc<CnvRunner>) -> RunnerResult<()> {
-        let mut timer_events = self.events_in.timer.borrow_mut();
-        while let Some(evt) = timer_events.pop_front() {
-            match evt {
-                TimerEvent::Elapsed { seconds } => {
-                    let mut buffer = Vec::new();
-                    self.find_objects(
-                        |o| matches!(&*o.content.borrow(), CnvContent::Animation(_)),
-                        &mut buffer,
-                    );
-                    for animation_object in buffer {
-                        let guard = animation_object.content.borrow();
-                        let animation: Option<&Animation> = (&*guard).into();
-                        let animation = animation.unwrap();
-                        animation.step(seconds)?;
+        self.events_in
+            .timer
+            .borrow_mut()
+            .use_and_drop_mut::<RunnerResult<()>>(|events| {
+                while let Some(evt) = events.pop_front() {
+                    match evt {
+                        TimerEvent::Elapsed { seconds } => {
+                            let mut buffer = Vec::new();
+                            self.find_objects(
+                                |o| matches!(&*o.content.borrow(), CnvContent::Animation(_)),
+                                &mut buffer,
+                            );
+                            for animation_object in buffer {
+                                let guard = animation_object.content.borrow();
+                                let animation: Option<&Animation> = (&*guard).into();
+                                let animation = animation.unwrap();
+                                animation.step(seconds)?;
+                            }
+                        }
                     }
                 }
-            }
-        }
+                Ok(())
+            })?;
+        self.events_in
+            .mouse
+            .borrow_mut()
+            .use_and_drop_mut::<RunnerResult<()>>(|events| {
+                while let Some(evt) = events.pop_front() {
+                    // eprintln!("Handling incoming mouse event: {:?}", evt);
+                    Mouse::handle_incoming_event(evt)?;
+                }
+                Ok(())
+            })?;
         let mut to_init = Vec::new();
         self.find_objects(|o| !*o.initialized.borrow(), &mut to_init);
         for object in to_init {
             object.init(None)?;
         }
+        let mut mouse_objects = Vec::new();
+        self.find_objects(
+            |o| matches!(*o.content.borrow(), CnvContent::Mouse(_)),
+            &mut mouse_objects,
+        );
+        self.internal_events
+            .borrow_mut()
+            .use_and_drop_mut::<RunnerResult<()>>(|internal_events| {
+                Mouse::handle_outgoing_events(|mouse_event| {
+                    eprintln!("Handling internal mouse event: {:?}", mouse_event);
+                    let callable = CallableIdentifier::Event(match mouse_event {
+                        InternalMouseEvent::LeftButtonPressed { .. }
+                        | InternalMouseEvent::RightButtonPressed { .. } => "ONCLICK",
+                        InternalMouseEvent::LeftButtonReleased { .. }
+                        | InternalMouseEvent::RightButtonReleased { .. } => "ONRELEASE",
+                        InternalMouseEvent::LeftButtonDoubleClicked { .. }
+                        | InternalMouseEvent::RightButtonDoubleClicked { .. } => "ONDBLCLICK",
+                        InternalMouseEvent::MovedBy { .. } => "ONMOVE",
+                        _ => return Ok(()),
+                    });
+                    let arguments = match mouse_event {
+                        InternalMouseEvent::LeftButtonPressed { .. }
+                        | InternalMouseEvent::LeftButtonReleased { .. }
+                        | InternalMouseEvent::LeftButtonDoubleClicked { .. } => {
+                            vec![CnvValue::String("LEFT".into())]
+                        }
+                        InternalMouseEvent::RightButtonPressed { .. }
+                        | InternalMouseEvent::RightButtonReleased { .. }
+                        | InternalMouseEvent::RightButtonDoubleClicked { .. } => {
+                            vec![CnvValue::String("RIGHT".into())]
+                        }
+                        _ => Vec::new(),
+                    };
+                    for mouse_object in mouse_objects.iter() {
+                        internal_events.push_back(InternalEvent {
+                            object: Arc::clone(mouse_object),
+                            callable: callable.to_owned(),
+                            arguments: arguments.clone(),
+                        })
+                    }
+                    Ok(())
+                })
+            })?;
         while let Some(evt) = self
             .internal_events
             .borrow_mut()
@@ -345,7 +450,7 @@ impl CnvRunner {
                 CnvDeclaration::PropertyAssignment {
                     parent,
                     property,
-                    property_key: _property_key,
+                    property_key,
                     value,
                 } => {
                     let Some(obj) = name_to_object
@@ -357,7 +462,12 @@ impl CnvRunner {
                             &parent, &objects
                         );
                     };
-                    obj.add_property(property, value);
+                    obj.add_property(
+                        property_key
+                            .map(|suffix| property.clone() + "^" + &suffix)
+                            .unwrap_or(property),
+                        value,
+                    )?;
                 }
             }
         }

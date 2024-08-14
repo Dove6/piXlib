@@ -316,7 +316,7 @@ pub use image::Image;
 pub use int::IntegerVar;
 pub use keyboard::Keyboard;
 pub use lalrpop_util::ParseError;
-pub use mouse::Mouse;
+pub use mouse::{InternalMouseEvent, Mouse};
 pub use multiarray::MultiArray;
 pub use music::Music;
 pub use object::CnvObject;

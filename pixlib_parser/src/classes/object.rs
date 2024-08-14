@@ -39,9 +39,18 @@ impl CnvObjectBuilder {
         }
     }
 
-    pub fn add_property(&mut self, property: String, value: String) -> &mut Self {
-        self.properties.insert(property, value); // TODO: report duplicates
-        self
+    pub fn add_property(
+        &mut self,
+        property: String,
+        value: String,
+    ) -> Result<&mut Self, ObjectBuilderError> {
+        if let Some(old_value) = self.properties.insert(property.clone(), value) {
+            return Err(ObjectBuilderError::new(
+                self.name.clone(),
+                ObjectBuildErrorKind::PropertyAlreadyPresent(property, old_value),
+            ));
+        };
+        Ok(self)
     }
 
     pub fn build(self) -> Result<Arc<CnvObject>, ObjectBuilderError> {
@@ -101,6 +110,8 @@ impl Issue for ObjectBuilderError {
 pub enum ObjectBuildErrorKind {
     #[error("Missing type property")]
     MissingType,
+    #[error("Property {0} already present with value {1}")]
+    PropertyAlreadyPresent(String, String),
     #[error("Parsing error: {0}")]
     ParsingError(TypeParsingError),
     #[error("Parser issue: {0}")]
@@ -139,18 +150,24 @@ impl CnvObject {
         arguments: &[CnvValue],
         context: Option<RunnerContext>,
     ) -> RunnerResult<Option<CnvValue>> {
-        // println!("Calling method: {:?} of: {:?}", identifier, self.name);
         let context = context
             .map(|c| c.with_current_object(self.clone()))
             .unwrap_or(RunnerContext::new_minimal(&self.parent.runner, self));
-        self.content.borrow().call_method(
-            identifier,
-            &arguments
+        let arguments = if matches!(identifier, CallableIdentifier::Method(_)) {
+            arguments
                 .iter()
                 .map(|v| v.to_owned().resolve(context.clone()))
-                .collect::<Vec<_>>(),
-            context,
-        )
+                .collect::<Vec<_>>()
+        } else {
+            arguments.to_owned()
+        };
+        println!(
+            "Calling method: {:?} of: {:?} with arguments: {:?}",
+            identifier, self.name, arguments
+        );
+        self.content
+            .borrow()
+            .call_method(identifier, &arguments, context)
         // println!("Result is {:?}", result);
     }
 

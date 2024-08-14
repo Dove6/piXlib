@@ -291,10 +291,10 @@ pub fn update_images(
         sprite.flip_x = false;
         sprite.flip_y = false;
         sprite.anchor = Anchor::TopLeft;
-        let base_position = image.get_position().unwrap();
+        let position = image.get_position().unwrap();
         *transform = Transform::from_xyz(
-            base_position.0 as f32 + image_definition.offset_px.0 as f32,
-            base_position.1 as f32 + image_definition.offset_px.1 as f32,
+            position.0 as f32,
+            position.1 as f32,
             image.get_priority().unwrap() as f32
                 + (*script_index as f32) / 100f32
                 + (*object_index as f32) / 100000f32,

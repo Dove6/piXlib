@@ -41,7 +41,9 @@ impl EventHandler for BehaviorEventHandlers {
         match name {
             "ONDONE" => self.on_done.as_ref(),
             "ONINIT" => self.on_init.as_ref(),
-            "ONSIGNAL" => self.on_signal.get(argument.unwrap_or("")),
+            "ONSIGNAL" => argument
+                .and_then(|a| self.on_signal.get(a))
+                .or(self.on_signal.get("")),
             _ => None,
         }
     }
