@@ -28,7 +28,7 @@ impl Display for CnvValue {
 }
 
 impl CnvValue {
-    pub fn to_integer(&self) -> i32 {
+    pub fn to_int(&self) -> i32 {
         match self {
             CnvValue::Integer(i) => *i,
             CnvValue::Double(d) => *d as i32,
@@ -43,7 +43,7 @@ impl CnvValue {
         }
     }
 
-    pub fn to_double(&self) -> f64 {
+    pub fn to_dbl(&self) -> f64 {
         match self {
             CnvValue::Integer(i) => (*i).into(),
             CnvValue::Double(d) => *d,
@@ -61,7 +61,7 @@ impl CnvValue {
         }
     }
 
-    pub fn to_boolean(&self) -> bool {
+    pub fn to_bool(&self) -> bool {
         match self {
             CnvValue::Integer(i) => *i != 0,  // TODO: check
             CnvValue::Double(d) => *d != 0.0, // TODO: check
@@ -70,8 +70,7 @@ impl CnvValue {
         }
     }
 
-    #[allow(clippy::inherent_to_string)]
-    pub fn to_string(&self) -> String {
+    pub fn to_str(&self) -> String {
         match self {
             CnvValue::Integer(i) => i.to_string(),
             CnvValue::Double(d) => d.to_string(), // TODO: check
@@ -84,7 +83,7 @@ impl CnvValue {
         match &self {
             CnvValue::String(s) => context
                 .runner
-                .get_object(&s)
+                .get_object(s)
                 // .inspect(|v| eprintln!("Resolving {:?} through {}", &self, v.name))
                 .as_ref()
                 .map(get_reference_value)
@@ -92,7 +91,7 @@ impl CnvValue {
                 .unwrap()
                 .flatten()
                 // .inspect(|v| eprintln!("Resolved into {}", v))
-                .unwrap_or(CnvValue::String(trim_one_quotes_level(&s).to_owned())),
+                .unwrap_or(CnvValue::String(trim_one_quotes_level(s).to_owned())),
             _ => self,
         }
     }
@@ -122,10 +121,10 @@ impl Add for &CnvValue {
 
     fn add(self, rhs: Self) -> Self::Output {
         match self {
-            CnvValue::Integer(i) => CnvValue::Integer(*i + rhs.to_integer()),
-            CnvValue::Double(d) => CnvValue::Double(*d + rhs.to_double()),
-            CnvValue::Bool(b) => CnvValue::Bool(*b || rhs.to_boolean()),
-            CnvValue::String(s) => CnvValue::String(s.clone() + rhs.to_string().as_ref()),
+            CnvValue::Integer(i) => CnvValue::Integer(*i + rhs.to_int()),
+            CnvValue::Double(d) => CnvValue::Double(*d + rhs.to_dbl()),
+            CnvValue::Bool(b) => CnvValue::Bool(*b || rhs.to_bool()),
+            CnvValue::String(s) => CnvValue::String(s.clone() + rhs.to_str().as_ref()),
         }
     }
 }
@@ -135,9 +134,9 @@ impl Mul for &CnvValue {
 
     fn mul(self, rhs: Self) -> Self::Output {
         match self {
-            CnvValue::Integer(i) => CnvValue::Integer(*i * rhs.to_integer()),
-            CnvValue::Double(d) => CnvValue::Double(*d * rhs.to_double()),
-            CnvValue::Bool(b) => CnvValue::Bool(*b && rhs.to_boolean()),
+            CnvValue::Integer(i) => CnvValue::Integer(*i * rhs.to_int()),
+            CnvValue::Double(d) => CnvValue::Double(*d * rhs.to_dbl()),
+            CnvValue::Bool(b) => CnvValue::Bool(*b && rhs.to_bool()),
             CnvValue::String(s) => CnvValue::String(s.clone()),
         }
     }
@@ -148,9 +147,9 @@ impl Sub for &CnvValue {
 
     fn sub(self, rhs: Self) -> Self::Output {
         match self {
-            CnvValue::Integer(i) => CnvValue::Integer(*i - rhs.to_integer()),
-            CnvValue::Double(d) => CnvValue::Double(*d - rhs.to_double()),
-            CnvValue::Bool(b) => CnvValue::Bool(*b && !rhs.to_boolean()),
+            CnvValue::Integer(i) => CnvValue::Integer(*i - rhs.to_int()),
+            CnvValue::Double(d) => CnvValue::Double(*d - rhs.to_dbl()),
+            CnvValue::Bool(b) => CnvValue::Bool(*b && !rhs.to_bool()),
             CnvValue::String(s) => CnvValue::String(s.clone()),
         }
     }
@@ -161,8 +160,8 @@ impl Div for &CnvValue {
 
     fn div(self, rhs: Self) -> Self::Output {
         match self {
-            CnvValue::Integer(i) => CnvValue::Integer(*i / rhs.to_integer()),
-            CnvValue::Double(d) => CnvValue::Double(*d / rhs.to_double()),
+            CnvValue::Integer(i) => CnvValue::Integer(*i / rhs.to_int()),
+            CnvValue::Double(d) => CnvValue::Double(*d / rhs.to_dbl()),
             CnvValue::Bool(b) => CnvValue::Bool(*b),
             CnvValue::String(s) => CnvValue::String(s.clone()),
         }
@@ -174,8 +173,8 @@ impl Rem for &CnvValue {
 
     fn rem(self, rhs: Self) -> Self::Output {
         match self {
-            CnvValue::Integer(i) => CnvValue::Integer(*i % rhs.to_integer()),
-            CnvValue::Double(d) => CnvValue::Double(*d % rhs.to_double()),
+            CnvValue::Integer(i) => CnvValue::Integer(*i % rhs.to_int()),
+            CnvValue::Double(d) => CnvValue::Double(*d % rhs.to_dbl()),
             CnvValue::Bool(b) => CnvValue::Bool(*b),
             CnvValue::String(s) => CnvValue::String(s.clone()),
         }
@@ -185,10 +184,10 @@ impl Rem for &CnvValue {
 impl PartialEq for CnvValue {
     fn eq(&self, other: &Self) -> bool {
         match self {
-            CnvValue::Integer(i) => *i == other.to_integer(),
-            CnvValue::Double(d) => *d == other.to_double(),
-            CnvValue::Bool(b) => *b == other.to_boolean(),
-            CnvValue::String(s) => *s == other.to_string(),
+            CnvValue::Integer(i) => *i == other.to_int(),
+            CnvValue::Double(d) => *d == other.to_dbl(),
+            CnvValue::Bool(b) => *b == other.to_bool(),
+            CnvValue::String(s) => *s == other.to_str(),
         }
     }
 }

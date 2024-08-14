@@ -46,7 +46,7 @@ pub enum CompressionType {
 
 impl<'a> ImageData<'a> {
     pub fn to_rgba8888(&self, format: ColorFormat, compression: CompressionType) -> Arc<[u8]> {
-        let has_alpha = self.alpha.len() > 0;
+        let has_alpha = !self.alpha.is_empty();
         let color_data = match compression {
             CompressionType::None => self.color.to_owned(),
             CompressionType::Rle => decode_rle(self.color, 2),

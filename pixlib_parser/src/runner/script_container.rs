@@ -17,19 +17,19 @@ pub struct ScriptContainer {
 
 impl ScriptContainer {
     pub fn get_root_script(&self) -> Option<Arc<CnvScript>> {
-        self.vec.get(0).cloned()
+        self.vec.first().cloned()
     }
 
     pub fn get_application_script(&self) -> Option<Arc<CnvScript>> {
-        self.application_script.as_ref().map(Arc::clone)
+        self.application_script.clone()
     }
 
     pub fn get_episode_script(&self) -> Option<Arc<CnvScript>> {
-        self.episode_script.as_ref().map(Arc::clone)
+        self.episode_script.clone()
     }
 
     pub fn get_scene_script(&self) -> Option<Arc<CnvScript>> {
-        self.scene_script.as_ref().map(Arc::clone)
+        self.scene_script.clone()
     }
 
     pub fn get_script(&self, path: &ScenePath) -> Option<Arc<CnvScript>> {
@@ -51,7 +51,7 @@ impl ScriptContainer {
     pub fn remove_script(&mut self, path: &ScenePath) -> RunnerResult<()> {
         let Some(index) = self.vec.iter().position(|s| s.path == *path) else {
             return Err(RunnerError::ScriptNotFound {
-                path: path.to_string(),
+                path: path.to_str(),
             });
         };
         self.remove_script_at(index)

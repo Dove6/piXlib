@@ -32,11 +32,11 @@ impl CnvExpression for Expression {
             }
             Expression::Parameter(name) => Ok(context
                 .arguments
-                .get(usize::from_str_radix(&name, 10).unwrap() - 1)
+                .get(name.parse::<usize>().unwrap() - 1)
                 .cloned()),
             Expression::NameResolution(expression) => {
                 let name = &expression.calculate(context.clone())?.unwrap();
-                let name = name.to_string();
+                let name = name.to_str();
                 Ok(Some(CnvValue::String(name)))
             }
             Expression::FieldAccess(_expression, _field) => todo!(),
@@ -91,7 +91,7 @@ impl CnvExpression for Invocation {
                 .collect::<RunnerResult<Vec<_>>>()?;
             let arguments: Vec<_> = arguments.into_iter().map(|e| e.unwrap()).collect();
             // println!("Calling method: {:?} of: {:?}", self.name, self.parent);
-            let name = parent.to_string();
+            let name = parent.to_str();
             context
                 .runner
                 .get_object(&name)

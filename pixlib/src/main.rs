@@ -58,6 +58,7 @@ use zip::{result::ZipError, ZipArchive};
 const WINDOW_SIZE: (usize, usize) = (800, 600);
 const WINDOW_TITLE: &str = "piXlib";
 
+#[allow(clippy::arc_with_non_send_sync)]
 fn main() {
     let mut issue_manager: IssueManager<ObjectBuilderError> = Default::default();
     issue_manager.set_handler(Box::new(IssuePrinter));
@@ -168,6 +169,7 @@ impl FileSystem for LayeredFileSystem {
     fn write_file(&mut self, filename: &str, data: &[u8]) -> std::io::Result<()> {
         for filesystem in self.components.iter() {
             match filesystem.borrow_mut().write_file(filename, data) {
+                Err(e) if e.kind() == std::io::ErrorKind::Unsupported => continue,
                 Err(e) => return Err(e),
                 _ => return Ok(()),
             }
@@ -233,7 +235,7 @@ impl TryFrom<&Path> for CompressedPatch {
     type Error = ZipError;
 
     fn try_from(path: &Path) -> Result<Self, Self::Error> {
-        let file = File::open(path).map_err(|e| ZipError::Io(e))?;
+        let file = File::open(path).map_err(ZipError::Io)?;
         Self::new(file)
     }
 }

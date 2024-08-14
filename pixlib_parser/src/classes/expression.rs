@@ -43,9 +43,7 @@ impl Expression {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: ExpressionProperties) -> Self {
         Self {
             parent,
-            state: RefCell::new(ExpressionState {
-                ..Default::default()
-            }),
+            state: RefCell::new(ExpressionState {}),
             event_handlers: ExpressionEventHandlers {},
             operator: props.operator,
             left: props.operand1,
@@ -53,7 +51,7 @@ impl Expression {
         }
     }
 
-    ///
+    // custom
 
     pub fn calculate(&self) -> RunnerResult<CnvValue> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
@@ -110,10 +108,10 @@ impl CnvType for Expression {
     ) -> RunnerResult<Option<CnvValue>> {
         match name {
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -122,7 +120,7 @@ impl CnvType for Expression {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {

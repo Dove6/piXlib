@@ -9,12 +9,15 @@ edition = "2021"
 pixlib_formats = { path = "../pixlib_formats" }
 lazy_static = "1.4"
 thiserror = "1.0"
-lalrpop-util = { version = "0.20", features = ["lexer", "unicode"] }
+lalrpop-util = { version = "0.20", default-features = false, features = [
+    "lexer",
+    "unicode",
+] }
 chrono = "0.4"
 regex = "1.10"
 itertools = "0.12"
 string-interner = "0.17"
-xxhash-rust = { version = "0.8", features = ["xxh3"] }
+xxhash-rust = { version = "0.8", default-features = false, features = ["xxh3"] }
 keyboard-types = "0.7"
 rand = "0.8"
 libm = "0.2"

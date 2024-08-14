@@ -63,10 +63,7 @@ impl Behavior {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: BehaviorProperties) -> Self {
         Self {
             parent,
-            state: RefCell::new(BehaviorState {
-                is_enabled: true,
-                ..Default::default()
-            }),
+            state: RefCell::new(BehaviorState { is_enabled: true }),
             event_handlers: BehaviorEventHandlers {
                 on_done: props.on_done,
                 on_init: props.on_init,
@@ -159,10 +156,10 @@ impl CnvType for Behavior {
                 self.state.borrow().run_looped().map(|_| None)
             }
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -171,7 +168,7 @@ impl CnvType for Behavior {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {
@@ -195,8 +192,8 @@ impl CnvType for Behavior {
         for (k, v) in properties.iter() {
             if k == "ONSIGNAL" {
                 on_signal.insert(String::from(""), parse_event_handler(v.to_owned())?);
-            } else if k.starts_with("ONSIGNAL^") {
-                on_signal.insert(String::from(&k[9..]), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONSIGNAL^") {
+                on_signal.insert(String::from(argument), parse_event_handler(v.to_owned())?);
             }
         }
         properties.retain(|k, _| k != "ONSIGNAL" && !k.starts_with("ONSIGNAL^"));

@@ -57,9 +57,7 @@ impl Condition {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: ConditionProperties) -> Self {
         Self {
             parent,
-            state: RefCell::new(ConditionState {
-                ..Default::default()
-            }),
+            state: RefCell::new(ConditionState {}),
             event_handlers: ConditionEventHandlers {
                 on_runtime_failed: props.on_runtime_failed,
                 on_runtime_success: props.on_runtime_success,
@@ -109,10 +107,10 @@ impl CnvType for Condition {
                 self.state.borrow().one_break().map(|_| None)
             }
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -121,7 +119,7 @@ impl CnvType for Condition {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {
@@ -197,12 +195,12 @@ impl ConditionState {
             })
             .unwrap();
         let result = match condition.operator {
-            ConditionOperator::Equal => Ok(&left == &right),
-            ConditionOperator::NotEqual => Ok(&left != &right),
-            ConditionOperator::Less => Ok(left.to_double() < right.to_double()), // TODO: handle integers
-            ConditionOperator::LessEqual => Ok(left.to_double() <= right.to_double()),
-            ConditionOperator::Greater => Ok(left.to_double() > right.to_double()),
-            ConditionOperator::GreaterEqual => Ok(left.to_double() >= right.to_double()),
+            ConditionOperator::Equal => Ok(left == right),
+            ConditionOperator::NotEqual => Ok(left != right),
+            ConditionOperator::Less => Ok(left.to_dbl() < right.to_dbl()), // TODO: handle integers
+            ConditionOperator::LessEqual => Ok(left.to_dbl() <= right.to_dbl()),
+            ConditionOperator::Greater => Ok(left.to_dbl() > right.to_dbl()),
+            ConditionOperator::GreaterEqual => Ok(left.to_dbl() >= right.to_dbl()),
         };
         match result {
             Ok(false) => {

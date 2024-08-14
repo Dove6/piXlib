@@ -92,19 +92,19 @@ impl CnvType for Struct {
             CallableIdentifier::Method("GETFIELD") => self
                 .state
                 .borrow_mut()
-                .get_field(&arguments[0].to_string())
+                .get_field(&arguments[0].to_str())
                 .map(|_| None),
             CallableIdentifier::Method("SET") => self.state.borrow_mut().set().map(|_| None),
             CallableIdentifier::Method("SETFIELD") => self
                 .state
                 .borrow_mut()
-                .set_field(&arguments[0].to_string(), arguments[1].clone())
+                .set_field(&arguments[0].to_str(), arguments[1].clone())
                 .map(|_| None),
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -113,7 +113,7 @@ impl CnvType for Struct {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {

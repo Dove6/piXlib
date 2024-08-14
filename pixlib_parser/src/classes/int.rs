@@ -74,7 +74,6 @@ impl IntegerVar {
             state: RefCell::new(IntegerVarState {
                 value,
                 default_value: props.default.unwrap_or(value),
-                ..Default::default()
             }),
             event_handlers: IntegerVarEventHandlers {
                 on_brutal_changed: props.on_brutal_changed,
@@ -125,21 +124,17 @@ impl CnvType for IntegerVar {
             CallableIdentifier::Method("ADD") => self
                 .state
                 .borrow_mut()
-                .add(context, arguments[0].to_integer())
+                .add(context, arguments[0].to_int())
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("AND") => self
                 .state
                 .borrow_mut()
-                .and(context, arguments[0].to_integer())
+                .and(context, arguments[0].to_int())
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("CLAMP") => self
                 .state
                 .borrow_mut()
-                .clamp(
-                    context,
-                    arguments[0].to_integer(),
-                    arguments[1].to_integer(),
-                )
+                .clamp(context, arguments[0].to_int(), arguments[1].to_int())
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("CLEAR") => {
                 self.state.borrow_mut().clear(context).map(|_| None)
@@ -151,7 +146,7 @@ impl CnvType for IntegerVar {
             CallableIdentifier::Method("DIV") => self
                 .state
                 .borrow_mut()
-                .div(context, arguments[0].to_integer())
+                .div(context, arguments[0].to_int())
                 .map(|_| None),
             CallableIdentifier::Method("GET") => self
                 .state
@@ -162,12 +157,12 @@ impl CnvType for IntegerVar {
             CallableIdentifier::Method("MOD") => self
                 .state
                 .borrow_mut()
-                .modulus(context, arguments[0].to_integer())
+                .modulus(context, arguments[0].to_int())
                 .map(|_| None),
             CallableIdentifier::Method("MUL") => self
                 .state
                 .borrow_mut()
-                .mul(context, arguments[0].to_integer())
+                .mul(context, arguments[0].to_int())
                 .map(|_| None),
             CallableIdentifier::Method("NOT") => self
                 .state
@@ -177,12 +172,12 @@ impl CnvType for IntegerVar {
             CallableIdentifier::Method("OR") => self
                 .state
                 .borrow_mut()
-                .or(context, arguments[0].to_integer())
+                .or(context, arguments[0].to_int())
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("POWER") => self
                 .state
                 .borrow_mut()
-                .power(context, arguments[0].to_integer())
+                .power(context, arguments[0].to_int())
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("RANDOM") => {
                 self.state.borrow_mut().random(context).map(|_| None)
@@ -193,37 +188,33 @@ impl CnvType for IntegerVar {
             CallableIdentifier::Method("SET") => self
                 .state
                 .borrow_mut()
-                .set(context, arguments[0].to_integer())
+                .set(context, arguments[0].to_int())
                 .map(|_| None),
             CallableIdentifier::Method("SETDEFAULT") => self
                 .state
                 .borrow_mut()
-                .set_default(context, arguments[0].to_integer())
+                .set_default(context, arguments[0].to_int())
                 .map(|_| None),
             CallableIdentifier::Method("SUB") => self
                 .state
                 .borrow_mut()
-                .sub(context, arguments[0].to_integer())
+                .sub(context, arguments[0].to_int())
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Method("SWITCH") => self
                 .state
                 .borrow_mut()
-                .switch(
-                    context,
-                    arguments[0].to_integer(),
-                    arguments[1].to_integer(),
-                )
+                .switch(context, arguments[0].to_int(), arguments[1].to_int())
                 .map(|_| None),
             CallableIdentifier::Method("XOR") => self
                 .state
                 .borrow_mut()
-                .xor(context, arguments[0].to_integer())
+                .xor(context, arguments[0].to_int())
                 .map(|v| Some(CnvValue::Integer(v))),
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -232,7 +223,7 @@ impl CnvType for IntegerVar {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {
@@ -457,7 +448,7 @@ impl IntegerVarState {
         Ok(self.value)
     }
 
-    ///
+    // custom
 
     fn change_value(&mut self, context: RunnerContext, value: i32) {
         let changed = self.value != value;

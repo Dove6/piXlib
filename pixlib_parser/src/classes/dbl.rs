@@ -79,7 +79,6 @@ impl DoubleVar {
             state: RefCell::new(DoubleVarState {
                 value,
                 default_value: props.default.unwrap_or(value),
-                ..Default::default()
             }),
             event_handlers: DoubleVarEventHandlers {
                 on_brutal_changed: props.on_brutal_changed,
@@ -122,27 +121,27 @@ impl CnvType for DoubleVar {
             CallableIdentifier::Method("ADD") => self
                 .state
                 .borrow_mut()
-                .add(context, arguments[0].to_double())
+                .add(context, arguments[0].to_dbl())
                 .map(|v| Some(CnvValue::Double(v))),
             CallableIdentifier::Method("ARCTAN") => self
                 .state
                 .borrow_mut()
-                .arc_tan(context, arguments[0].to_double())
+                .arc_tan(context, arguments[0].to_dbl())
                 .map(|v| Some(CnvValue::Double(v))),
             CallableIdentifier::Method("ARCTANEX") => self
                 .state
                 .borrow_mut()
                 .arc_tan_ex(
                     context,
-                    arguments[0].to_double(),
-                    arguments[1].to_double(),
-                    arguments.get(2).map(|v| v.to_integer()),
+                    arguments[0].to_dbl(),
+                    arguments[1].to_dbl(),
+                    arguments.get(2).map(|v| v.to_int()),
                 )
                 .map(|v| Some(CnvValue::Double(v))),
             CallableIdentifier::Method("CLAMP") => self
                 .state
                 .borrow_mut()
-                .clamp(context, arguments[0].to_double(), arguments[1].to_double())
+                .clamp(context, arguments[0].to_dbl(), arguments[1].to_dbl())
                 .map(|v| Some(CnvValue::Double(v))),
             CallableIdentifier::Method("CLEAR") => {
                 self.state.borrow_mut().clear(context).map(|_| None)
@@ -153,13 +152,13 @@ impl CnvType for DoubleVar {
             CallableIdentifier::Method("COSINUS") => self
                 .state
                 .borrow_mut()
-                .cosinus(context, arguments[0].to_double())
+                .cosinus(context, arguments[0].to_dbl())
                 .map(|v| Some(CnvValue::Double(v))),
             CallableIdentifier::Method("DEC") => self.state.borrow_mut().dec(context).map(|_| None),
             CallableIdentifier::Method("DIV") => self
                 .state
                 .borrow_mut()
-                .div(context, arguments[0].to_double())
+                .div(context, arguments[0].to_dbl())
                 .map(|_| None),
             CallableIdentifier::Method("GET") => {
                 self.state.borrow().get().map(|v| Some(CnvValue::Double(v)))
@@ -168,12 +167,12 @@ impl CnvType for DoubleVar {
             CallableIdentifier::Method("LENGTH") => self
                 .state
                 .borrow_mut()
-                .length(context, arguments[0].to_double(), arguments[1].to_double())
+                .length(context, arguments[0].to_dbl(), arguments[1].to_dbl())
                 .map(|v| Some(CnvValue::Double(v))),
             CallableIdentifier::Method("LOG") => self
                 .state
                 .borrow_mut()
-                .log(context, arguments[0].to_double())
+                .log(context, arguments[0].to_dbl())
                 .map(|v| Some(CnvValue::Double(v))),
             CallableIdentifier::Method("MAXA") => {
                 if arguments.is_empty() {
@@ -184,7 +183,7 @@ impl CnvType for DoubleVar {
                 }
                 self.state
                     .borrow_mut()
-                    .max_a(context, arguments.iter().map(|v| v.to_double()))
+                    .max_a(context, arguments.iter().map(|v| v.to_dbl()))
                     .map(|v| Some(CnvValue::Double(v)))
             }
             CallableIdentifier::Method("MINA") => {
@@ -196,23 +195,23 @@ impl CnvType for DoubleVar {
                 }
                 self.state
                     .borrow_mut()
-                    .min_a(context, arguments.iter().map(|v| v.to_double()))
+                    .min_a(context, arguments.iter().map(|v| v.to_dbl()))
                     .map(|v| Some(CnvValue::Double(v)))
             }
             CallableIdentifier::Method("MOD") => self
                 .state
                 .borrow_mut()
-                .modulus(context, arguments[0].to_integer())
+                .modulus(context, arguments[0].to_int())
                 .map(|_| None),
             CallableIdentifier::Method("MUL") => self
                 .state
                 .borrow_mut()
-                .mul(context, arguments[0].to_double())
+                .mul(context, arguments[0].to_dbl())
                 .map(|_| None),
             CallableIdentifier::Method("POWER") => self
                 .state
                 .borrow_mut()
-                .power(context, arguments[0].to_double())
+                .power(context, arguments[0].to_dbl())
                 .map(|v| Some(CnvValue::Double(v))),
             CallableIdentifier::Method("RANDOM") => {
                 self.state.borrow_mut().random(context).map(|_| None)
@@ -228,12 +227,12 @@ impl CnvType for DoubleVar {
             CallableIdentifier::Method("SET") => self
                 .state
                 .borrow_mut()
-                .set(context, arguments[0].to_double())
+                .set(context, arguments[0].to_dbl())
                 .map(|_| None),
             CallableIdentifier::Method("SETDEFAULT") => self
                 .state
                 .borrow_mut()
-                .set_default(context, arguments[0].to_double())
+                .set_default(context, arguments[0].to_dbl())
                 .map(|_| None),
             CallableIdentifier::Method("SGN") => self
                 .state
@@ -243,7 +242,7 @@ impl CnvType for DoubleVar {
             CallableIdentifier::Method("SINUS") => self
                 .state
                 .borrow_mut()
-                .sinus(context, arguments[0].to_double())
+                .sinus(context, arguments[0].to_dbl())
                 .map(|v| Some(CnvValue::Double(v))),
             CallableIdentifier::Method("SQRT") => self
                 .state
@@ -253,18 +252,18 @@ impl CnvType for DoubleVar {
             CallableIdentifier::Method("SUB") => self
                 .state
                 .borrow_mut()
-                .sub(context, arguments[0].to_double())
+                .sub(context, arguments[0].to_dbl())
                 .map(|v| Some(CnvValue::Double(v))),
             CallableIdentifier::Method("SWITCH") => self
                 .state
                 .borrow_mut()
-                .switch(context, arguments[0].to_double(), arguments[1].to_double())
+                .switch(context, arguments[0].to_dbl(), arguments[1].to_dbl())
                 .map(|_| None),
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -273,7 +272,7 @@ impl CnvType for DoubleVar {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {
@@ -553,7 +552,7 @@ impl DoubleVarState {
         Ok(())
     }
 
-    ///
+    // custom
 
     fn change_value(&mut self, context: RunnerContext, value: f64) {
         let changed = self.value != value;

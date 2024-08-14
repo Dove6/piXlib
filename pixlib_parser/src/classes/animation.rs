@@ -181,7 +181,7 @@ impl Animation {
         self.state.borrow().get_priority()
     }
 
-    ///
+    // custom
 
     pub fn get_position(&self) -> RunnerResult<(isize, isize)> {
         Ok(self.state.borrow().position)
@@ -337,9 +337,7 @@ impl CnvType for Animation {
                 Ok(None)
             }
             CallableIdentifier::Method("GETNOFINEVENT") => {
-                self.state
-                    .borrow()
-                    .get_nof_in_event(&arguments[0].to_string());
+                self.state.borrow().get_nof_in_event(&arguments[0].to_str());
                 Ok(None)
             }
             CallableIdentifier::Method("GETOPACITY") => {
@@ -386,7 +384,7 @@ impl CnvType for Animation {
                 Ok(None)
             }
             CallableIdentifier::Method("ISNEAR") => {
-                let name = arguments[0].to_string();
+                let name = arguments[0].to_str();
                 let other = self
                     .parent
                     .parent
@@ -395,7 +393,7 @@ impl CnvType for Animation {
                     .ok_or(RunnerError::ObjectNotFound { name })?;
                 self.state
                     .borrow()
-                    .is_near(other, arguments[1].to_integer() as usize)
+                    .is_near(other, arguments[1].to_int() as usize)
                     .map(|v| Some(CnvValue::Bool(v)))
             }
             CallableIdentifier::Method("ISPLAYING") => {
@@ -410,7 +408,7 @@ impl CnvType for Animation {
             CallableIdentifier::Method("LOAD") => {
                 self.state
                     .borrow_mut()
-                    .load(context, &arguments[0].to_string())?;
+                    .load(context, &arguments[0].to_str())?;
                 Ok(None)
             }
             CallableIdentifier::Method("MERGEALPHA") => {
@@ -423,8 +421,8 @@ impl CnvType for Animation {
             }
             CallableIdentifier::Method("MOVE") => {
                 self.state.borrow_mut().move_by(
-                    arguments[0].to_integer() as isize,
-                    arguments[1].to_integer() as isize,
+                    arguments[0].to_int() as isize,
+                    arguments[1].to_int() as isize,
                 )?;
                 Ok(None)
             }
@@ -442,13 +440,13 @@ impl CnvType for Animation {
             CallableIdentifier::Method("PLAY") => self
                 .state
                 .borrow_mut()
-                .play(context, &arguments[0].to_string())
+                .play(context, &arguments[0].to_str())
                 .map(|_| None),
             CallableIdentifier::Method("PLAYRAND") => {
                 self.state.borrow_mut().play_rand(
-                    &arguments[0].to_string(),
-                    arguments[1].to_integer() as usize,
-                    arguments[2].to_integer() as usize,
+                    &arguments[0].to_str(),
+                    arguments[1].to_int() as usize,
+                    arguments[2].to_int() as usize,
                 );
                 Ok(None)
             }
@@ -476,15 +474,13 @@ impl CnvType for Animation {
                 self.state.borrow_mut().resume(context).map(|_| None)
             }
             CallableIdentifier::Method("SETANCHOR") => {
-                self.state
-                    .borrow_mut()
-                    .set_anchor(&arguments[0].to_string());
+                self.state.borrow_mut().set_anchor(&arguments[0].to_str());
                 Ok(None)
             }
             CallableIdentifier::Method("SETASBUTTON") => {
                 self.state
                     .borrow_mut()
-                    .set_as_button(arguments[0].to_boolean(), arguments[1].to_boolean());
+                    .set_as_button(arguments[0].to_bool(), arguments[1].to_bool());
                 Ok(None)
             }
             CallableIdentifier::Method("SETBACKWARD") => {
@@ -502,18 +498,18 @@ impl CnvType for Animation {
             CallableIdentifier::Method("SETFPS") => {
                 self.state
                     .borrow_mut()
-                    .set_fps(arguments[0].to_integer() as usize);
+                    .set_fps(arguments[0].to_int() as usize);
                 Ok(None)
             }
             CallableIdentifier::Method("SETFRAME") => match arguments.len() {
                 1 => self
                     .state
                     .borrow_mut()
-                    .set_frame(None, arguments[0].to_integer() as usize),
-                2 => self.state.borrow_mut().set_frame(
-                    Some(&arguments[0].to_string()),
-                    arguments[1].to_integer() as usize,
-                ),
+                    .set_frame(None, arguments[0].to_int() as usize),
+                2 => self
+                    .state
+                    .borrow_mut()
+                    .set_frame(Some(&arguments[0].to_str()), arguments[1].to_int() as usize),
                 0 => Err(RunnerError::TooFewArguments {
                     expected_min: 1,
                     actual: 0,
@@ -544,8 +540,8 @@ impl CnvType for Animation {
                 .state
                 .borrow_mut()
                 .set_position(
-                    arguments[0].to_integer() as isize,
-                    arguments[1].to_integer() as isize,
+                    arguments[0].to_int() as isize,
+                    arguments[1].to_int() as isize,
                 )
                 .map(|_| None),
             CallableIdentifier::Method("SETPRIORITY") => {
@@ -568,15 +564,15 @@ impl CnvType for Animation {
                 self.state.borrow_mut().stop(if arguments.is_empty() {
                     true
                 } else {
-                    arguments[0].to_boolean()
+                    arguments[0].to_bool()
                 });
                 Ok(None)
             }
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -585,7 +581,7 @@ impl CnvType for Animation {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {
@@ -1126,7 +1122,7 @@ impl AnimationState {
                 events.push_back(InternalEvent {
                     object: context.current_object.clone(),
                     callable: CallableIdentifier::Event("ONPAUSED").to_owned(),
-                    arguments: arguments,
+                    arguments,
                 });
             });
         Ok(())
@@ -1245,7 +1241,7 @@ impl AnimationState {
                 events.push_back(InternalEvent {
                     object: context.current_object.clone(),
                     callable: CallableIdentifier::Event("ONRESUMED").to_owned(),
-                    arguments: arguments,
+                    arguments,
                 });
             });
         Ok(())
@@ -1342,7 +1338,7 @@ impl AnimationState {
         todo!()
     }
 
-    ///
+    // custom
 
     pub fn get_max_frame_duration(&self) -> f64 {
         1f64 / (self.fps as f64)

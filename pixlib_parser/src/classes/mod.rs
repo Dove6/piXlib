@@ -21,7 +21,7 @@ pub trait CnvType: std::fmt::Debug {
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>>;
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError>
@@ -83,12 +83,10 @@ impl CnvType for DummyCnvType {
         _arguments: &[CnvValue],
         _context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
-        match name {
-            ident => todo!("{:?} {:?}", self.get_type_id(), ident),
-        }
+        todo!("{:?} {:?}", self.get_type_id(), name)
     }
 
-    fn new(
+    fn new_content(
         _parent: Arc<CnvObject>,
         _properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError>
@@ -108,37 +106,37 @@ impl CnvTypeFactory {
         properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {
         match type_name.as_ref() {
-            "ANIMO" => Animation::new(parent, properties),
-            "APPLICATION" => Application::new(parent, properties),
-            "ARRAY" => Array::new(parent, properties),
-            "BEHAVIOUR" => Behavior::new(parent, properties),
-            "BOOL" => BoolVar::new(parent, properties),
-            "BUTTON" => Button::new(parent, properties),
-            "CANVAS_OBSERVER" => CanvasObserver::new(parent, properties),
-            "CANVASOBSERVER" => CanvasObserver::new(parent, properties),
-            "CNVLOADER" => CnvLoader::new(parent, properties),
-            "CONDITION" => Condition::new(parent, properties),
-            "COMPLEXCONDITION" => ComplexCondition::new(parent, properties),
-            "DOUBLE" => DoubleVar::new(parent, properties),
-            "EPISODE" => Episode::new(parent, properties),
-            "EXPRESSION" => Expression::new(parent, properties),
-            "FONT" => Font::new(parent, properties),
-            "GROUP" => Group::new(parent, properties),
-            "IMAGE" => Image::new(parent, properties),
-            "INTEGER" => IntegerVar::new(parent, properties),
-            "KEYBOARD" => Keyboard::new(parent, properties),
-            "MOUSE" => Mouse::new(parent, properties),
-            "MULTIARRAY" => MultiArray::new(parent, properties),
-            "MUSIC" => Music::new(parent, properties),
-            "RAND" => Rand::new(parent, properties),
-            "SCENE" => Scene::new(parent, properties),
-            "SEQUENCE" => Sequence::new(parent, properties),
-            "SOUND" => Sound::new(parent, properties),
-            "STRING" => StringVar::new(parent, properties),
-            "STRUCT" => Struct::new(parent, properties),
-            "SYSTEM" => System::new(parent, properties),
-            "TEXT" => Text::new(parent, properties),
-            "TIMER" => Timer::new(parent, properties),
+            "ANIMO" => Animation::new_content(parent, properties),
+            "APPLICATION" => Application::new_content(parent, properties),
+            "ARRAY" => Array::new_content(parent, properties),
+            "BEHAVIOUR" => Behavior::new_content(parent, properties),
+            "BOOL" => BoolVar::new_content(parent, properties),
+            "BUTTON" => Button::new_content(parent, properties),
+            "CANVAS_OBSERVER" => CanvasObserver::new_content(parent, properties),
+            "CANVASOBSERVER" => CanvasObserver::new_content(parent, properties),
+            "CNVLOADER" => CnvLoader::new_content(parent, properties),
+            "CONDITION" => Condition::new_content(parent, properties),
+            "COMPLEXCONDITION" => ComplexCondition::new_content(parent, properties),
+            "DOUBLE" => DoubleVar::new_content(parent, properties),
+            "EPISODE" => Episode::new_content(parent, properties),
+            "EXPRESSION" => Expression::new_content(parent, properties),
+            "FONT" => Font::new_content(parent, properties),
+            "GROUP" => Group::new_content(parent, properties),
+            "IMAGE" => Image::new_content(parent, properties),
+            "INTEGER" => IntegerVar::new_content(parent, properties),
+            "KEYBOARD" => Keyboard::new_content(parent, properties),
+            "MOUSE" => Mouse::new_content(parent, properties),
+            "MULTIARRAY" => MultiArray::new_content(parent, properties),
+            "MUSIC" => Music::new_content(parent, properties),
+            "RAND" => Rand::new_content(parent, properties),
+            "SCENE" => Scene::new_content(parent, properties),
+            "SEQUENCE" => Sequence::new_content(parent, properties),
+            "SOUND" => Sound::new_content(parent, properties),
+            "STRING" => StringVar::new_content(parent, properties),
+            "STRUCT" => Struct::new_content(parent, properties),
+            "SYSTEM" => System::new_content(parent, properties),
+            "TEXT" => Text::new_content(parent, properties),
+            "TIMER" => Timer::new_content(parent, properties),
             _ => Err(TypeParsingError::UnknownType(type_name)),
         }
     }

@@ -82,7 +82,7 @@ impl Application {
         app
     }
 
-    ///
+    // custom
 
     pub fn get_episode_list(&self) -> Vec<String> {
         self.episodes.clone()
@@ -158,10 +158,10 @@ impl CnvType for Application {
                 self.state.borrow_mut().store_binary().map(|_| None)
             }
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -170,7 +170,7 @@ impl CnvType for Application {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {

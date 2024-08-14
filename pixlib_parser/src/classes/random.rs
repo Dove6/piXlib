@@ -36,9 +36,7 @@ impl Rand {
     pub fn from_initial_properties(parent: Arc<CnvObject>, _props: RandProperties) -> Self {
         Self {
             parent,
-            state: RefCell::new(RandState {
-                ..Default::default()
-            }),
+            state: RefCell::new(RandState {}),
             event_handlers: RandEventHandlers {},
         }
     }
@@ -69,13 +67,10 @@ impl CnvType for Rand {
                     expected_min: 1,
                     actual: 0,
                 }),
-                1 => self
-                    .state
-                    .borrow()
-                    .get(arguments[0].to_integer() as usize, 0),
+                1 => self.state.borrow().get(arguments[0].to_int() as usize, 0),
                 2 => self.state.borrow().get(
-                    arguments[1].to_integer() as usize,
-                    arguments[0].to_integer() as isize,
+                    arguments[1].to_int() as usize,
+                    arguments[0].to_int() as isize,
                 ),
                 arg_count => Err(RunnerError::TooManyArguments {
                     expected_max: 2,
@@ -87,10 +82,10 @@ impl CnvType for Rand {
                 self.state.borrow().get_plenty().map(|_| None)
             }
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -99,7 +94,7 @@ impl CnvType for Rand {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         _properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {

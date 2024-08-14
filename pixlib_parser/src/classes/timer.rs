@@ -85,10 +85,10 @@ impl Timer {
         }
     }
 
-    ///
+    // custom
 
     pub fn step(&self, seconds: f64) -> RunnerResult<()> {
-        self.state.borrow_mut().step(&self, seconds * 1000f64)
+        self.state.borrow_mut().step(self, seconds * 1000f64)
     }
 }
 
@@ -128,18 +128,18 @@ impl CnvType for Timer {
             CallableIdentifier::Method("SET") => self
                 .state
                 .borrow_mut()
-                .set(arguments[0].to_integer() as f64)
+                .set(arguments[0].to_int() as f64)
                 .map(|_| None),
             CallableIdentifier::Method("SETELAPSE") => self
                 .state
                 .borrow_mut()
-                .set_elapse(arguments[0].to_integer() as usize)
+                .set_elapse(arguments[0].to_int() as usize)
                 .map(|_| None),
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -148,7 +148,7 @@ impl CnvType for Timer {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {
@@ -271,7 +271,7 @@ impl TimerState {
         Ok(())
     }
 
-    ///
+    // custom
 
     pub fn step(&mut self, timer: &Timer, duration_ms: f64) -> RunnerResult<()> {
         if !self.is_enabled

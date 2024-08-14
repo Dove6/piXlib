@@ -111,7 +111,7 @@ impl FileSystem for InsertedDisk {
             info!("Read file {:?} ({} bytes)", filename, bytes_read);
             Ok(buffer)
         } else {
-            return Err(std::io::Error::from(std::io::ErrorKind::NotFound));
+            Err(std::io::Error::from(std::io::ErrorKind::NotFound))
         }
     }
 

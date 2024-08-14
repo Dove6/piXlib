@@ -39,9 +39,7 @@ impl CnvLoader {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: CnvLoaderProperties) -> Self {
         Self {
             parent,
-            state: RefCell::new(CnvLoaderState {
-                ..Default::default()
-            }),
+            state: RefCell::new(CnvLoaderState {}),
             event_handlers: CnvLoaderEventHandlers {},
             cnv_loader: props.cnv_loader.unwrap_or_default(),
         }
@@ -73,10 +71,10 @@ impl CnvType for CnvLoader {
                 self.state.borrow_mut().release().map(|_| None)
             }
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -85,7 +83,7 @@ impl CnvType for CnvLoader {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {

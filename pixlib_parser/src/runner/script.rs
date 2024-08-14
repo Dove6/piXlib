@@ -73,7 +73,7 @@ impl CnvScript {
     ) {
         buffer.clear();
         for object in self.objects.borrow().iter() {
-            if predicate(&object) {
+            if predicate(object) {
                 buffer.push(Arc::clone(object));
             }
         }

@@ -113,7 +113,6 @@ impl Button {
                 graphics_on_click: props.gfx_on_click,
                 priority: props.priority.unwrap_or_default() as isize,
                 rect: props.rect,
-                ..Default::default()
             }),
             event_handlers: ButtonEventHandlers {
                 on_action: props.on_action,
@@ -195,10 +194,10 @@ impl CnvType for Button {
             CallableIdentifier::Method("SETSTD") => self.state.borrow_mut().set_std().map(|_| None),
             CallableIdentifier::Method("SYN") => self.state.borrow_mut().syn().map(|_| None),
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -207,7 +206,7 @@ impl CnvType for Button {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {

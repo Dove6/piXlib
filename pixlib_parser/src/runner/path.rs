@@ -24,14 +24,14 @@ impl ScenePath {
         }
     }
 
-    pub fn to_string(&self) -> String {
-        self.dir_path.with_appended(&self.file_path).to_string()
+    pub fn to_str(&self) -> String {
+        self.dir_path.with_appended(&self.file_path).to_str()
     }
 }
 
 impl From<ScenePath> for String {
     fn from(value: ScenePath) -> Self {
-        value.to_string()
+        value.to_str()
     }
 }
 
@@ -84,7 +84,7 @@ fn canonicalize_str(path_str: &str) -> String {
     result.to_string()
 }
 
-fn iter_segments(path_str: &str) -> impl Iterator<Item = &str> + DoubleEndedIterator {
+fn iter_segments(path_str: &str) -> impl DoubleEndedIterator<Item = &str> {
     path_str.split('/')
 }
 
@@ -92,7 +92,7 @@ fn remove_first_n_segments(path_str: &mut String, n: usize) {
     if n == 0 {
         return;
     }
-    if let Some((split_position, _)) = path_str.match_indices('/').skip(n).next() {
+    if let Some((split_position, _)) = path_str.match_indices('/').nth(n) {
         path_str.drain(..(split_position + 1));
     } else {
         path_str.clear();
@@ -104,7 +104,7 @@ fn remove_last_n_segments(path_str: &mut String, n: usize) {
     if n == 0 {
         return;
     }
-    if let Some((split_position, _)) = path_str.rmatch_indices('/').skip(n).next() {
+    if let Some((split_position, _)) = path_str.rmatch_indices('/').nth(n) {
         path_str.drain(split_position..);
     } else {
         path_str.clear();
@@ -177,14 +177,14 @@ impl Path {
         cloned
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn to_str(&self) -> String {
         self.buffer.clone()
     }
 }
 
 impl From<Path> for String {
     fn from(value: Path) -> Self {
-        value.to_string()
+        value.to_str()
     }
 }
 
@@ -336,7 +336,7 @@ mod tests {
     ) {
         let mut path = Path::from(original_path);
         path.append(appended_path);
-        assert_eq!(path.to_string(), expected);
+        assert_eq!(path.to_str(), expected);
     }
 
     #[test_case(
@@ -359,6 +359,6 @@ mod tests {
     ) {
         let mut path = Path::from(original_path);
         path.prepend(prepended_path);
-        assert_eq!(path.to_string(), expected);
+        assert_eq!(path.to_str(), expected);
     }
 }

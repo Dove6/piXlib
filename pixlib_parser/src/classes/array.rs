@@ -191,10 +191,10 @@ impl CnvType for Array {
             CallableIdentifier::Method("SUMA") => self.state.borrow_mut().sum_a().map(|_| None),
             CallableIdentifier::Method("SWAP") => self.state.borrow_mut().swap().map(|_| None),
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -203,7 +203,7 @@ impl CnvType for Array {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {

@@ -74,7 +74,6 @@ impl BoolVar {
             state: RefCell::new(BoolVarState {
                 value: if value { 1 } else { 0 },
                 default_value: props.default.unwrap_or(value),
-                ..Default::default()
             }),
             event_handlers: BoolVarEventHandlers {
                 on_brutal_changed: props.on_brutal_changed,
@@ -117,7 +116,7 @@ impl CnvType for BoolVar {
             CallableIdentifier::Method("AND") => self
                 .state
                 .borrow_mut()
-                .and(context, arguments[0].to_integer())
+                .and(context, arguments[0].to_int())
                 .map(|_| None),
             CallableIdentifier::Method("CLEAR") => {
                 self.state.borrow_mut().clear(context).map(|_| None)
@@ -134,7 +133,7 @@ impl CnvType for BoolVar {
             CallableIdentifier::Method("OR") => self
                 .state
                 .borrow_mut()
-                .or(context, arguments[0].to_integer())
+                .or(context, arguments[0].to_int())
                 .map(|_| None),
             CallableIdentifier::Method("RANDOM") => {
                 self.state.borrow_mut().random(context).map(|_| None)
@@ -145,12 +144,12 @@ impl CnvType for BoolVar {
             CallableIdentifier::Method("SET") => self
                 .state
                 .borrow_mut()
-                .set(context, arguments[0].to_boolean())
+                .set(context, arguments[0].to_bool())
                 .map(|_| None),
             CallableIdentifier::Method("SETDEFAULT") => self
                 .state
                 .borrow_mut()
-                .set_default(context, arguments[0].to_boolean())
+                .set_default(context, arguments[0].to_bool())
                 .map(|_| None),
             CallableIdentifier::Method("SWITCH") => {
                 self.state.borrow_mut().switch(context).map(|_| None)
@@ -158,13 +157,13 @@ impl CnvType for BoolVar {
             CallableIdentifier::Method("XOR") => self
                 .state
                 .borrow_mut()
-                .xor(context, arguments[0].to_integer())
+                .xor(context, arguments[0].to_int())
                 .map(|_| None),
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -173,7 +172,7 @@ impl CnvType for BoolVar {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {
@@ -358,7 +357,7 @@ impl BoolVarState {
         Ok(self.value)
     }
 
-    ///
+    // custom
 
     fn change_value(&mut self, context: RunnerContext, value: i32) {
         let old_value = self.get().unwrap();

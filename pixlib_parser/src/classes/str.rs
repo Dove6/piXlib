@@ -74,7 +74,6 @@ impl StringVar {
             state: RefCell::new(StringVarState {
                 default_value: props.default.unwrap_or(value.clone()),
                 value,
-                ..Default::default()
             }),
             event_handlers: StringVarEventHandlers {
                 on_brutal_changed: props.on_brutal_changed,
@@ -122,7 +121,7 @@ impl CnvType for StringVar {
             CallableIdentifier::Method("ADD") => self
                 .state
                 .borrow_mut()
-                .add(context, &arguments[0].to_string())
+                .add(context, &arguments[0].to_str())
                 .map(|v| Some(CnvValue::String(v))),
             CallableIdentifier::Method("CLEAR") => {
                 self.state.borrow_mut().clear(context).map(|_| None)
@@ -135,16 +134,16 @@ impl CnvType for StringVar {
                 .borrow_mut()
                 .cut(
                     context,
-                    arguments[0].to_integer() as usize,
-                    arguments[1].to_integer() as usize,
+                    arguments[0].to_int() as usize,
+                    arguments[1].to_int() as usize,
                 )
                 .map(|_| None),
             CallableIdentifier::Method("FIND") => self
                 .state
                 .borrow()
                 .find(
-                    &arguments[0].to_string(),
-                    arguments.get(1).map(|v| v.to_integer() as usize),
+                    &arguments[0].to_str(),
+                    arguments.get(1).map(|v| v.to_int() as usize),
                 )
                 .map(|v| v.map(|u| u as i32).unwrap_or(-1))
                 .map(|v| Some(CnvValue::Integer(v))),
@@ -152,8 +151,8 @@ impl CnvType for StringVar {
                 .state
                 .borrow()
                 .get(
-                    arguments.get(0).map(|v| v.to_integer() as usize),
-                    arguments.get(1).map(|v| v.to_integer() as usize),
+                    arguments.first().map(|v| v.to_int() as usize),
+                    arguments.get(1).map(|v| v.to_int() as usize),
                 )
                 .map(|v| Some(CnvValue::String(v))),
             CallableIdentifier::Method("INSERTAT") => self
@@ -161,18 +160,15 @@ impl CnvType for StringVar {
                 .borrow_mut()
                 .insert_at(
                     context,
-                    arguments[0].to_integer() as usize,
-                    &arguments[1].to_string(),
-                    arguments
-                        .get(2)
-                        .map(|v| v.to_integer() as usize)
-                        .unwrap_or(1),
+                    arguments[0].to_int() as usize,
+                    &arguments[1].to_str(),
+                    arguments.get(2).map(|v| v.to_int() as usize).unwrap_or(1),
                 )
                 .map(|_| None),
             CallableIdentifier::Method("ISUPPERLETTER") => self
                 .state
                 .borrow()
-                .is_upper_letter(arguments[0].to_integer() as usize)
+                .is_upper_letter(arguments[0].to_int() as usize)
                 .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("LENGTH") => self
                 .state
@@ -189,19 +185,15 @@ impl CnvType for StringVar {
             CallableIdentifier::Method("REPLACE") => self
                 .state
                 .borrow_mut()
-                .replace(
-                    context,
-                    &arguments[0].to_string(),
-                    &arguments[1].to_string(),
-                )
+                .replace(context, &arguments[0].to_str(), &arguments[1].to_str())
                 .map(|_| None),
             CallableIdentifier::Method("REPLACEAT") => self
                 .state
                 .borrow_mut()
                 .replace_at(
                     context,
-                    arguments[0].to_integer() as usize,
-                    &arguments[1].to_string(),
+                    arguments[0].to_int() as usize,
+                    &arguments[1].to_str(),
                 )
                 .map(|_| None),
             CallableIdentifier::Method("RESETINI") => {
@@ -210,39 +202,35 @@ impl CnvType for StringVar {
             CallableIdentifier::Method("SET") => self
                 .state
                 .borrow_mut()
-                .set(context, &arguments[0].to_string())
+                .set(context, &arguments[0].to_str())
                 .map(|_| None),
             CallableIdentifier::Method("SETDEFAULT") => self
                 .state
                 .borrow_mut()
-                .set_default(context, &arguments[0].to_string())
+                .set_default(context, &arguments[0].to_str())
                 .map(|_| None),
             CallableIdentifier::Method("SUB") => self
                 .state
                 .borrow_mut()
                 .sub(
                     context,
-                    arguments[0].to_integer() as usize,
-                    arguments[1].to_integer() as usize,
+                    arguments[0].to_int() as usize,
+                    arguments[1].to_int() as usize,
                 )
                 .map(|_| None),
             CallableIdentifier::Method("SWITCH") => self
                 .state
                 .borrow_mut()
-                .switch(
-                    context,
-                    &arguments[0].to_string(),
-                    &arguments[1].to_string(),
-                )
+                .switch(context, &arguments[0].to_str(), &arguments[1].to_str())
                 .map(|_| None),
             CallableIdentifier::Method("UPPER") => {
                 self.state.borrow_mut().upper(context).map(|_| None)
             }
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -251,7 +239,7 @@ impl CnvType for StringVar {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {
@@ -406,9 +394,9 @@ impl StringVarState {
         // ISUPPERLETTER
         Ok(self
             .value
-            .bytes()
-            .skip(index)
-            .next()
+            .as_bytes()
+            .get(index)
+            .copied()
             .map(|b| b.is_ascii_uppercase())
             .unwrap_or_default())
     }
@@ -512,7 +500,7 @@ impl StringVarState {
         Ok(())
     }
 
-    ///
+    // custom
 
     fn change_value(&mut self, context: RunnerContext, value: String) {
         let changed = self.value != value;

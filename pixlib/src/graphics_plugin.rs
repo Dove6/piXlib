@@ -263,11 +263,11 @@ pub fn update_images(
             script_path,
             object_index,
             object_name: _,
-        } = &*marker
+        } = marker
         else {
             continue;
         };
-        let Some(script) = runner.get_script(&script_path) else {
+        let Some(script) = runner.get_script(script_path) else {
             continue;
         };
         let Some(object) = script.objects.borrow().get_object_at(*object_index) else {
@@ -332,11 +332,11 @@ pub fn update_animations(
             script_path,
             object_index,
             object_name: _,
-        } = &*marker
+        } = marker
         else {
             continue;
         };
-        let Some(script) = runner.get_script(&script_path) else {
+        let Some(script) = runner.get_script(script_path) else {
             continue;
         };
         let Some(object) = script.objects.borrow().get_object_at(*object_index) else {

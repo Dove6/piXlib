@@ -53,9 +53,7 @@ impl Episode {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: EpisodeProperties) -> Self {
         let mut episode = Self {
             parent,
-            state: RefCell::new(EpisodeState {
-                ..Default::default()
-            }),
+            state: RefCell::new(EpisodeState {}),
             event_handlers: EpisodeEventHandlers {},
             author: props.author.unwrap_or_default(),
             creation_time: props.creation_time,
@@ -72,7 +70,7 @@ impl Episode {
         episode
     }
 
-    ///
+    // custom
 
     pub fn get_script_path(&self) -> Option<String> {
         self.path.clone()
@@ -114,7 +112,7 @@ impl CnvType for Episode {
             CallableIdentifier::Method("GOTO") => self
                 .state
                 .borrow_mut()
-                .go_to(self, &arguments[0].to_string())
+                .go_to(self, &arguments[0].to_str())
                 .map(|_| None),
             CallableIdentifier::Method("NEXT") => self.state.borrow_mut().next().map(|_| None),
             CallableIdentifier::Method("PREV") => self.state.borrow_mut().prev().map(|_| None),
@@ -122,10 +120,10 @@ impl CnvType for Episode {
                 self.state.borrow_mut().restart().map(|_| None)
             }
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -134,7 +132,7 @@ impl CnvType for Episode {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {

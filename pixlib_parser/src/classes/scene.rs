@@ -142,7 +142,7 @@ impl Scene {
         scene
     }
 
-    ///
+    // custom
 
     pub fn get_script_path(&self) -> Option<String> {
         self.path.clone()
@@ -160,7 +160,7 @@ impl Scene {
         let mut state = self.state.borrow_mut();
         if let ImageFileData::NotLoaded(filename) = &state.background_data {
             let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
-            let path = ScenePath::new(self.path.as_ref().unwrap(), &filename);
+            let path = ScenePath::new(self.path.as_ref().unwrap(), filename);
             state.load_background(context, &path)?;
         } else if let ImageFileData::Empty = &state.background_data {
             return Err(RunnerError::MissingFilenameToLoad);
@@ -253,8 +253,8 @@ impl CnvType for Scene {
                 .borrow_mut()
                 .run(
                     context,
-                    arguments[0].to_string(),
-                    arguments[1].to_string(),
+                    arguments[0].to_str(),
+                    arguments[1].to_str(),
                     arguments.iter().skip(2).map(|v| v.to_owned()).collect(),
                 )
                 .map(|_| None),
@@ -282,12 +282,14 @@ impl CnvType for Scene {
             CallableIdentifier::Method("STOPMUSIC") => {
                 self.state.borrow_mut().stop_music().map(|_| None)
             }
-            CallableIdentifier::Method("TOTIME") => self.state.borrow_mut().to_time().map(|_| None),
+            CallableIdentifier::Method("TOTIME") => {
+                self.state.borrow_mut().convert_to_time().map(|_| None)
+            }
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -296,7 +298,7 @@ impl CnvType for Scene {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {
@@ -401,11 +403,11 @@ impl Initable for Scene {
     fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
         let mut state = self.state.borrow_mut();
         if let ImageFileData::NotLoaded(filename) = &state.background_data {
-            let path = ScenePath::new(self.path.as_ref().unwrap(), &filename);
+            let path = ScenePath::new(self.path.as_ref().unwrap(), filename);
             state.load_background(context.clone(), &path)?;
         };
         if let SoundFileData::NotLoaded(filename) = &state.music_data {
-            let path = ScenePath::new(self.path.as_ref().unwrap(), &filename);
+            let path = ScenePath::new(self.path.as_ref().unwrap(), filename);
             state.load_music(context.clone(), &path)?;
         };
         context
@@ -574,12 +576,12 @@ impl SceneState {
         todo!()
     }
 
-    pub fn to_time(&mut self) -> RunnerResult<()> {
+    pub fn convert_to_time(&mut self) -> RunnerResult<()> {
         // TOTIME
         todo!()
     }
 
-    ///
+    // custom
 
     pub fn load_background(
         &mut self,

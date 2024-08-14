@@ -8,7 +8,7 @@ cdfs = { git = "https://github.com/Dove6/cdfs.git", branch = "fix/threading" }
 pixlib_formats = { path = "../pixlib_formats" }
 pixlib_parser = { path = "../pixlib_parser" }
 codepage-strings = "1"
-bevy = { version = "0.13", default_features = false, features = [
+bevy = { version = "0.13", default-features = false, features = [
     "bevy_asset",
     # "bevy_audio",
     "bevy_core_pipeline",
@@ -30,7 +30,7 @@ bevy = { version = "0.13", default_features = false, features = [
 ] }
 bevy_kira_audio = { version = "0.19" }
 regex = "1.10"
-zip = { version = "2.1", default_features = false, features = [
+zip = { version = "2.1", default-features = false, features = [
     "deflate",
     "time",
 ] }

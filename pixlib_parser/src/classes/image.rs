@@ -144,7 +144,7 @@ impl Image {
         self.state.borrow().get_priority()
     }
 
-    ///
+    // custom
 
     pub fn get_position(&self) -> RunnerResult<(isize, isize)> {
         Ok(self.state.borrow().position)
@@ -257,7 +257,7 @@ impl CnvType for Image {
             CallableIdentifier::Method("LOAD") => self
                 .state
                 .borrow_mut()
-                .load(context, &arguments[0].to_string())
+                .load(context, &arguments[0].to_str())
                 .map(|_| None),
             CallableIdentifier::Method("MERGEALPHA") => {
                 self.state.borrow_mut().merge_alpha().map(|_| None)
@@ -272,8 +272,8 @@ impl CnvType for Image {
                 .state
                 .borrow_mut()
                 .move_by(
-                    arguments[0].to_integer() as isize,
-                    arguments[1].to_integer() as isize,
+                    arguments[0].to_int() as isize,
+                    arguments[1].to_int() as isize,
                 )
                 .map(|_| None),
             CallableIdentifier::Method("REMOVEMONITORCOLLISION") => self
@@ -307,8 +307,8 @@ impl CnvType for Image {
                 .state
                 .borrow_mut()
                 .set_position(
-                    arguments[0].to_integer() as isize,
-                    arguments[1].to_integer() as isize,
+                    arguments[0].to_int() as isize,
+                    arguments[1].to_int() as isize,
                 )
                 .map(|_| None),
             CallableIdentifier::Method("SETPRIORITY") => {
@@ -322,10 +322,10 @@ impl CnvType for Image {
             }
             CallableIdentifier::Method("SHOW") => self.state.borrow_mut().show().map(|_| None),
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -334,7 +334,7 @@ impl CnvType for Image {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {

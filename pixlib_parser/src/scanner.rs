@@ -183,7 +183,7 @@ mod buf_iter_tests {
     fn buffer_should_be_empty_just_after_creation() {
         let input = "1234567890";
         let capacity = 2;
-        let iter_buf = IterBuf::with_capacity(capacity, input.bytes().map(|b| Ok(b)).into_iter());
+        let iter_buf = IterBuf::with_capacity(capacity, input.bytes().map(Ok));
 
         assert!(iter_buf.is_empty());
         assert_eq!(iter_buf.peek(), None);
@@ -193,8 +193,7 @@ mod buf_iter_tests {
     fn refill_should_refill_the_buffer_if_possible() {
         let input = "1234567890";
         let capacity = 2;
-        let mut iter_buf =
-            IterBuf::with_capacity(capacity, input.bytes().map(|b| Ok(b)).into_iter());
+        let mut iter_buf = IterBuf::with_capacity(capacity, input.bytes().map(Ok));
         assert!(iter_buf.refill().is_ok());
 
         assert!(!iter_buf.is_empty());
@@ -207,8 +206,7 @@ mod buf_iter_tests {
     fn advance_should_move_full_buffer_by_one_byte() {
         let input = "1234567890";
         let capacity = 2;
-        let mut iter_buf =
-            IterBuf::with_capacity(capacity, input.bytes().map(|b| Ok(b)).into_iter());
+        let mut iter_buf = IterBuf::with_capacity(capacity, input.bytes().map(Ok));
         iter_buf.refill().unwrap();
         assert!(iter_buf.advance().is_ok());
 
@@ -222,8 +220,7 @@ mod buf_iter_tests {
     fn advance_should_skip_one_byte_and_refill_if_the_buffer_is_empty() {
         let input = "1234567890";
         let capacity = 2;
-        let mut iter_buf =
-            IterBuf::with_capacity(capacity, input.bytes().map(|b| Ok(b)).into_iter());
+        let mut iter_buf = IterBuf::with_capacity(capacity, input.bytes().map(Ok));
         assert!(iter_buf.advance().is_ok());
 
         assert!(!iter_buf.is_empty());
@@ -236,8 +233,7 @@ mod buf_iter_tests {
     fn advance_n_with_n_equal_to_1_should_work_just_as_advance_for_full_buffer() {
         let input = "1234567890";
         let capacity = 2;
-        let mut iter_buf =
-            IterBuf::with_capacity(capacity, input.bytes().map(|b| Ok(b)).into_iter());
+        let mut iter_buf = IterBuf::with_capacity(capacity, input.bytes().map(Ok));
         iter_buf.refill().unwrap();
         assert!(iter_buf.advance_n(1).is_ok());
 
@@ -251,8 +247,7 @@ mod buf_iter_tests {
     fn advance_n_with_n_equal_to_1_should_work_just_as_advance_for_empty_buffer() {
         let input = "1234567890";
         let capacity = 2;
-        let mut iter_buf =
-            IterBuf::with_capacity(capacity, input.bytes().map(|b| Ok(b)).into_iter());
+        let mut iter_buf = IterBuf::with_capacity(capacity, input.bytes().map(Ok));
         assert!(iter_buf.advance_n(1).is_ok());
 
         assert!(!iter_buf.is_empty());
@@ -265,8 +260,7 @@ mod buf_iter_tests {
     fn advance_n_should_work_correctly_for_n_equal_to_capacity_and_full_buffer() {
         let input = "1234567890";
         let capacity = 2;
-        let mut iter_buf =
-            IterBuf::with_capacity(capacity, input.bytes().map(|b| Ok(b)).into_iter());
+        let mut iter_buf = IterBuf::with_capacity(capacity, input.bytes().map(Ok));
         iter_buf.refill().unwrap();
         assert!(iter_buf.advance_n(capacity).is_ok());
 
@@ -280,8 +274,7 @@ mod buf_iter_tests {
     fn advance_n_should_work_correctly_for_n_equal_to_capacity_and_empty_buffer() {
         let input = "1234567890";
         let capacity = 2;
-        let mut iter_buf =
-            IterBuf::with_capacity(capacity, input.bytes().map(|b| Ok(b)).into_iter());
+        let mut iter_buf = IterBuf::with_capacity(capacity, input.bytes().map(Ok));
         assert!(iter_buf.advance_n(capacity).is_ok());
 
         assert!(!iter_buf.is_empty());
@@ -294,8 +287,7 @@ mod buf_iter_tests {
     fn advance_n_should_work_correctly_for_n_above_capacity() {
         let input = "1234567890";
         let capacity = 2;
-        let mut iter_buf =
-            IterBuf::with_capacity(capacity, input.bytes().map(|b| Ok(b)).into_iter());
+        let mut iter_buf = IterBuf::with_capacity(capacity, input.bytes().map(Ok));
         iter_buf.refill().unwrap();
         assert!(iter_buf.advance_n(3).is_ok());
 
@@ -309,8 +301,7 @@ mod buf_iter_tests {
     fn advance_n_should_work_correctly_for_n_above_capacity_and_empty_buffer() {
         let input = "1234567890";
         let capacity = 2;
-        let mut iter_buf =
-            IterBuf::with_capacity(capacity, input.bytes().map(|b| Ok(b)).into_iter());
+        let mut iter_buf = IterBuf::with_capacity(capacity, input.bytes().map(Ok));
         assert!(iter_buf.advance_n(3).is_ok());
 
         assert!(!iter_buf.is_empty());
@@ -644,15 +635,11 @@ mod tests {
     use test_case::test_case;
 
     fn iter_from(string: &str) -> impl Iterator<Item = std::io::Result<char>> + '_ {
-        string.chars().map(|x| Ok(x)).into_iter()
+        string.chars().map(Ok)
     }
 
     fn into_iter_from(string: String) -> impl Iterator<Item = std::io::Result<char>> {
-        string
-            .chars()
-            .map(|x| Ok(x))
-            .collect::<Vec<_>>()
-            .into_iter()
+        string.chars().map(Ok).collect::<Vec<_>>().into_iter()
     }
 
     #[test]
@@ -711,7 +698,7 @@ mod tests {
         for i in 0..input.len() {
             assert_eq!(
                 scanner.next().unwrap().unwrap().1,
-                input.chars().skip(i).next().unwrap()
+                input.chars().nth(i).unwrap()
             );
         }
         assert!(scanner.next().is_none());
@@ -735,7 +722,7 @@ mod tests {
     fn sequence_of_newline_characters_should_be_interpreted_properly() {
         let newlines = ["\n", "\n", "\n\r", "\n\r", "\r", "\r\n", "\x1e", "\x1e"];
         let input = newlines.join("");
-        let mut scanner = CnvScanner::new(input.chars().map(|x| Ok(x)));
+        let mut scanner = CnvScanner::new(input.chars().map(Ok));
         for _ in 0..newlines.len() {
             assert_eq!(scanner.next().unwrap().unwrap().1, '\n');
         }
@@ -759,7 +746,7 @@ mod tests {
     #[test]
     fn io_error_should_be_passed_through_properly() {
         let expected_err_kind = std::io::ErrorKind::TimedOut;
-        let mut scanner = CnvScanner::new(std::iter::once(Err(expected_err_kind.clone().into())));
+        let mut scanner = CnvScanner::new(std::iter::once(Err(expected_err_kind.into())));
         assert_eq!(
             scanner.next().unwrap().unwrap_err().kind(),
             expected_err_kind

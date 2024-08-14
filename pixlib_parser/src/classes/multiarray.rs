@@ -83,10 +83,10 @@ impl CnvType for MultiArray {
             CallableIdentifier::Method("SAVE") => self.state.borrow_mut().save().map(|_| None),
             CallableIdentifier::Method("SET") => self.state.borrow_mut().set().map(|_| None),
             CallableIdentifier::Event(event_name) => {
-                if let Some(code) = self.event_handlers.get(
-                    event_name,
-                    arguments.get(0).map(|v| v.to_string()).as_deref(),
-                ) {
+                if let Some(code) = self
+                    .event_handlers
+                    .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
+                {
                     code.run(context)?;
                 }
                 Ok(None)
@@ -95,7 +95,7 @@ impl CnvType for MultiArray {
         }
     }
 
-    fn new(
+    fn new_content(
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {

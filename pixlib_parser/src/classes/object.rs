@@ -28,6 +28,7 @@ pub struct CnvObjectBuilder {
     properties: HashMap<String, String>,
 }
 
+#[allow(clippy::arc_with_non_send_sync)]
 impl CnvObjectBuilder {
     pub fn new(parent: Arc<CnvScript>, name: String, index: usize) -> Self {
         Self {
@@ -145,7 +146,7 @@ impl CnvObject {
         self.content.borrow().call_method(
             identifier,
             &arguments
-                .into_iter()
+                .iter()
                 .map(|v| v.to_owned().resolve(context.clone()))
                 .collect::<Vec<_>>(),
             context,

@@ -229,6 +229,7 @@ impl RunnerContext {
     }
 }
 
+#[allow(clippy::arc_with_non_send_sync)]
 impl CnvRunner {
     pub fn new(
         filesystem: Arc<RefCell<dyn FileSystem>>,
@@ -366,17 +367,13 @@ impl CnvRunner {
         script
             .objects
             .borrow_mut()
-            .push_objects(
-                objects
-                    .into_iter()
-                    .filter_map(|builder| match builder.build() {
-                        Ok(built_object) => Some(built_object),
-                        Err(e) => {
-                            issue_manager.emit_issue(e);
-                            panic!();
-                        }
-                    }),
-            )?;
+            .push_objects(objects.into_iter().map(|builder| match builder.build() {
+                Ok(built_object) => built_object,
+                Err(e) => {
+                    issue_manager.emit_issue(e);
+                    panic!();
+                }
+            }))?;
 
         let mut container = self.scripts.borrow_mut();
         container.push_script(script)?; // TODO: err if present
@@ -403,7 +400,7 @@ impl CnvRunner {
         buffer.clear();
         for script in self.scripts.borrow().iter() {
             if predicate(script.as_ref()) {
-                buffer.push(Arc::clone(&script));
+                buffer.push(Arc::clone(script));
             }
         }
     }
@@ -441,7 +438,7 @@ impl CnvRunner {
         }
         for script in self.scripts.borrow().iter() {
             for object in script.objects.borrow().iter() {
-                if predicate(&object) {
+                if predicate(object) {
                     return Some(Arc::clone(object));
                 }
             }
@@ -462,7 +459,7 @@ impl CnvRunner {
         }
         for script in self.scripts.borrow().iter() {
             for object in script.objects.borrow().iter() {
-                if predicate(&object) {
+                if predicate(object) {
                     buffer.push(Arc::clone(object));
                 }
             }
