@@ -14,25 +14,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - uses: webfactory/ssh-agent@v0.8.0
-      with:
-        ssh-private-key: ${{ secrets.FORMATS_DEPLOY_KEY }}
     - name: Install dependencies
       run: sudo apt-get install g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --all --verbose
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --all --verbose
   format:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - uses: webfactory/ssh-agent@v0.8.0
-      with:
-        ssh-private-key: ${{ secrets.FORMATS_DEPLOY_KEY }}
     - name: Install dependencies
       run: sudo apt-get install g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0
     - name: Check formatting
-      run: cargo fmt --check
+      run: cargo fmt --all --check
     - name: Check code quality
-      run: cargo clippy -- -Dwarnings
+      run: cargo clippy --all -- -Dwarnings
