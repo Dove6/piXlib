@@ -12,7 +12,7 @@ pub struct Position {
     pub column: usize,
 }
 
-// TODO: this is plainly invalid
+// FIXME: this is plainly invalid
 impl Add<usize> for &Position {
     type Output = Position;
 
@@ -87,32 +87,6 @@ impl Bounds {
             end: position,
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WithPosition<T> {
-    pub value: T,
-    pub position: Position,
-}
-
-impl<T> WithPosition<T> {
-    pub fn new(value: T, position: Position) -> Self {
-        Self { value, position }
-    }
-}
-
-pub trait MultiModeLexer {
-    /// The type of the tokenization modes available.
-    type Modes;
-
-    /// Puts a new tokenization mode on the top of stack, making it the current one.
-    fn push_mode(&mut self, mode: Self::Modes);
-
-    /// Pops the current mode tokenization off the stack, switching back to the previous one.
-    fn pop_mode(&mut self) -> Result<Self::Modes, &'static str>;
-
-    /// Returns an immutable reference to the current tokenization mode.
-    fn get_mode(&self) -> &Self::Modes;
 }
 
 pub trait ErrorHandler<E>: FnMut(E) + std::fmt::Debug {}

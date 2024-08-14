@@ -30,9 +30,7 @@ pub enum MouseEvent {
 
 pub use keyboard_types::Code as KeyboardKey;
 
-use crate::classes::{CallableIdentifierOwned, CnvObject, SoundFileData};
-
-use super::{path::ScenePath, CnvValue};
+use super::{common::SoundFileData, path::ScenePath, CallableIdentifierOwned, CnvObject, CnvValue};
 
 #[derive(Debug, Clone)]
 pub enum KeyboardEvent {

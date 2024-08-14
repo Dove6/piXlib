@@ -1,29 +1,35 @@
+#[allow(dead_code)]
+pub mod classes;
+pub mod common;
+mod containers;
+mod content;
 mod events;
-mod expression;
 mod filesystem;
-mod object_container;
+mod initable;
+pub mod object;
+mod parsers;
 mod path;
 mod script;
-mod script_container;
-mod statement;
 #[cfg(test)]
+#[allow(clippy::arc_with_non_send_sync)]
 mod tests;
+mod tree_walking;
 mod value;
 
+pub use common::{CallableIdentifier, CallableIdentifierOwned};
+use containers::{ObjectContainer, ScriptContainer};
+pub use content::CnvContent;
 pub use events::{
     ApplicationEvent, FileEvent, GraphicsEvent, InternalEvent, KeyboardEvent, KeyboardKey,
     MouseEvent, ObjectEvent, ScriptEvent, SoundEvent, TimerEvent,
 };
-pub use expression::CnvExpression;
-pub use filesystem::FileSystem;
-pub use filesystem::GamePaths;
+pub use filesystem::{FileSystem, GamePaths};
 use itertools::Itertools;
-use object_container::ObjectContainer;
+pub use object::{CnvObject, ObjectBuildErrorKind, ObjectBuilderError};
 pub use path::ScenePath;
 pub use script::{CnvScript, ScriptSource};
-use script_container::ScriptContainer;
-pub use statement::CnvStatement;
 use thiserror::Error;
+pub use tree_walking::{CnvExpression, CnvStatement};
 pub use value::CnvValue;
 
 use std::collections::VecDeque;
@@ -32,20 +38,15 @@ use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use events::{IncomingEvents, OutgoingEvents};
 
-use crate::classes::Animation;
-use crate::classes::CallableIdentifier;
-use crate::classes::CnvContent;
-use crate::classes::InternalMouseEvent;
-use crate::classes::Mouse;
-use crate::classes::Scene;
-use crate::common::DroppableRefMut;
-use crate::common::IssueKind;
-use crate::scanner::parse_cnv;
 use crate::{
-    classes::{CnvObject, CnvObjectBuilder, ObjectBuilderError},
-    common::{Issue, IssueHandler, IssueManager},
-    declarative_parser::{self, CnvDeclaration, DeclarativeParser, ParserFatal, ParserIssue},
+    common::{DroppableRefMut, Issue, IssueHandler, IssueKind, IssueManager},
+    parser::declarative_parser::{
+        self, CnvDeclaration, DeclarativeParser, ParserFatal, ParserIssue,
+    },
+    scanner::parse_cnv,
 };
+use classes::{Animation, InternalMouseEvent, Mouse, Scene};
+use object::CnvObjectBuilder;
 
 #[derive(Debug)]
 struct IssuePrinter;

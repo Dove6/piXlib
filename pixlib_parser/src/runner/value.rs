@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::classes::{CnvContent, CnvObject};
+use crate::runner::{content::CnvContent, CnvObject};
 
 use super::{RunnerContext, RunnerResult};
 

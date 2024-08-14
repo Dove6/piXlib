@@ -2,7 +2,7 @@ use std::{io::ErrorKind, sync::Arc};
 
 use super::path::{Path, ScenePath};
 
-pub trait FileSystem: std::fmt::Debug {
+pub trait FileSystem: std::fmt::Debug + Send + Sync {
     fn read_file(&mut self, filename: &str) -> std::io::Result<Vec<u8>>;
     fn write_file(&mut self, filename: &str, data: &[u8]) -> std::io::Result<()>;
 }

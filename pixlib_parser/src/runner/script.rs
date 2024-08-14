@@ -1,8 +1,6 @@
 use std::{cell::RefCell, sync::Arc};
 
-use crate::classes::CnvObject;
-
-use super::{object_container::ObjectContainer, path::ScenePath, CnvRunner};
+use super::{containers::ObjectContainer, path::ScenePath, CnvObject, CnvRunner};
 
 #[derive(Clone)]
 pub struct CnvScript {
