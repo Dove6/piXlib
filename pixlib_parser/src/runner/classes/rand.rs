@@ -1,7 +1,7 @@
 use std::{any::Any, cell::RefCell};
 
 use super::super::content::EventHandler;
-use rand::Rng;
+use ::rand::{thread_rng, Rng};
 
 use crate::{parser::ast::ParsedScript, runner::RunnerError};
 
@@ -110,7 +110,7 @@ impl CnvType for Rand {
 impl RandState {
     pub fn get(&self, max_exclusive: usize, offset: isize) -> RunnerResult<isize> {
         // GET
-        let mut rng = rand::thread_rng();
+        let mut rng = thread_rng();
         Ok(rng.gen_range(0..max_exclusive) as isize + offset)
     }
 
