@@ -82,6 +82,9 @@ pub enum RunnerError {
         expected_min: usize,
         actual: usize,
     },
+    ExpectedUnsignedInteger {
+        actual: i32,
+    },
     MissingLeftOperand {
         object_name: String,
     },
@@ -94,6 +97,7 @@ pub enum RunnerError {
     ObjectNotFound {
         name: String,
     },
+    ExpectedGraphicsObject,
     NoDataLoaded,
     SequenceNameNotFound {
         object_name: String,

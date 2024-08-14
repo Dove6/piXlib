@@ -366,7 +366,7 @@ pub fn update_animations(
         sprite.flip_x = false;
         sprite.flip_y = false;
         sprite.anchor = Anchor::TopLeft;
-        let base_position = animation.get_position().unwrap();
+        let base_position = animation.get_base_position().unwrap();
         *transform = Transform::from_xyz(
             base_position.0 as f32 + total_offset.0 as f32,
             base_position.1 as f32 + total_offset.1 as f32,

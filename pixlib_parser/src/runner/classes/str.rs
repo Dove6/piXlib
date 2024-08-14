@@ -18,12 +18,12 @@ pub struct StringVarProperties {
     pub to_ini: Option<bool>,     // TOINI
     pub value: Option<String>,    // VALUE
 
-    pub on_brutal_changed: Option<Arc<ParsedScript>>, // ONBRUTALCHANGED signal
-    pub on_changed: Option<Arc<ParsedScript>>,        // ONCHANGED signal
-    pub on_done: Option<Arc<ParsedScript>>,           // ONDONE signal
-    pub on_init: Option<Arc<ParsedScript>>,           // ONINIT signal
-    pub on_net_changed: Option<Arc<ParsedScript>>,    // ONNETCHANGED signal
-    pub on_signal: Option<Arc<ParsedScript>>,         // ONSIGNAL signal
+    pub on_brutal_changed: HashMap<String, Arc<ParsedScript>>, // ONBRUTALCHANGED signal
+    pub on_changed: HashMap<String, Arc<ParsedScript>>,        // ONCHANGED signal
+    pub on_done: Option<Arc<ParsedScript>>,                    // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>,                    // ONINIT signal
+    pub on_net_changed: HashMap<String, Arc<ParsedScript>>,    // ONNETCHANGED signal
+    pub on_signal: HashMap<String, Arc<ParsedScript>>,         // ONSIGNAL signal
 }
 
 #[derive(Debug, Clone, Default)]
@@ -35,23 +35,31 @@ struct StringVarState {
 
 #[derive(Debug, Clone)]
 pub struct StringVarEventHandlers {
-    pub on_brutal_changed: Option<Arc<ParsedScript>>, // ONBRUTALCHANGED signal
-    pub on_changed: Option<Arc<ParsedScript>>,        // ONCHANGED signal
-    pub on_done: Option<Arc<ParsedScript>>,           // ONDONE signal
-    pub on_init: Option<Arc<ParsedScript>>,           // ONINIT signal
-    pub on_net_changed: Option<Arc<ParsedScript>>,    // ONNETCHANGED signal
-    pub on_signal: Option<Arc<ParsedScript>>,         // ONSIGNAL signal
+    pub on_brutal_changed: HashMap<String, Arc<ParsedScript>>, // ONBRUTALCHANGED signal
+    pub on_changed: HashMap<String, Arc<ParsedScript>>,        // ONCHANGED signal
+    pub on_done: Option<Arc<ParsedScript>>,                    // ONDONE signal
+    pub on_init: Option<Arc<ParsedScript>>,                    // ONINIT signal
+    pub on_net_changed: HashMap<String, Arc<ParsedScript>>,    // ONNETCHANGED signal
+    pub on_signal: HashMap<String, Arc<ParsedScript>>,         // ONSIGNAL signal
 }
 
 impl EventHandler for StringVarEventHandlers {
-    fn get(&self, name: &str, _argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
+    fn get(&self, name: &str, argument: Option<&str>) -> Option<&Arc<ParsedScript>> {
         match name {
-            "ONBRUTALCHANGED" => self.on_brutal_changed.as_ref(),
-            "ONCHANGED" => self.on_changed.as_ref(),
+            "ONBRUTALCHANGED" => argument
+                .and_then(|a| self.on_brutal_changed.get(a))
+                .or(self.on_brutal_changed.get("")),
+            "ONCHANGED" => argument
+                .and_then(|a| self.on_changed.get(a))
+                .or(self.on_changed.get("")),
             "ONDONE" => self.on_done.as_ref(),
             "ONINIT" => self.on_init.as_ref(),
-            "ONNETCHANGED" => self.on_net_changed.as_ref(),
-            "ONSIGNAL" => self.on_signal.as_ref(),
+            "ONNETCHANGED" => argument
+                .and_then(|a| self.on_net_changed.get(a))
+                .or(self.on_net_changed.get("")),
+            "ONSIGNAL" => argument
+                .and_then(|a| self.on_signal.get(a))
+                .or(self.on_signal.get("")),
             _ => None,
         }
     }
@@ -257,16 +265,23 @@ impl CnvType for StringVar {
             .map(parse_bool)
             .transpose()?;
         let value = properties.remove("VALUE");
-        let on_brutal_changed = properties
-            .remove("ONBRUTALCHANGED")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
-        let on_changed = properties
-            .remove("ONCHANGED")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
+        let mut on_brutal_changed = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONBRUTALCHANGED" {
+                on_brutal_changed.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONBRUTALCHANGED^") {
+                on_brutal_changed
+                    .insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
+        let mut on_changed = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONCHANGED" {
+                on_changed.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONCHANGED^") {
+                on_changed.insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
@@ -277,16 +292,22 @@ impl CnvType for StringVar {
             .and_then(discard_if_empty)
             .map(parse_event_handler)
             .transpose()?;
-        let on_net_changed = properties
-            .remove("ONNETCHANGED")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
-        let on_signal = properties
-            .remove("ONSIGNAL")
-            .and_then(discard_if_empty)
-            .map(parse_event_handler)
-            .transpose()?;
+        let mut on_net_changed = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONNETCHANGED" {
+                on_net_changed.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONNETCHANGED^") {
+                on_net_changed.insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
+        let mut on_signal = HashMap::new();
+        for (k, v) in properties.iter() {
+            if k == "ONSIGNAL" {
+                on_signal.insert(String::from(""), parse_event_handler(v.to_owned())?);
+            } else if let Some(argument) = k.strip_prefix("ONSIGNAL^") {
+                on_signal.insert(String::from(argument), parse_event_handler(v.to_owned())?);
+            }
+        }
         Ok(CnvContent::String(StringVar::from_initial_properties(
             parent,
             StringVarProperties {

@@ -150,7 +150,15 @@ impl Image {
     // custom
 
     pub fn get_position(&self) -> RunnerResult<(isize, isize)> {
-        Ok(self.state.borrow().position)
+        self.state.borrow().get_position()
+    }
+
+    pub fn get_size(&self) -> RunnerResult<(usize, usize)> {
+        self.state.borrow().get_size()
+    }
+
+    pub fn get_center_position(&self) -> RunnerResult<(isize, isize)> {
+        self.state.borrow().get_center_position()
     }
 
     pub fn get_image_to_show(&self) -> RunnerResult<Option<(ImageDefinition, ImageData)>> {
@@ -254,7 +262,19 @@ impl CnvType for Image {
             CallableIdentifier::Method("ISINSIDE") => {
                 self.state.borrow_mut().is_inside().map(|_| None)
             }
-            CallableIdentifier::Method("ISNEAR") => self.state.borrow_mut().is_near().map(|_| None),
+            CallableIdentifier::Method("ISNEAR") => {
+                let name = arguments[0].to_str();
+                let other = self
+                    .parent
+                    .parent
+                    .runner
+                    .get_object(&name)
+                    .ok_or(RunnerError::ObjectNotFound { name })?;
+                self.state
+                    .borrow()
+                    .is_near(other, arguments[1].to_int().max(0) as usize)
+                    .map(|v| Some(CnvValue::Bool(v)))
+            }
             CallableIdentifier::Method("ISVISIBLE") => self
                 .state
                 .borrow_mut()
@@ -611,9 +631,57 @@ impl ImageState {
         todo!()
     }
 
-    pub fn is_near(&mut self) -> RunnerResult<()> {
+    pub fn is_near(&self, other: Arc<CnvObject>, min_iou_percent: usize) -> RunnerResult<bool> {
         // ISNEAR
-        todo!()
+        let current_position = self.get_position()?;
+        let current_size = self.get_size()?;
+        let other_guard = other.content.borrow();
+        let (other_position, other_size) = match &*other_guard {
+            CnvContent::Animation(a) => (a.get_frame_position()?, a.get_frame_size()?),
+            CnvContent::Image(i) => (i.get_position()?, i.get_size()?),
+            _ => return Err(RunnerError::ExpectedGraphicsObject),
+        };
+        let current_area = current_size.0 * current_size.1;
+        let other_area = other_size.0 * other_size.1;
+        if current_area == 0 || other_area == 0 {
+            return Ok(false);
+        } else if min_iou_percent == 0 {
+            return Ok(true);
+        } else if min_iou_percent > 100 {
+            return Ok(false);
+        }
+        let current_top_left = current_position;
+        let current_bottom_right = (
+            current_position.0 + current_size.0 as isize,
+            current_position.1 + current_size.1 as isize,
+        );
+        let other_top_left = other_position;
+        let other_bottom_right = (
+            other_position.0 + other_size.0 as isize,
+            other_position.1 + other_size.1 as isize,
+        );
+        let intersection_top_left = (
+            current_top_left.0.max(other_top_left.0),
+            current_top_left.1.max(other_top_left.1),
+        );
+        let intersection_bottom_right = (
+            current_bottom_right.0.min(other_bottom_right.0),
+            current_bottom_right.1.min(other_bottom_right.1),
+        );
+        let intersection_area = if intersection_top_left.0 > intersection_bottom_right.0
+            || intersection_top_left.1 > intersection_bottom_right.1
+        {
+            0
+        } else {
+            intersection_top_left
+                .0
+                .abs_diff(intersection_bottom_right.0)
+                * intersection_top_left
+                    .1
+                    .abs_diff(intersection_bottom_right.1)
+        };
+        let union_area = current_area + other_area - intersection_area;
+        Ok(intersection_area * 100 / union_area > min_iou_percent)
     }
 
     pub fn is_visible(&self) -> RunnerResult<bool> {
@@ -757,5 +825,31 @@ impl ImageState {
         // SHOW
         self.is_visible = true;
         Ok(())
+    }
+
+    // custom
+
+    pub fn get_position(&self) -> RunnerResult<(isize, isize)> {
+        Ok(self.position)
+    }
+
+    pub fn get_size(&self) -> RunnerResult<(usize, usize)> {
+        let ImageFileData::Loaded(loaded_data) = &self.file_data else {
+            return Err(RunnerError::NoDataLoaded);
+        };
+        let size = loaded_data.image.0.size_px;
+        Ok((size.0 as usize, size.1 as usize))
+    }
+
+    pub fn get_center_position(&self) -> RunnerResult<(isize, isize)> {
+        let ImageFileData::Loaded(loaded_data) = &self.file_data else {
+            return Err(RunnerError::NoDataLoaded);
+        };
+        let position = self.position;
+        let size = loaded_data.image.0.size_px;
+        Ok((
+            position.0 + (size.0 / 2) as isize,
+            position.1 + (size.1 / 2) as isize,
+        ))
     }
 }

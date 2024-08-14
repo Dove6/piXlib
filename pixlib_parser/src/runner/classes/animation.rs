@@ -205,8 +205,35 @@ impl Animation {
 
     // custom
 
-    pub fn get_position(&self) -> RunnerResult<(isize, isize)> {
-        Ok(self.state.borrow().position)
+    pub fn get_base_position(&self) -> RunnerResult<(isize, isize)> {
+        self.state.borrow().get_base_position()
+    }
+
+    pub fn get_frame_position(&self) -> RunnerResult<(isize, isize)> {
+        self.state
+            .borrow()
+            .get_frame_position(RunnerContext::new_minimal(
+                &self.parent.parent.runner,
+                &self.parent,
+            ))
+    }
+
+    pub fn get_frame_size(&self) -> RunnerResult<(usize, usize)> {
+        self.state
+            .borrow()
+            .get_frame_size(RunnerContext::new_minimal(
+                &self.parent.parent.runner,
+                &self.parent,
+            ))
+    }
+
+    pub fn get_center_frame_position(&self) -> RunnerResult<(isize, isize)> {
+        self.state
+            .borrow()
+            .get_center_frame_position(RunnerContext::new_minimal(
+                &self.parent.parent.runner,
+                &self.parent,
+            ))
     }
 
     pub fn step(&self, seconds: f64) -> RunnerResult<()> {
@@ -431,7 +458,7 @@ impl CnvType for Animation {
                     .ok_or(RunnerError::ObjectNotFound { name })?;
                 self.state
                     .borrow()
-                    .is_near(other, arguments[1].to_int() as usize)
+                    .is_near(context, other, arguments[1].to_int().max(0) as usize)
                     .map(|v| Some(CnvValue::Bool(v)))
             }
             CallableIdentifier::Method("ISPLAYING") => {
@@ -539,25 +566,31 @@ impl CnvType for Animation {
                     .set_fps(arguments[0].to_int() as usize);
                 Ok(None)
             }
-            CallableIdentifier::Method("SETFRAME") => match arguments.len() {
-                1 => self
-                    .state
+            CallableIdentifier::Method("SETFRAME") => {
+                let (sequence_name, frame_no) = match arguments.len() {
+                    1 => (None, arguments[0].to_int()),
+                    2 => (Some(arguments[0].to_str()), arguments[1].to_int()),
+                    0 => {
+                        return Err(RunnerError::TooFewArguments {
+                            expected_min: 1,
+                            actual: 0,
+                        })
+                    }
+                    arg_count => {
+                        return Err(RunnerError::TooManyArguments {
+                            expected_max: 2,
+                            actual: arg_count,
+                        })
+                    }
+                };
+                // if frame_no < 0 {
+                //     return Err(RunnerError::ExpectedUnsignedInteger { actual: frame_no });
+                // }
+                self.state
                     .borrow_mut()
-                    .set_frame(None, arguments[0].to_int() as usize),
-                2 => self
-                    .state
-                    .borrow_mut()
-                    .set_frame(Some(&arguments[0].to_str()), arguments[1].to_int() as usize),
-                0 => Err(RunnerError::TooFewArguments {
-                    expected_min: 1,
-                    actual: 0,
-                }),
-                arg_count => Err(RunnerError::TooManyArguments {
-                    expected_max: 2,
-                    actual: arg_count,
-                }),
+                    .set_frame(sequence_name.as_deref(), frame_no.max(0) as usize)
+                    .map(|_| None)
             }
-            .map(|_| None),
             CallableIdentifier::Method("SETFRAMENAME") => {
                 self.state.borrow_mut().set_frame_name();
                 Ok(None)
@@ -903,15 +936,7 @@ impl AnimationState {
 
     pub fn get_sequence_name(&self, context: RunnerContext) -> RunnerResult<String> {
         // GETEVENTNAME
-        let AnimationFileData::Loaded(loaded_file) = &self.file_data else {
-            return Err(RunnerError::NoDataLoaded);
-        };
-        let Some(sequence) = loaded_file.sequences.get(self.current_frame.sequence_idx) else {
-            return Err(RunnerError::SequenceIndexNotFound {
-                object_name: context.current_object.name.clone(),
-                index: self.current_frame.sequence_idx,
-            });
-        };
+        let sequence = self.get_sequence_data(context)?;
         Ok(sequence.name.clone())
     }
 
@@ -982,56 +1007,12 @@ impl AnimationState {
 
     pub fn get_frame_position_x(&self, context: RunnerContext) -> RunnerResult<isize> {
         // GETPOSITIONX
-        let AnimationFileData::Loaded(loaded_file) = &self.file_data else {
-            return Err(RunnerError::NoDataLoaded);
-        };
-        let Some(sequence) = loaded_file.sequences.get(self.current_frame.sequence_idx) else {
-            return Err(RunnerError::SequenceIndexNotFound {
-                object_name: context.current_object.name.clone(),
-                index: self.current_frame.sequence_idx,
-            });
-        };
-        let Some(frame) = sequence.frames.get(self.current_frame.frame_idx) else {
-            return Err(RunnerError::FrameIndexNotFound {
-                object_name: context.current_object.name.clone(),
-                sequence_name: sequence.name.clone(),
-                index: self.current_frame.frame_idx,
-            });
-        };
-        let Some(sprite) = loaded_file.sprites.get(frame.sprite_idx) else {
-            return Err(RunnerError::SpriteIndexNotFound {
-                object_name: context.current_object.name.clone(),
-                index: frame.sprite_idx,
-            });
-        };
-        Ok(self.position.0 + frame.offset_px.0 as isize + sprite.0.offset_px.0 as isize)
+        self.get_frame_position(context).map(|p| p.0)
     }
 
     pub fn get_frame_position_y(&self, context: RunnerContext) -> RunnerResult<isize> {
         // GETPOSITIONY
-        let AnimationFileData::Loaded(loaded_file) = &self.file_data else {
-            return Err(RunnerError::NoDataLoaded);
-        };
-        let Some(sequence) = loaded_file.sequences.get(self.current_frame.sequence_idx) else {
-            return Err(RunnerError::SequenceIndexNotFound {
-                object_name: context.current_object.name.clone(),
-                index: self.current_frame.sequence_idx,
-            });
-        };
-        let Some(frame) = sequence.frames.get(self.current_frame.frame_idx) else {
-            return Err(RunnerError::FrameIndexNotFound {
-                object_name: context.current_object.name.clone(),
-                sequence_name: sequence.name.clone(),
-                index: self.current_frame.frame_idx,
-            });
-        };
-        let Some(sprite) = loaded_file.sprites.get(frame.sprite_idx) else {
-            return Err(RunnerError::SpriteIndexNotFound {
-                object_name: context.current_object.name.clone(),
-                index: frame.sprite_idx,
-            });
-        };
-        Ok(self.position.1 + frame.offset_px.1 as isize + sprite.0.offset_px.1 as isize)
+        self.get_frame_position(context).map(|p| p.1)
     }
 
     pub fn get_priority(&self) -> RunnerResult<isize> {
@@ -1064,16 +1045,62 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn is_near(&self, other: Arc<CnvObject>, range: usize) -> RunnerResult<bool> {
+    pub fn is_near(
+        &self,
+        context: RunnerContext,
+        other: Arc<CnvObject>,
+        min_iou_percent: usize,
+    ) -> RunnerResult<bool> {
         // ISNEAR
+        let current_position = self.get_frame_position(context.clone())?;
+        let current_size = self.get_frame_size(context.clone())?;
         let other_guard = other.content.borrow();
-        let other: Option<&Animation> = (&*other_guard).into();
-        let other = other.unwrap();
-        let self_position = self.position;
-        let other_position = other.get_position()?;
-        Ok(self_position.0.abs_diff(other_position.0).pow(2)
-            + self_position.1.abs_diff(other_position.1).pow(2)
-            < range.pow(2))
+        let (other_position, other_size) = match &*other_guard {
+            CnvContent::Animation(a) => (a.get_frame_position()?, a.get_frame_size()?),
+            CnvContent::Image(i) => (i.get_position()?, i.get_size()?),
+            _ => return Err(RunnerError::ExpectedGraphicsObject),
+        };
+        let current_area = current_size.0 * current_size.1;
+        let other_area = other_size.0 * other_size.1;
+        if current_area == 0 || other_area == 0 {
+            return Ok(false);
+        } else if min_iou_percent == 0 {
+            return Ok(true);
+        } else if min_iou_percent > 100 {
+            return Ok(false);
+        }
+        let current_top_left = current_position;
+        let current_bottom_right = (
+            current_position.0 + current_size.0 as isize,
+            current_position.1 + current_size.1 as isize,
+        );
+        let other_top_left = other_position;
+        let other_bottom_right = (
+            other_position.0 + other_size.0 as isize,
+            other_position.1 + other_size.1 as isize,
+        );
+        let intersection_top_left = (
+            current_top_left.0.max(other_top_left.0),
+            current_top_left.1.max(other_top_left.1),
+        );
+        let intersection_bottom_right = (
+            current_bottom_right.0.min(other_bottom_right.0),
+            current_bottom_right.1.min(other_bottom_right.1),
+        );
+        let intersection_area = if intersection_top_left.0 > intersection_bottom_right.0
+            || intersection_top_left.1 > intersection_bottom_right.1
+        {
+            0
+        } else {
+            intersection_top_left
+                .0
+                .abs_diff(intersection_bottom_right.0)
+                * intersection_top_left
+                    .1
+                    .abs_diff(intersection_bottom_right.1)
+        };
+        let union_area = current_area + other_area - intersection_area;
+        Ok(intersection_area * 100 / union_area > min_iou_percent)
     }
 
     pub fn is_playing(&self) -> bool {
@@ -1420,8 +1447,91 @@ impl AnimationState {
 
     // custom
 
-    pub fn get_max_frame_duration(&self) -> f64 {
+    fn get_max_frame_duration(&self) -> f64 {
         1f64 / (self.fps as f64)
+    }
+
+    pub fn get_base_position(&self) -> RunnerResult<(isize, isize)> {
+        Ok(self.position)
+    }
+
+    pub fn get_frame_position(&self, context: RunnerContext) -> RunnerResult<(isize, isize)> {
+        let (_, frame, sprite) = self.get_sprite_data(context)?;
+        Ok((
+            self.position.0 + frame.offset_px.0 as isize + sprite.0.offset_px.0 as isize,
+            self.position.1 + frame.offset_px.1 as isize + sprite.0.offset_px.1 as isize,
+        ))
+    }
+
+    pub fn get_frame_size(&self, context: RunnerContext) -> RunnerResult<(usize, usize)> {
+        let (_, _, sprite) = self.get_sprite_data(context)?;
+        Ok((sprite.0.size_px.0 as usize, sprite.0.size_px.1 as usize))
+    }
+
+    pub fn get_center_frame_position(
+        &self,
+        context: RunnerContext,
+    ) -> RunnerResult<(isize, isize)> {
+        let (_, frame, sprite) = self.get_sprite_data(context)?;
+        Ok((
+            self.position.0
+                + frame.offset_px.0 as isize
+                + sprite.0.offset_px.0 as isize
+                + (sprite.0.size_px.0 / 2) as isize,
+            self.position.1
+                + frame.offset_px.1 as isize
+                + sprite.0.offset_px.1 as isize
+                + (sprite.0.size_px.1 / 2) as isize,
+        ))
+    }
+
+    fn get_sequence_data(&self, context: RunnerContext) -> RunnerResult<&SequenceDefinition> {
+        let AnimationFileData::Loaded(loaded_file) = &self.file_data else {
+            return Err(RunnerError::NoDataLoaded);
+        };
+        let Some(sequence) = loaded_file.sequences.get(self.current_frame.sequence_idx) else {
+            return Err(RunnerError::SequenceIndexNotFound {
+                object_name: context.current_object.name.clone(),
+                index: self.current_frame.sequence_idx,
+            });
+        };
+        Ok(sequence)
+    }
+
+    fn get_frame_data(
+        &self,
+        context: RunnerContext,
+    ) -> RunnerResult<(&SequenceDefinition, &FrameDefinition)> {
+        let sequence = self.get_sequence_data(context.clone())?;
+        let Some(frame) = sequence.frames.get(self.current_frame.frame_idx) else {
+            return Err(RunnerError::FrameIndexNotFound {
+                object_name: context.current_object.name.clone(),
+                sequence_name: sequence.name.clone(),
+                index: self.current_frame.frame_idx,
+            });
+        };
+        Ok((sequence, frame))
+    }
+
+    fn get_sprite_data(
+        &self,
+        context: RunnerContext,
+    ) -> RunnerResult<(
+        &SequenceDefinition,
+        &FrameDefinition,
+        &(SpriteDefinition, SpriteData),
+    )> {
+        let AnimationFileData::Loaded(loaded_file) = &self.file_data else {
+            return Err(RunnerError::NoDataLoaded);
+        };
+        let (sequence, frame) = self.get_frame_data(context.clone())?;
+        let Some(sprite) = loaded_file.sprites.get(frame.sprite_idx) else {
+            return Err(RunnerError::SpriteIndexNotFound {
+                object_name: context.current_object.name.clone(),
+                index: frame.sprite_idx,
+            });
+        };
+        Ok((sequence, frame, sprite))
     }
 
     pub fn step(&mut self, context: RunnerContext, seconds: f64) -> RunnerResult<()> {
