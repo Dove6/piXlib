@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, VecDeque},
-    slice::Iter,
     sync::Arc,
 };
 
@@ -40,7 +39,7 @@ impl ScriptContainer {
         self.vec.get(index).cloned()
     }
 
-    pub fn iter(&self) -> Iter<Arc<CnvScript>> {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &Arc<CnvScript>> {
         self.vec.iter()
     }
 

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, slice::Iter, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use super::super::{CnvObject, RunnerError, RunnerResult};
 
@@ -17,7 +17,16 @@ impl ObjectContainer {
         self.vec.get(index).cloned()
     }
 
-    pub fn iter(&self) -> Iter<Arc<CnvObject>> {
+    pub fn find_object(&self, predicate: &impl Fn(&CnvObject) -> bool) -> Option<Arc<CnvObject>> {
+        for object in self.vec.iter() {
+            if predicate(object) {
+                return Some(Arc::clone(object));
+            }
+        }
+        None
+    }
+
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &Arc<CnvObject>> {
         self.vec.iter()
     }
 

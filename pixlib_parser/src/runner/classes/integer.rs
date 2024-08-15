@@ -441,7 +441,8 @@ impl IntegerVarState {
 
     pub fn reset_ini(&mut self, _context: RunnerContext) -> RunnerResult<()> {
         // RESETINI
-        todo!()
+        eprintln!("Skipping INTEGER^RESETINI() call");
+        Ok(())
     }
 
     pub fn set(&mut self, context: RunnerContext, value: i32) -> RunnerResult<()> {

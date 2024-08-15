@@ -166,12 +166,17 @@ impl core::fmt::Debug for CnvRunner {
         f.debug_struct("CnvRunner")
             .field(
                 "scripts",
-                &self.scripts.borrow().iter().map(|o| {
-                    (
-                        o.parent_object.as_ref().map(|p| p.name.clone()),
-                        o.path.clone(),
-                    )
-                }),
+                &self
+                    .scripts
+                    .borrow()
+                    .iter()
+                    .map(|o| {
+                        (
+                            o.parent_object.as_ref().map(|p| p.name.clone()),
+                            o.path.clone(),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
             )
             .field("events_in", &self.events_in)
             .field("events_out", &self.events_out)
@@ -628,35 +633,25 @@ impl CnvRunner {
 
     pub fn get_object(&self, name: &str) -> Option<Arc<CnvObject>> {
         // println!("Getting object: {:?}", name);
-        for object in self.global_objects.borrow().iter() {
-            if object.name == name {
-                return Some(Arc::clone(object));
-            }
-        }
-        for script in self.scripts.borrow().iter() {
-            for object in script.objects.borrow().iter() {
-                if object.name == name {
-                    return Some(Arc::clone(object));
-                }
-            }
-        }
-        None
+        self.scripts
+            .borrow()
+            .iter()
+            .rev()
+            .map(|s| s.get_object(name))
+            .find(|o| o.is_some())
+            .flatten()
+            .or(self.global_objects.borrow().get_object(name))
     }
 
     pub fn find_object(&self, predicate: impl Fn(&CnvObject) -> bool) -> Option<Arc<CnvObject>> {
-        for object in self.global_objects.borrow().iter() {
-            if predicate(object) {
-                return Some(Arc::clone(object));
-            }
-        }
-        for script in self.scripts.borrow().iter() {
-            for object in script.objects.borrow().iter() {
-                if predicate(object) {
-                    return Some(Arc::clone(object));
-                }
-            }
-        }
-        None
+        self.scripts
+            .borrow()
+            .iter()
+            .rev()
+            .map(|s| s.find_object(&predicate))
+            .find(|o| o.is_some())
+            .flatten()
+            .or(self.global_objects.borrow().find_object(&predicate))
     }
 
     pub fn find_objects(

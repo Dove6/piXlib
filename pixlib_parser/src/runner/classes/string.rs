@@ -476,7 +476,8 @@ impl StringVarState {
 
     pub fn reset_ini(&mut self, _context: RunnerContext) -> RunnerResult<()> {
         // RESETINI
-        todo!()
+        eprintln!("Skipping STRING^RESETINI() call");
+        Ok(())
     }
 
     pub fn set(&mut self, context: RunnerContext, value: &str) -> RunnerResult<()> {

@@ -23,7 +23,12 @@ impl core::fmt::Debug for CnvScript {
             )
             .field(
                 "objects",
-                &self.objects.borrow().iter().map(|o| o.name.clone()),
+                &self
+                    .objects
+                    .borrow()
+                    .iter()
+                    .map(|o| o.name.clone())
+                    .collect::<Vec<_>>(),
             )
             .field("source_kind", &self.source_kind)
             .field("path", &self.path)
@@ -52,16 +57,15 @@ impl CnvScript {
     }
 
     pub fn get_object(&self, name: &str) -> Option<Arc<CnvObject>> {
-        for object in self.objects.borrow().iter() {
-            if object.name == name {
-                return Some(Arc::clone(object));
-            }
-        }
-        None
+        self.objects.borrow().get_object(name).clone()
     }
 
     pub fn get_object_at(&self, index: usize) -> Option<Arc<CnvObject>> {
         self.objects.borrow().get_object_at(index)
+    }
+
+    pub fn find_object(&self, predicate: &impl Fn(&CnvObject) -> bool) -> Option<Arc<CnvObject>> {
+        self.objects.borrow().find_object(predicate)
     }
 
     pub fn find_objects(
