@@ -161,6 +161,14 @@ impl Image {
         self.state.borrow().get_center_position()
     }
 
+    pub fn does_monitor_collision(&self) -> RunnerResult<bool> {
+        Ok(self.state.borrow().does_monitor_collision)
+    }
+
+    pub fn does_monitor_collision_pixel_perfect(&self) -> RunnerResult<bool> {
+        Ok(self.state.borrow().does_monitor_collision && self.should_collisions_respect_alpha)
+    }
+
     pub fn get_image_to_show(&self) -> RunnerResult<Option<(ImageDefinition, ImageData)>> {
         let state = self.state.borrow();
         if !state.is_visible {

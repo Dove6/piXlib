@@ -236,6 +236,14 @@ impl Animation {
             ))
     }
 
+    pub fn does_monitor_collision(&self) -> RunnerResult<bool> {
+        Ok(self.state.borrow().does_monitor_collision)
+    }
+
+    pub fn does_monitor_collision_pixel_perfect(&self) -> RunnerResult<bool> {
+        Ok(self.state.borrow().does_monitor_collision && self.should_collisions_respect_alpha)
+    }
+
     pub fn step(&self, seconds: f64) -> RunnerResult<()> {
         self.state.borrow_mut().step(
             RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),

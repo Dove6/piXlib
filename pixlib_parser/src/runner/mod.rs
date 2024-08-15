@@ -421,6 +421,91 @@ impl CnvRunner {
                     Ok(())
                 })
             })?;
+        let mut collidable = Vec::new();
+        self.find_objects(
+            |o| match &*o.content.borrow() {
+                CnvContent::Animation(a) => a.does_monitor_collision().unwrap(),
+                CnvContent::Image(i) => i.does_monitor_collision().unwrap(),
+                _ => false,
+            },
+            &mut collidable,
+        );
+        if collidable.len() > 1 {
+            for i in 0..(collidable.len() - 1) {
+                for j in (i + 1)..collidable.len() {
+                    let left = &collidable[i];
+                    let right = &collidable[j];
+                    let (left_position, left_size, left_pixel_perfect) =
+                        match &*left.content.borrow() {
+                            CnvContent::Animation(a) => (
+                                a.get_frame_position()?,
+                                a.get_frame_size()?,
+                                a.does_monitor_collision_pixel_perfect()?,
+                            ),
+                            CnvContent::Image(i) => (
+                                i.get_position()?,
+                                i.get_size()?,
+                                i.does_monitor_collision_pixel_perfect()?,
+                            ),
+                            _ => unreachable!(),
+                        };
+                    let (right_position, right_size, right_pixel_perfect) =
+                        match &*right.content.borrow() {
+                            CnvContent::Animation(a) => (
+                                a.get_frame_position()?,
+                                a.get_frame_size()?,
+                                a.does_monitor_collision_pixel_perfect()?,
+                            ),
+                            CnvContent::Image(i) => (
+                                i.get_position()?,
+                                i.get_size()?,
+                                i.does_monitor_collision_pixel_perfect()?,
+                            ),
+                            _ => unreachable!(),
+                        };
+                    let _pixel_perfect = left_pixel_perfect && right_pixel_perfect; // TODO: handle pixel perfect collisions
+                    let left_top_left = left_position;
+                    let left_bottom_right = (
+                        left_position.0 + left_size.0 as isize,
+                        left_position.1 + left_size.1 as isize,
+                    );
+                    let right_top_left = right_position;
+                    let right_bottom_right = (
+                        right_position.0 + right_size.0 as isize,
+                        right_position.1 + right_size.1 as isize,
+                    );
+                    let do_collide = (right_top_left.0.clamp(left_top_left.0, left_bottom_right.0)
+                        == right_top_left.0
+                        || right_bottom_right
+                            .0
+                            .clamp(left_top_left.0, left_bottom_right.0)
+                            == right_bottom_right.0)
+                        && (right_top_left.1.clamp(left_top_left.1, left_bottom_right.1)
+                            == right_top_left.1
+                            || right_bottom_right
+                                .1
+                                .clamp(left_top_left.1, left_bottom_right.1)
+                                == right_bottom_right.1);
+                    if do_collide {
+                        let callable = CallableIdentifier::Event("ONCOLLISION");
+                        self.internal_events
+                            .borrow_mut()
+                            .use_and_drop_mut(|events| {
+                                events.push_back(InternalEvent {
+                                    object: Arc::clone(left),
+                                    callable: callable.to_owned(),
+                                    arguments: vec![CnvValue::String(right.name.clone())],
+                                });
+                                events.push_back(InternalEvent {
+                                    object: Arc::clone(right),
+                                    callable: callable.to_owned(),
+                                    arguments: vec![CnvValue::String(left.name.clone())],
+                                });
+                            })
+                    }
+                }
+            }
+        }
         while let Some(evt) = self
             .internal_events
             .borrow_mut()
