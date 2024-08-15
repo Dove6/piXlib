@@ -203,7 +203,14 @@ fn reload_main_script(
         chosen_scene.list.push(SceneDefinition { name: scene_name });
     }
     chosen_scene.list.sort();
-    info!("scenes: {:?}", chosen_scene.list);
+    info!(
+        "scenes: {:?}",
+        chosen_scene
+            .list
+            .iter()
+            .map(|s| s.name.clone())
+            .collect::<Vec<_>>()
+    );
 }
 
 #[derive(Debug, Clone)]

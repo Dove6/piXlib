@@ -1,6 +1,6 @@
 use bevy::{
     app::{App, Plugin, Update},
-    log::{info, warn},
+    log::warn,
     prelude::{Event, EventReader, EventWriter, NonSend},
 };
 
@@ -96,7 +96,7 @@ fn redistribute_sound_events(
     mut writer: EventWriter<PixlibSoundEvent>,
 ) {
     for evt in runner.events_out.sound.borrow_mut().drain(..) {
-        info!("Redistributing sound event {}", evt);
+        // info!("Redistributing sound event {}", evt);
         writer.send(PixlibSoundEvent(evt));
     }
 }
@@ -109,7 +109,7 @@ fn re_redistribute_sound_events(
         if evt_id.id > 100 {
             warn!("Postponed event ID: {}", evt_id.id);
         };
-        warn!("Re-redistributing sound event {}", evt.0);
+        // warn!("Re-redistributing sound event {}", evt.0);
         re_writer.send(PixlibSoundEvent(evt.0.clone()));
     }
 }

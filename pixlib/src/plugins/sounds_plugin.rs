@@ -178,7 +178,7 @@ pub fn create_pool(mut commands: Commands) {
 fn run_if_any_script_loaded(mut reader: EventReader<PixlibScriptEvent>) -> bool {
     let mut any_script_loaded = false;
     for evt in reader.read() {
-        info!("Popped event: {:?}", evt);
+        // info!("Popped event: {:?}", evt);
         if matches!(evt.0, ScriptEvent::ScriptLoaded { .. }) {
             any_script_loaded = true;
         }
@@ -310,7 +310,7 @@ fn update_sounds(
             writer.send(PostponedPixlibSoundEvent(evt.0.clone()));
             continue;
         }
-        info!("Read sound event: {}", evt.0);
+        // info!("Read sound event: {}", evt.0);
         for (marker, mut ident, mut handle, mut state) in query.iter_mut() {
             let Some(snd_source) = &**marker else {
                 continue;
@@ -318,7 +318,7 @@ fn update_sounds(
             if evt_source != snd_source {
                 continue;
             }
-            info!("Matched the sounds pool element");
+            // info!("Matched the sounds pool element");
             match &evt.0 {
                 SoundEvent::SoundLoaded { sound_data, .. } => {
                     if !ident.is_some_and(|h| h == sound_data.hash) {
@@ -339,7 +339,7 @@ fn update_sounds(
                         ident.0 = Some(sound_data.hash);
                         state.position = Some(0.0);
                         reloaded_sources.insert(evt_source.clone());
-                        info!("Updated data for sound {:?}", snd_source);
+                        // info!("Updated data for sound {:?}", snd_source);
                     }
                 }
                 SoundEvent::SoundStarted(_) => {
@@ -352,21 +352,19 @@ fn update_sounds(
                         break;
                     };
                     instance.resume(EASING);
-                    info!("Started sound {:?}", snd_source);
+                    // info!("Started sound {:?}", snd_source);
                 }
                 SoundEvent::SoundPaused(_) => {
                     let Some(instance) = (*handle)
                         .as_ref()
-                        .inspect(|o| info!("Handle is set: {:?}", o))
                         .map(|h| audio_instances.get_mut(h))
-                        .inspect(|o| info!("Is handle registered? {:?}", o.is_some()))
                         .flatten()
                     else {
                         error!("Cannot retrieve audio instance for sound {:?}", snd_source);
                         break;
                     };
                     instance.pause(EASING);
-                    info!("Paused sound {:?}", snd_source);
+                    // info!("Paused sound {:?}", snd_source);
                 }
                 SoundEvent::SoundResumed(_) => {
                     let Some(instance) = (*handle)
@@ -378,7 +376,7 @@ fn update_sounds(
                         break;
                     };
                     instance.resume(EASING);
-                    info!("Resumed sound {:?}", snd_source);
+                    // info!("Resumed sound {:?}", snd_source);
                 }
                 SoundEvent::SoundStopped(_) => {
                     let Some(instance) = (*handle)
@@ -392,7 +390,7 @@ fn update_sounds(
                     instance.pause(EASING);
                     instance.seek_to(0.0);
                     state.position = Some(0.0);
-                    info!("Stopped sound {:?}", snd_source);
+                    // info!("Stopped sound {:?}", snd_source);
                 }
             };
         }

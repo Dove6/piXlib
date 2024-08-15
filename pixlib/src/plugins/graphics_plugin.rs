@@ -98,7 +98,7 @@ pub fn create_pool(mut commands: Commands) {
 fn run_if_any_script_loaded(mut reader: EventReader<PixlibScriptEvent>) -> bool {
     let mut any_script_loaded = false;
     for evt in reader.read() {
-        info!("Popped event: {:?}", evt);
+        // info!("Popped event: {:?}", evt);
         if matches!(evt.0, ScriptEvent::ScriptLoaded { .. }) {
             any_script_loaded = true;
         }
@@ -142,7 +142,7 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
     let mut image_counter = 0;
     let mut animation_counter = 0;
     let mut iter = query.iter_mut();
-    info!("Current scene: {:?}", runner.get_current_scene());
+    // info!("Current scene: {:?}", runner.get_current_scene());
     if let Some(current_scene) = runner.get_current_scene() {
         let current_scene_guard = current_scene.content.borrow();
         let current_scene: Option<&Scene> = (&*current_scene_guard).into();
