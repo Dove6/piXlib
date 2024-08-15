@@ -5,6 +5,7 @@ use super::super::initable::Initable;
 use super::super::parsers::{
     discard_if_empty, parse_bool, parse_comma_separated, parse_datetime, parse_event_handler,
 };
+use events::SoundSource;
 use pixlib_formats::file_formats::img::parse_img;
 use xxhash_rust::xxh3::xxh3_64;
 
@@ -55,7 +56,7 @@ struct SceneState {
     pub music_frequency: usize,
     pub music_volume_permilles: usize,
     pub music_pan: i32,
-    pub is_music_enabled: bool,
+    pub is_music_playing: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -110,7 +111,7 @@ impl Scene {
         let scene = Self {
             parent,
             state: RefCell::new(SceneState {
-                is_music_enabled: true,
+                is_music_playing: true,
                 music_volume_permilles: 1000usize,
                 ..Default::default()
             }),
@@ -180,22 +181,6 @@ impl Scene {
         Ok((image.0.clone(), image.1.clone()))
     }
 
-    pub fn get_music_to_play(&self) -> RunnerResult<SoundData> {
-        let mut state = self.state.borrow_mut();
-        if let SoundFileData::NotLoaded(filename) = &state.music_data {
-            let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
-            let path = ScenePath::new(self.path.as_ref().unwrap(), filename);
-            state.load_background(context, &path)?;
-        } else if let SoundFileData::Empty = &state.music_data {
-            return Err(RunnerError::MissingFilenameToLoad);
-        }
-        let SoundFileData::Loaded(loaded_music) = &state.music_data else {
-            unreachable!();
-        };
-        let sound = &loaded_music.sound;
-        Ok(sound.clone())
-    }
-
     pub fn get_music_volume_pan_freq(&self) -> RunnerResult<(f32, i32, usize)> {
         Ok(self.state.borrow().use_and_drop(|state| {
             (
@@ -204,6 +189,59 @@ impl Scene {
                 state.music_frequency,
             )
         }))
+    }
+
+    pub fn handle_music_finished(&self) -> RunnerResult<()> {
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        if !self.state.borrow().use_and_drop(|s| s.is_music_playing) {
+            return Ok(());
+        }
+        context
+            .runner
+            .events_out
+            .sound
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(SoundEvent::SoundStarted(SoundSource::BackgroundMusic))
+            });
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONMUSICLOOPED").to_owned(),
+                    arguments: Vec::new(),
+                })
+            });
+        Ok(())
+    }
+
+    pub fn handle_scene_loaded(&self) -> RunnerResult<()> {
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state
+            .borrow_mut()
+            .use_and_drop_mut(|s| s.load_music_if_not_loaded(context.clone()))?;
+        if self.state.borrow().use_and_drop(|s| s.is_music_playing) {
+            if let SoundFileData::Loaded(sound_data) =
+                self.state.borrow().use_and_drop(|s| s.music_data.clone())
+            {
+                context
+                    .runner
+                    .events_out
+                    .sound
+                    .borrow_mut()
+                    .use_and_drop_mut(|events| {
+                        events.push_back(SoundEvent::SoundLoaded {
+                            source: SoundSource::BackgroundMusic,
+                            sound_data: sound_data.sound,
+                        });
+                        events.push_back(SoundEvent::SoundStarted(SoundSource::BackgroundMusic));
+                    });
+            }
+        }
+        Ok(())
     }
 }
 
@@ -311,10 +349,10 @@ impl CnvType for Scene {
                 self.state.borrow_mut().set_music_volume().map(|_| None)
             }
             CallableIdentifier::Method("STARTMUSIC") => {
-                self.state.borrow_mut().start_music().map(|_| None)
+                self.state.borrow_mut().start_music(context).map(|_| None)
             }
             CallableIdentifier::Method("STOPMUSIC") => {
-                self.state.borrow_mut().stop_music().map(|_| None)
+                self.state.borrow_mut().stop_music(context).map(|_| None)
             }
             CallableIdentifier::Method("TOTIME") => {
                 self.state.borrow_mut().convert_to_time().map(|_| None)
@@ -443,10 +481,7 @@ impl Initable for Scene {
             let path = ScenePath::new(self.path.as_ref().unwrap(), filename);
             state.load_background(context.clone(), &path)?;
         };
-        if let SoundFileData::NotLoaded(filename) = &state.music_data {
-            let path = ScenePath::new(self.path.as_ref().unwrap(), filename);
-            state.load_music(context.clone(), &path)?;
-        };
+        state.load_music_if_not_loaded(context.clone())?;
         context
             .runner
             .internal_events
@@ -603,14 +638,50 @@ impl SceneState {
         todo!()
     }
 
-    pub fn start_music(&mut self) -> RunnerResult<()> {
+    pub fn start_music(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // STARTMUSIC
-        todo!()
+        if self.is_music_playing {
+            return Ok(());
+        }
+        self.is_music_playing = true;
+        if context
+            .runner
+            .get_current_scene()
+            .is_some_and(|o| context.current_object == o)
+        {
+            context
+                .runner
+                .events_out
+                .sound
+                .borrow_mut()
+                .use_and_drop_mut(|events| {
+                    events.push_back(SoundEvent::SoundStarted(SoundSource::BackgroundMusic))
+                });
+        }
+        Ok(())
     }
 
-    pub fn stop_music(&mut self) -> RunnerResult<()> {
+    pub fn stop_music(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // STOPMUSIC
-        todo!()
+        if !self.is_music_playing {
+            return Ok(());
+        }
+        self.is_music_playing = false;
+        if context
+            .runner
+            .get_current_scene()
+            .is_some_and(|o| context.current_object == o)
+        {
+            context
+                .runner
+                .events_out
+                .sound
+                .borrow_mut()
+                .use_and_drop_mut(|events| {
+                    events.push_back(SoundEvent::SoundStopped(SoundSource::BackgroundMusic))
+                });
+        }
+        Ok(())
     }
 
     pub fn convert_to_time(&mut self) -> RunnerResult<()> {
@@ -629,7 +700,7 @@ impl SceneState {
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
             .borrow_mut()
-            .read_scene_file(Arc::clone(&script.runner.game_paths), path)
+            .read_scene_asset(Arc::clone(&script.runner.game_paths), path)
             .map_err(|_| RunnerError::IoError {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
             })?;
@@ -658,18 +729,28 @@ impl SceneState {
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
             .borrow_mut()
-            .read_scene_file(Arc::clone(&script.runner.game_paths), path)
+            .read_sound(Arc::clone(&script.runner.game_paths), path)
             .map_err(|_| RunnerError::IoError {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
             })?;
         let converted_data: Arc<[u8]> = data.into();
+        let sound_data = SoundData {
+            hash: xxh3_64(&converted_data),
+            data: converted_data,
+        };
         self.music_data = SoundFileData::Loaded(LoadedSound {
             filename: Some(path.file_path.to_str()),
-            sound: SoundData {
-                hash: xxh3_64(&converted_data),
-                data: converted_data,
-            },
+            sound: sound_data.clone(),
         });
         Ok(())
+    }
+
+    pub fn load_music_if_not_loaded(&mut self, context: RunnerContext) -> RunnerResult<()> {
+        if let SoundFileData::NotLoaded(filename) = &self.music_data {
+            let path = context.current_object.parent.path.with_file_path(filename);
+            self.load_music(context.clone(), &path)
+        } else {
+            Ok(())
+        }
     }
 }

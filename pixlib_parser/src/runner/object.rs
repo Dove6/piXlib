@@ -127,6 +127,12 @@ pub struct CnvObject {
     pub content: RefCell<CnvContent>,
 }
 
+impl PartialEq for CnvObject {
+    fn eq(&self, other: &Self) -> bool {
+        self.parent == other.parent && self.index == other.index && self.name == other.name
+    }
+}
+
 impl core::fmt::Debug for CnvObject {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CnvObject")
@@ -162,10 +168,10 @@ impl CnvObject {
         } else {
             arguments.to_owned()
         };
-        println!(
-            "Calling method: {:?} of: {:?} with arguments: {:?}",
-            identifier, self.name, arguments
-        );
+        // println!(
+        //     "Calling method: {:?} of: {:?} with arguments: {:?}",
+        //     identifier, self.name, arguments
+        // );
         self.content
             .borrow()
             .call_method(identifier, &arguments, context)

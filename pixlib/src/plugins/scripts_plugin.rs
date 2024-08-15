@@ -1,7 +1,7 @@
 use std::{
     cell::RefCell,
     env,
-    ops::Deref,
+    ops::{Deref, DerefMut},
     path::PathBuf,
     sync::{Arc, RwLock},
 };
@@ -14,7 +14,7 @@ use bevy::{
 use pixlib_parser::{
     common::{DroppableRefMut, IssueManager},
     runner::{
-        classes::{Application, Episode, Scene},
+        classes::{Application, Episode},
         CnvContent, CnvRunner, FileSystem, GamePaths, RunnerIssue, ScenePath, ScriptSource,
     },
     scanner::parse_cnv,
@@ -75,36 +75,13 @@ fn reload_scene_script(script_runner: NonSend<ScriptRunner>, chosen_scene: Res<C
     if !chosen_scene.is_changed() {
         return;
     }
-    let game_paths = Arc::clone(&script_runner.game_paths);
     script_runner
         .scripts
         .borrow_mut()
         .remove_scene_script()
         .unwrap();
     let scene_name = chosen_scene.list[chosen_scene.index].name.clone();
-    let Some(scene_object) = script_runner.get_object(&scene_name) else {
-        panic!("Cannot find defined scene object {}", scene_name); // TODO: check if == 1, not >= 1
-    };
-    let scene_guard = scene_object.content.borrow();
-    let scene: Option<&Scene> = (&*scene_guard).into();
-    let scene = scene.unwrap();
-    let path = scene.get_script_path().unwrap();
-    let path = ScenePath::new(&path, &(scene_name.clone() + ".cnv"));
-    let contents = script_runner
-        .filesystem
-        .borrow_mut()
-        .read_scene_file(game_paths, &path)
-        .unwrap();
-    let contents = parse_cnv(&contents);
-    script_runner
-        .0
-        .load_script(
-            path,
-            contents.as_parser_input(),
-            Some(Arc::clone(&scene_object)),
-            ScriptSource::Scene,
-        )
-        .unwrap();
+    script_runner.change_scene(&scene_name).unwrap();
 }
 
 fn reload_main_script(
@@ -124,7 +101,7 @@ fn reload_main_script(
     let contents = script_runner
         .filesystem
         .borrow_mut()
-        .read_scene_file(game_paths.clone(), &root_script_path)
+        .read_scene_asset(game_paths.clone(), &root_script_path)
         .inspect_err(|e| eprint!("{}", e))
         .unwrap();
     let contents = parse_cnv(&contents);
@@ -158,7 +135,7 @@ fn reload_main_script(
         let contents = script_runner
             .filesystem
             .borrow_mut()
-            .read_scene_file(game_paths.clone(), &application_script_path)
+            .read_scene_asset(game_paths.clone(), &application_script_path)
             .unwrap();
         let contents = parse_cnv(&contents);
         script_runner
@@ -195,7 +172,7 @@ fn reload_main_script(
         let contents = script_runner
             .filesystem
             .borrow_mut()
-            .read_scene_file(game_paths, &episode_script_path)
+            .read_scene_asset(game_paths, &episode_script_path)
             .unwrap();
         let contents = parse_cnv(&contents);
         script_runner
@@ -233,10 +210,16 @@ fn reload_main_script(
 pub struct ScriptRunner(pub Arc<CnvRunner>);
 
 impl Deref for ScriptRunner {
-    type Target = CnvRunner;
+    type Target = Arc<CnvRunner>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl DerefMut for ScriptRunner {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

@@ -4,9 +4,8 @@ use bevy::{
     log::{error, info},
     math::Vec3,
     prelude::{
-        in_state, BuildChildren, Bundle, Commands, Component, Condition, DespawnRecursiveExt,
-        Entity, EventReader, Image, IntoSystemConfigs, NonSend, OnExit, Query, ResMut,
-        SpatialBundle, Transform, Visibility,
+        in_state, BuildChildren, Bundle, Commands, Component, Condition, EventReader, Image,
+        IntoSystemConfigs, NonSend, OnExit, Query, ResMut, SpatialBundle, Transform, Visibility,
     },
     sprite::{Anchor, Sprite, SpriteBundle},
 };
@@ -216,7 +215,6 @@ pub fn update_background(
         let scene_guard = scene_object.content.borrow_mut();
         let scene: Option<&Scene> = (&*scene_guard).into();
         let scene = scene.unwrap();
-        let scene_script_path = scene.get_script_path();
         let Ok((image_definition, image_data)) = scene.get_background_to_show() else {
             eprintln!(
                 "Error getting background image for scene {}",
@@ -238,10 +236,10 @@ pub fn update_background(
         if !ident.0.is_some_and(|h| h == image_data.hash) {
             *handle = image_data_to_handle(&mut textures, &image_definition, &image_data);
             ident.0 = Some(image_data.hash);
-            info!(
-                "Updated background for scene {:?} / {:?}",
-                scene_script_path, scene_object.name
-            );
+            // info!(
+            //     "Updated background for scene {:?} / {:?}",
+            //     scene.get_script_path(), scene_object.name
+            // );
         }
     }
 }
@@ -306,11 +304,11 @@ pub fn update_images(
         if !ident.0.is_some_and(|h| h == image_data.hash) {
             *handle = image_data_to_handle(&mut textures, &image_definition, &image_data);
             ident.0 = Some(image_data.hash);
-            info!(
-                "Updated image {} with priority {}",
-                &object.name,
-                image.get_priority().unwrap()
-            );
+            // info!(
+            //     "Updated image {} with priority {}",
+            //     &object.name,
+            //     image.get_priority().unwrap()
+            // );
         }
     }
 }
@@ -382,24 +380,17 @@ pub fn update_animations(
         if !ident.0.is_some_and(|h| h == sprite_data.hash) {
             *handle = animation_data_to_handle(&mut textures, &sprite_definition, &sprite_data);
             ident.0 = Some(sprite_data.hash);
-            info!(
-                "Updated animation {} with priority {} to position ({}, {})+({}, {})+({}, {})",
-                &object.name,
-                animation.get_priority().unwrap(),
-                base_position.0,
-                base_position.1,
-                sprite_definition.offset_px.0,
-                sprite_definition.offset_px.1,
-                frame_definition.offset_px.0,
-                frame_definition.offset_px.1,
-            );
+            // info!(
+            //     "Updated animation {} with priority {} to position ({}, {})+({}, {})+({}, {})",
+            //     &object.name,
+            //     animation.get_priority().unwrap(),
+            //     base_position.0,
+            //     base_position.1,
+            //     sprite_definition.offset_px.0,
+            //     sprite_definition.offset_px.1,
+            //     frame_definition.offset_px.0,
+            //     frame_definition.offset_px.1,
+            // );
         }
     }
-}
-
-pub fn destroy_pool(mut commands: Commands, query: Query<(Entity, &GraphicsPoolMarker)>) {
-    if let Some((entity, _)) = query.iter().next() {
-        commands.entity(entity).despawn_recursive();
-        info!("Destroyed the pool");
-    };
 }

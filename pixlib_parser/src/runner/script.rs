@@ -11,6 +11,12 @@ pub struct CnvScript {
     pub parent_object: Option<Arc<CnvObject>>,
 }
 
+impl PartialEq for CnvScript {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+    }
+}
+
 impl core::fmt::Debug for CnvScript {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CnvScript")

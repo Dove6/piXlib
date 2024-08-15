@@ -106,7 +106,6 @@ pub struct Image {
 
 impl Image {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: ImageProperties) -> Self {
-        let filename = props.filename;
         let image = Self {
             parent: Arc::clone(&parent),
             state: RefCell::new(ImageState {
@@ -133,6 +132,7 @@ impl Image {
             should_release: props.release.unwrap_or(true),
             should_draw_to_canvas: props.to_canvas.unwrap_or(true),
         };
+        let filename = props.filename;
         if let Some(filename) = filename {
             image.state.borrow_mut().file_data = ImageFileData::NotLoaded(filename);
         }
@@ -711,7 +711,7 @@ impl ImageState {
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
             .borrow_mut()
-            .read_scene_file(
+            .read_scene_asset(
                 Arc::clone(&script.runner.game_paths),
                 &script.path.with_file_path(filename),
             )

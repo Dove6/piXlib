@@ -21,7 +21,7 @@ use containers::{ObjectContainer, ScriptContainer};
 pub use content::CnvContent;
 pub use events::{
     ApplicationEvent, FileEvent, GraphicsEvent, InternalEvent, KeyboardEvent, KeyboardKey,
-    MouseEvent, ObjectEvent, ScriptEvent, SoundEvent, TimerEvent,
+    MouseEvent, MultimediaEvents, ObjectEvent, ScriptEvent, SoundEvent, SoundSource, TimerEvent,
 };
 pub use filesystem::{FileSystem, GamePaths};
 use itertools::Itertools;
@@ -45,7 +45,7 @@ use crate::{
     },
     scanner::parse_cnv,
 };
-use classes::{Animation, InternalMouseEvent, Mouse, Scene, Timer};
+use classes::{Animation, InternalMouseEvent, Mouse, Scene, Sound, Timer};
 use object::CnvObjectBuilder;
 
 #[derive(Debug)]
@@ -335,6 +335,11 @@ impl CnvRunner {
     }
 
     pub fn step(self: &Arc<CnvRunner>) -> RunnerResult<()> {
+        let mut to_init = Vec::new();
+        self.find_objects(|o| !*o.initialized.borrow(), &mut to_init);
+        for object in to_init {
+            object.init(None)?;
+        }
         self.events_in
             .timer
             .borrow_mut()
@@ -378,11 +383,52 @@ impl CnvRunner {
                 }
                 Ok(())
             })?;
-        let mut to_init = Vec::new();
-        self.find_objects(|o| !*o.initialized.borrow(), &mut to_init);
-        for object in to_init {
-            object.init(None)?;
-        }
+        self.events_in
+            .multimedia
+            .borrow_mut()
+            .use_and_drop_mut::<RunnerResult<()>>(|events| {
+                while let Some(evt) = events.pop_front() {
+                    match &evt {
+                        MultimediaEvents::SoundFinishedPlaying(source) => {
+                            match source {
+                                SoundSource::BackgroundMusic => {
+                                    let Some(scene_object) = self.get_current_scene() else {
+                                        eprintln!("No current scene to handle event {:?}", evt);
+                                        continue;
+                                    };
+                                    let guard = scene_object.content.borrow();
+                                    let scene: Option<&Scene> = (&*guard).into();
+                                    let scene = scene.unwrap();
+                                    scene.handle_music_finished()?;
+                                }
+                                SoundSource::Sound {
+                                    script_path,
+                                    object_name,
+                                } => {
+                                    let Some(sound_object) = self
+                                        .get_script(&script_path)
+                                        .and_then(|s| s.get_object(&object_name))
+                                    else {
+                                        eprintln!(
+                                            "Object {} / {} not found for event {:?}",
+                                            script_path.to_str(),
+                                            object_name,
+                                            evt
+                                        );
+                                        continue;
+                                    };
+                                    let guard = sound_object.content.borrow();
+                                    let sound: Option<&Sound> = (&*guard).into();
+                                    let sound = sound.unwrap();
+                                    sound.handle_finished()?;
+                                }
+                                _ => todo!(),
+                            };
+                        }
+                    }
+                }
+                Ok(())
+            })?;
         let mut mouse_objects = Vec::new();
         self.find_objects(
             |o| matches!(*o.content.borrow(), CnvContent::Mouse(_)),
@@ -392,7 +438,7 @@ impl CnvRunner {
             .borrow_mut()
             .use_and_drop_mut::<RunnerResult<()>>(|internal_events| {
                 Mouse::handle_outgoing_events(|mouse_event| {
-                    eprintln!("Handling internal mouse event: {:?}", mouse_event);
+                    // eprintln!("Handling internal mouse event: {:?}", mouse_event);
                     let callable = CallableIdentifier::Event(match mouse_event {
                         InternalMouseEvent::LeftButtonPressed { .. }
                         | InternalMouseEvent::RightButtonPressed { .. } => "ONCLICK",
@@ -691,7 +737,7 @@ impl CnvRunner {
         let scene_path = scene.get_script_path().unwrap();
         let contents = (*self.filesystem)
             .borrow_mut()
-            .read_scene_file(
+            .read_scene_asset(
                 self.game_paths.clone(),
                 &ScenePath::new(&scene_path, &(scene_name.clone() + ".cnv")),
             )
@@ -702,7 +748,8 @@ impl CnvRunner {
             contents.as_parser_input(),
             Some(Arc::clone(&scene_object)),
             ScriptSource::Scene,
-        )
+        )?;
+        scene.handle_scene_loaded()
     }
 
     pub fn get_current_scene(&self) -> Option<Arc<CnvObject>> {

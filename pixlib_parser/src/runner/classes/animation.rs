@@ -1130,7 +1130,7 @@ impl AnimationState {
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
             .borrow_mut()
-            .read_scene_file(
+            .read_scene_asset(
                 Arc::clone(&script.runner.game_paths),
                 &script.path.with_file_path(filename),
             )

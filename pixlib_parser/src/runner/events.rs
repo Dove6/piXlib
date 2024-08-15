@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::VecDeque, sync::Arc};
+use std::{cell::RefCell, collections::VecDeque, fmt::Display, sync::Arc};
 
 #[derive(Debug, Clone)]
 pub struct InternalEvent {
@@ -12,7 +12,7 @@ pub struct IncomingEvents {
     pub timer: RefCell<VecDeque<TimerEvent>>,
     pub mouse: RefCell<VecDeque<MouseEvent>>,
     pub keyboard: RefCell<VecDeque<KeyboardEvent>>,
-    // pub multimedia: RefCell<VecDeque<MultimediaEvents>>,
+    pub multimedia: RefCell<VecDeque<MultimediaEvents>>,
 }
 
 #[derive(Debug, Clone)]
@@ -31,11 +31,16 @@ pub enum MouseEvent {
 
 pub use keyboard_types::Code as KeyboardKey;
 
-use super::{common::SoundFileData, path::ScenePath, CallableIdentifierOwned, CnvObject, CnvValue};
+use super::{common::SoundData, path::ScenePath, CallableIdentifierOwned, CnvObject, CnvValue};
 
 #[derive(Debug, Clone)]
 pub enum KeyboardEvent {
     KeyPressed { key_code: keyboard_types::Code },
+}
+
+#[derive(Debug, Clone)]
+pub enum MultimediaEvents {
+    SoundFinishedPlaying(SoundSource),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -70,11 +75,58 @@ pub enum ApplicationEvent {
     ApplicationExited,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SoundSource {
+    BackgroundMusic,
+    Sound {
+        script_path: ScenePath,
+        object_name: String,
+    },
+    AnimationSfx {
+        script_path: ScenePath,
+        object_name: String,
+    },
+}
+
 #[derive(Debug, Clone)]
 pub enum SoundEvent {
-    SoundStarted(SoundFileData),
-    SoundPaused(SoundFileData),
-    SoundStopped(SoundFileData),
+    SoundLoaded {
+        source: SoundSource,
+        sound_data: SoundData,
+    },
+    SoundStarted(SoundSource),
+    SoundPaused(SoundSource),
+    SoundResumed(SoundSource),
+    SoundStopped(SoundSource),
+}
+
+impl SoundEvent {
+    pub fn get_source(&self) -> &SoundSource {
+        match self {
+            SoundEvent::SoundLoaded { source, .. } => source,
+            SoundEvent::SoundStarted(source) => source,
+            SoundEvent::SoundPaused(source) => source,
+            SoundEvent::SoundResumed(source) => source,
+            SoundEvent::SoundStopped(source) => source,
+        }
+    }
+}
+
+impl Display for SoundEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "SoundEvent::{}({:?})",
+            match self {
+                SoundEvent::SoundLoaded { .. } => "SoundLoaded",
+                SoundEvent::SoundStarted(_) => "SoundStarted",
+                SoundEvent::SoundPaused(_) => "SoundPaused",
+                SoundEvent::SoundResumed(_) => "SoundResumed",
+                SoundEvent::SoundStopped(_) => "SoundStopped",
+            },
+            self.get_source()
+        )
+    }
 }
 
 #[derive(Debug, Clone)]

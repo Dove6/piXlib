@@ -1,5 +1,8 @@
 use std::{any::Any, cell::RefCell};
 
+use events::SoundSource;
+use xxhash_rust::xxh3::xxh3_64;
+
 use super::super::content::EventHandler;
 use super::super::initable::Initable;
 use super::super::parsers::{discard_if_empty, parse_bool, parse_event_handler};
@@ -81,7 +84,7 @@ pub struct Sound {
 
 impl Sound {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: SoundProperties) -> Self {
-        Self {
+        let sound = Self {
             parent,
             state: RefCell::new(SoundState {
                 music_volume: 1f32,
@@ -97,7 +100,12 @@ impl Sound {
             },
             should_flush_after_played: props.flush_after_played.unwrap_or_default(),
             should_preload: props.preload.unwrap_or_default(),
+        };
+        let filename = props.filename;
+        if let Some(filename) = filename {
+            sound.state.borrow_mut().file_data = SoundFileData::NotLoaded(filename);
         }
+        sound
     }
 
     // custom
@@ -111,6 +119,26 @@ impl Sound {
             return Ok(None);
         };
         Ok(Some(loaded_data.sound.clone()))
+    }
+
+    pub fn handle_finished(&self) -> RunnerResult<()> {
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow_mut().use_and_drop_mut(|s| {
+            s.is_playing = false;
+            s.is_paused = false;
+        });
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONFINISHED").to_owned(),
+                    arguments: Vec::new(),
+                })
+            });
+        Ok(())
     }
 }
 
@@ -140,12 +168,20 @@ impl CnvType for Sound {
                 .borrow()
                 .is_playing()
                 .map(|v| Some(CnvValue::Bool(v))),
-            CallableIdentifier::Method("LOAD") => self.state.borrow_mut().load().map(|_| None),
-            CallableIdentifier::Method("PAUSE") => self.state.borrow_mut().pause().map(|_| None),
+            CallableIdentifier::Method("LOAD") => self
+                .state
+                .borrow_mut()
+                .load(context, &arguments[0].to_str())
+                .map(|_| None),
+            CallableIdentifier::Method("PAUSE") => {
+                self.state.borrow_mut().pause(context).map(|_| None)
+            }
             CallableIdentifier::Method("PLAY") => {
                 self.state.borrow_mut().play(context).map(|_| None)
             }
-            CallableIdentifier::Method("RESUME") => self.state.borrow_mut().resume().map(|_| None),
+            CallableIdentifier::Method("RESUME") => {
+                self.state.borrow_mut().resume(context).map(|_| None)
+            }
             CallableIdentifier::Method("SETFREQ") => {
                 self.state.borrow_mut().set_freq().map(|_| None)
             }
@@ -153,7 +189,9 @@ impl CnvType for Sound {
             CallableIdentifier::Method("SETVOLUME") => {
                 self.state.borrow_mut().set_volume().map(|_| None)
             }
-            CallableIdentifier::Method("STOP") => self.state.borrow_mut().stop().map(|_| None),
+            CallableIdentifier::Method("STOP") => {
+                self.state.borrow_mut().stop(context).map(|_| None)
+            }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
@@ -234,6 +272,17 @@ impl CnvType for Sound {
 
 impl Initable for Sound {
     fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+        self.state
+            .borrow_mut()
+            .use_and_drop_mut::<RunnerResult<()>>(|state| {
+                if self.should_preload {
+                    if let SoundFileData::NotLoaded(filename) = &state.file_data {
+                        let filename = filename.clone();
+                        state.load(context.clone(), &filename)?;
+                    };
+                }
+                Ok(())
+            })?;
         context
             .runner
             .internal_events
@@ -255,18 +304,82 @@ impl SoundState {
         todo!()
     }
 
-    pub fn load(&mut self) -> RunnerResult<()> {
+    pub fn load(&mut self, context: RunnerContext, filename: &str) -> RunnerResult<()> {
         // LOAD
-        todo!()
+        let script = context.current_object.parent.as_ref();
+        let filesystem = Arc::clone(&script.runner.filesystem);
+        let data = filesystem
+            .borrow_mut()
+            .read_sound(
+                Arc::clone(&script.runner.game_paths),
+                &script.path.with_file_path(filename),
+            )
+            .map_err(|_| RunnerError::IoError {
+                source: std::io::Error::from(std::io::ErrorKind::NotFound),
+            })?;
+        let converted_data: Arc<[u8]> = data.into();
+        let sound_data = SoundData {
+            hash: xxh3_64(&converted_data),
+            data: converted_data,
+        };
+        self.file_data = SoundFileData::Loaded(LoadedSound {
+            filename: Some(filename.to_owned()),
+            sound: sound_data.clone(),
+        });
+        context
+            .runner
+            .events_out
+            .sound
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(SoundEvent::SoundLoaded {
+                    source: SoundSource::Sound {
+                        script_path: context.current_object.parent.path.clone(),
+                        object_name: context.current_object.name.clone(),
+                    },
+                    sound_data,
+                })
+            });
+        Ok(())
     }
 
-    pub fn pause(&mut self) -> RunnerResult<()> {
+    pub fn pause(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // PAUSE
-        todo!()
+        self.is_paused = true;
+        context
+            .runner
+            .events_out
+            .sound
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(SoundEvent::SoundPaused(SoundSource::Sound {
+                    script_path: context.current_object.parent.path.clone(),
+                    object_name: context.current_object.name.clone(),
+                }))
+            });
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONPAUSED").to_owned(),
+                    arguments: Vec::new(),
+                })
+            });
+        Ok(())
     }
 
     pub fn play(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // PLAY
+        if let SoundFileData::NotLoaded(filename) = &self.file_data {
+            let filename = filename.clone();
+            self.load(context.clone(), &filename)?;
+        };
+        if !matches!(&self.file_data, SoundFileData::Loaded(_)) {
+            return Err(RunnerError::NoDataLoaded);
+        };
         self.is_playing = true;
         context
             .runner
@@ -274,7 +387,10 @@ impl SoundState {
             .sound
             .borrow_mut()
             .use_and_drop_mut(|events| {
-                events.push_back(SoundEvent::SoundStarted(self.file_data.clone()))
+                events.push_back(SoundEvent::SoundStarted(SoundSource::Sound {
+                    script_path: context.current_object.parent.path.clone(),
+                    object_name: context.current_object.name.clone(),
+                }))
             });
         context
             .runner
@@ -287,15 +403,22 @@ impl SoundState {
                     arguments: Vec::new(),
                 })
             });
-        // FIXME: short-circuiting
-        self.is_playing = false;
+        Ok(())
+    }
+
+    pub fn resume(&mut self, context: RunnerContext) -> RunnerResult<()> {
+        // RESUME
+        self.is_paused = false;
         context
             .runner
             .events_out
             .sound
             .borrow_mut()
             .use_and_drop_mut(|events| {
-                events.push_back(SoundEvent::SoundStopped(self.file_data.clone()))
+                events.push_back(SoundEvent::SoundResumed(SoundSource::Sound {
+                    script_path: context.current_object.parent.path.clone(),
+                    object_name: context.current_object.name.clone(),
+                }))
             });
         context
             .runner
@@ -304,16 +427,11 @@ impl SoundState {
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
                     object: context.current_object.clone(),
-                    callable: CallableIdentifier::Event("ONFINISHED").to_owned(),
+                    callable: CallableIdentifier::Event("ONRESUMED").to_owned(),
                     arguments: Vec::new(),
                 })
             });
         Ok(())
-    }
-
-    pub fn resume(&mut self) -> RunnerResult<()> {
-        // RESUME
-        todo!()
     }
 
     pub fn set_freq(&mut self) -> RunnerResult<()> {
@@ -331,8 +449,34 @@ impl SoundState {
         todo!()
     }
 
-    pub fn stop(&mut self) -> RunnerResult<()> {
+    pub fn stop(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // STOP
-        todo!()
+        self.is_playing = false;
+        self.is_paused = false;
+        context
+            .runner
+            .events_out
+            .sound
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(SoundEvent::SoundStopped(SoundSource::Sound {
+                    script_path: context.current_object.parent.path.clone(),
+                    object_name: context.current_object.name.clone(),
+                }))
+            });
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONFINISHED").to_owned(),
+                    arguments: Vec::new(),
+                })
+            });
+        Ok(())
     }
+
+    // custom
 }

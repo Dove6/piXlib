@@ -8,7 +8,7 @@ pub trait FileSystem: std::fmt::Debug + Send + Sync {
 }
 
 impl dyn FileSystem {
-    pub fn read_scene_file(
+    pub fn read_scene_asset(
         &mut self,
         game_paths: Arc<GamePaths>,
         scene_path: &ScenePath,
@@ -25,6 +25,46 @@ impl dyn FileSystem {
             Err(e) => return Err(e),
         }
         path.prepend(&scene_path.dir_path);
+        println!("Trying path: {:?}", path);
+        match self.read_file(&path) {
+            Ok(vec) => return Ok(vec),
+            Err(e) if e.kind() == ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
+        path.prepend(&game_paths.data_directory);
+        println!("Trying path: {:?}", path);
+        match self.read_file(&path) {
+            Ok(vec) => return Ok(vec),
+            Err(e) if e.kind() == ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
+        Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+    }
+
+    pub fn read_sound(
+        &mut self,
+        game_paths: Arc<GamePaths>,
+        scene_path: &ScenePath,
+    ) -> std::io::Result<Vec<u8>> {
+        println!(
+            "read_sound_file(({:?}, {:?}), {:?})",
+            game_paths.dialogues_directory, game_paths.data_directory, scene_path,
+        );
+        let mut path = scene_path.file_path.clone();
+        println!("Trying path: {:?}", path);
+        match self.read_file(&path) {
+            Ok(vec) => return Ok(vec),
+            Err(e) if e.kind() == ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
+        path.prepend(&game_paths.dialogues_directory);
+        println!("Trying path: {:?}", path);
+        match self.read_file(&path) {
+            Ok(vec) => return Ok(vec),
+            Err(e) if e.kind() == ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
+        let mut path = scene_path.file_path.with_prepended(&scene_path.dir_path);
         println!("Trying path: {:?}", path);
         match self.read_file(&path) {
             Ok(vec) => return Ok(vec),
