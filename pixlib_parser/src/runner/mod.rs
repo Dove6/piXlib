@@ -45,7 +45,7 @@ use crate::{
     },
     scanner::parse_cnv,
 };
-use classes::{Animation, InternalMouseEvent, Mouse, Scene};
+use classes::{Animation, InternalMouseEvent, Mouse, Scene, Timer};
 use object::CnvObjectBuilder;
 
 #[derive(Debug)]
@@ -116,7 +116,10 @@ pub enum RunnerError {
         object_name: String,
         index: usize,
     },
-
+    InvalidCallable {
+        object_name: String,
+        callable: CallableIdentifierOwned,
+    },
     MissingFilenameToLoad,
 
     ScriptNotFound {
@@ -339,11 +342,21 @@ impl CnvRunner {
                                 |o| matches!(&*o.content.borrow(), CnvContent::Animation(_)),
                                 &mut buffer,
                             );
-                            for animation_object in buffer {
+                            for animation_object in buffer.iter() {
                                 let guard = animation_object.content.borrow();
                                 let animation: Option<&Animation> = (&*guard).into();
                                 let animation = animation.unwrap();
                                 animation.step(seconds)?;
+                            }
+                            self.find_objects(
+                                |o| matches!(&*o.content.borrow(), CnvContent::Timer(_)),
+                                &mut buffer,
+                            );
+                            for timer_object in buffer.iter() {
+                                let guard = timer_object.content.borrow();
+                                let timer: Option<&Timer> = (&*guard).into();
+                                let timer = timer.unwrap();
+                                timer.step(seconds)?;
                             }
                         }
                     }

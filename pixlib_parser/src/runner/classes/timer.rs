@@ -64,13 +64,13 @@ pub struct Timer {
     state: RefCell<TimerState>,
     event_handlers: TimerEventHandlers,
 
-    max_ticks: usize,
+    max_ticks: Option<usize>,
 }
 
 impl Timer {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: TimerProperties) -> Self {
         let interval_ms = props.elapse.unwrap_or_default() as usize;
-        let is_enabled = props.enabled.unwrap_or_default();
+        let is_enabled = props.enabled.unwrap_or(true);
         Self {
             parent,
             state: RefCell::new(TimerState {
@@ -85,7 +85,10 @@ impl Timer {
                 on_signal: props.on_signal,
                 on_tick: props.on_tick,
             },
-            max_ticks: props.ticks.unwrap_or_default() as usize,
+            max_ticks: match props.ticks.unwrap_or_default() {
+                0 => None,
+                i => Some(i as usize),
+            },
         }
     }
 
@@ -148,7 +151,10 @@ impl CnvType for Timer {
                 }
                 Ok(None)
             }
-            ident => todo!("{:?} {:?}", self.get_type_id(), ident),
+            ident => Err(RunnerError::InvalidCallable {
+                object_name: self.parent.name.clone(),
+                callable: ident.to_owned(),
+            }),
         }
     }
 
@@ -281,15 +287,24 @@ impl TimerState {
     // custom
 
     pub fn step(&mut self, timer: &Timer, duration_ms: f64) -> RunnerResult<()> {
+        // eprintln!("Stepping timer {} by {} ms", timer.parent.name, duration_ms);
         if !self.is_enabled
             || self.is_paused
             || self.interval_ms == 0
-            || self.current_ticks >= timer.max_ticks
+            || timer
+                .max_ticks
+                .map(|max| self.current_ticks >= max)
+                .unwrap_or_default()
         {
             return Ok(());
         }
         self.current_ms -= duration_ms;
-        while self.current_ms < 0.0 && self.current_ticks < timer.max_ticks {
+        while self.current_ms < 0.0
+            && timer
+                .max_ticks
+                .map(|max| self.current_ticks < max)
+                .unwrap_or(true)
+        {
             self.current_ms += self.interval_ms as f64;
             self.current_ticks += 1;
             timer
@@ -306,7 +321,11 @@ impl TimerState {
                     })
                 });
         }
-        if self.current_ticks >= timer.max_ticks {
+        if timer
+            .max_ticks
+            .map(|max| self.current_ticks >= max)
+            .unwrap_or_default()
+        {
             self.current_ms = 0.0;
             self.is_paused = true;
         }

@@ -275,7 +275,10 @@ impl CnvType for Mouse {
                 }
                 Ok(None)
             }
-            ident => todo!("{:?} {:?}", self.get_type_id(), ident),
+            ident => Err(RunnerError::InvalidCallable {
+                object_name: self.parent.name.clone(),
+                callable: ident.to_owned(),
+            }),
         }
     }
 

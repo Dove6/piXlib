@@ -86,15 +86,17 @@ impl CnvType for Group {
         arguments: &[CnvValue],
         context: RunnerContext,
     ) -> RunnerResult<Option<CnvValue>> {
-        eprintln!(
-            "Skipping method call {:?} for GROUP {:?}",
-            name, self.parent.name
-        );
-        if self.get_type_id() == "GROUP" {
-            return Ok(None);
-        } // TODO: fill in
         match name {
-            CallableIdentifier::Method("ADD") => self.state.borrow_mut().add().map(|_| None),
+            CallableIdentifier::Method("ADD") => {
+                let name = arguments[0].to_str();
+                let added_object = self
+                    .parent
+                    .parent
+                    .runner
+                    .get_object(&name)
+                    .ok_or(RunnerError::ObjectNotFound { name })?;
+                self.state.borrow_mut().add(added_object).map(|_| None)
+            }
             CallableIdentifier::Method("ADDCLONES") => {
                 self.state.borrow_mut().add_clones().map(|_| None)
             }
@@ -131,7 +133,11 @@ impl CnvType for Group {
                 .map(|v| Some(CnvValue::Integer(v as i32))),
             CallableIdentifier::Method("NEXT") => self.state.borrow_mut().next().map(|_| None),
             CallableIdentifier::Method("PREV") => self.state.borrow_mut().prev().map(|_| None),
-            CallableIdentifier::Method("REMOVE") => self.state.borrow_mut().remove().map(|_| None),
+            CallableIdentifier::Method("REMOVE") => self
+                .state
+                .borrow_mut()
+                .remove(&arguments[0].to_str())
+                .map(|_| None),
             CallableIdentifier::Method("REMOVEALL") => {
                 self.state.borrow_mut().remove_all().map(|_| None)
             }
@@ -150,7 +156,14 @@ impl CnvType for Group {
                 }
                 Ok(None)
             }
-            ident => todo!("{:?} {:?}", self.get_type_id(), ident),
+            callable => {
+                let _ = self
+                    .state
+                    .borrow()
+                    .call_method_on_objects(context, callable, arguments);
+                // TODO: ignoring errors
+                Ok(None)
+            }
         }
     }
 
@@ -202,9 +215,10 @@ impl Initable for Group {
 }
 
 impl GroupState {
-    pub fn add(&mut self) -> RunnerResult<()> {
+    pub fn add(&mut self, added_object: Arc<CnvObject>) -> RunnerResult<()> {
         // ADD
-        todo!()
+        self.objects.push(added_object);
+        Ok(())
     }
 
     pub fn add_clones(&mut self) -> RunnerResult<()> {
@@ -257,14 +271,21 @@ impl GroupState {
         todo!()
     }
 
-    pub fn remove(&mut self) -> RunnerResult<()> {
+    pub fn remove(&mut self, name: &str) -> RunnerResult<()> {
         // REMOVE
-        todo!()
+        let index = self.objects.iter().position(|o| o.name == name).ok_or(
+            RunnerError::ObjectNotFound {
+                name: name.to_owned(),
+            },
+        )?;
+        self.objects.remove(index);
+        Ok(())
     }
 
     pub fn remove_all(&mut self) -> RunnerResult<()> {
         // REMOVEALL
-        todo!()
+        self.objects.clear();
+        Ok(())
     }
 
     pub fn reset_marker(&mut self) -> RunnerResult<()> {
@@ -275,5 +296,32 @@ impl GroupState {
     pub fn set_marker_pos(&mut self) -> RunnerResult<()> {
         // SETMARKERPOS
         todo!()
+    }
+
+    // custom
+
+    pub fn call_method_on_objects(
+        &self,
+        context: RunnerContext,
+        callable: CallableIdentifier,
+        arguments: &[CnvValue],
+    ) -> RunnerResult<()> {
+        let mut err_result = None;
+        for object in self.objects.iter() {
+            let result = object.call_method(callable.clone(), arguments, Some(context.clone()));
+            err_result = err_result.or(result
+                .inspect_err(|e| {
+                    eprintln!(
+                        "Error while calling {:?} on members of group {}: {:?}",
+                        callable, context.current_object.name, e
+                    )
+                })
+                .err());
+        }
+        if let Some(err_result) = err_result {
+            Err(err_result)
+        } else {
+            Ok(())
+        }
     }
 }

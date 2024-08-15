@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use pixlib_formats::file_formats::ann::LoopingSettings;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CallableIdentifier<'a> {
     Method(&'a str),
     Event(&'a str),
