@@ -12,6 +12,7 @@ pub struct IncomingEvents {
     pub timer: RefCell<VecDeque<TimerEvent>>,
     pub mouse: RefCell<VecDeque<MouseEvent>>,
     pub keyboard: RefCell<VecDeque<KeyboardEvent>>,
+    // pub multimedia: RefCell<VecDeque<MultimediaEvents>>,
 }
 
 #[derive(Debug, Clone)]

@@ -148,7 +148,7 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
         let current_scene_guard = current_scene.content.borrow();
         let current_scene: Option<&Scene> = (&*current_scene_guard).into();
         let current_scene = current_scene.unwrap();
-        if current_scene.get_background_path().is_some() {
+        if current_scene.has_background_image() {
             *iter.next().unwrap() = GraphicsMarker::BackgroundImage;
             background_assigned = true;
         }
@@ -217,7 +217,11 @@ pub fn update_background(
         let scene: Option<&Scene> = (&*scene_guard).into();
         let scene = scene.unwrap();
         let scene_script_path = scene.get_script_path();
-        let Some((image_definition, image_data)) = scene.get_background_to_show().unwrap() else {
+        let Ok((image_definition, image_data)) = scene.get_background_to_show() else {
+            eprintln!(
+                "Error getting background image for scene {}",
+                scene_object.name
+            );
             *visibility = Visibility::Hidden;
             continue;
         };

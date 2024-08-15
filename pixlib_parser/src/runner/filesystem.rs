@@ -13,19 +13,26 @@ impl dyn FileSystem {
         game_paths: Arc<GamePaths>,
         scene_path: &ScenePath,
     ) -> std::io::Result<Vec<u8>> {
-        eprintln!(
+        println!(
             "read_scene_file({:?}, {:?})",
             game_paths.data_directory, scene_path,
         );
-        let mut path = scene_path.dir_path.with_appended(&scene_path.file_path);
-        eprintln!("Trying path: {:?}", path);
+        let mut path = scene_path.file_path.clone();
+        println!("Trying path: {:?}", path);
+        match self.read_file(&path) {
+            Ok(vec) => return Ok(vec),
+            Err(e) if e.kind() == ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
+        path.prepend(&scene_path.dir_path);
+        println!("Trying path: {:?}", path);
         match self.read_file(&path) {
             Ok(vec) => return Ok(vec),
             Err(e) if e.kind() == ErrorKind::NotFound => {}
             Err(e) => return Err(e),
         }
         path.prepend(&game_paths.data_directory);
-        eprintln!("Trying path: {:?}", path);
+        println!("Trying path: {:?}", path);
         match self.read_file(&path) {
             Ok(vec) => return Ok(vec),
             Err(e) if e.kind() == ErrorKind::NotFound => {}

@@ -38,6 +38,7 @@ struct SoundState {
 
     // deduced from methods
     pub is_playing: bool,
+    pub is_paused: bool,
     pub music_frequency: usize,
     pub music_volume: f32,
     pub music_pan: f32,
@@ -97,6 +98,19 @@ impl Sound {
             should_flush_after_played: props.flush_after_played.unwrap_or_default(),
             should_preload: props.preload.unwrap_or_default(),
         }
+    }
+
+    // custom
+
+    pub fn get_sound_to_play(&self) -> RunnerResult<Option<SoundData>> {
+        let state = self.state.borrow();
+        if !state.is_playing {
+            return Ok(None);
+        }
+        let SoundFileData::Loaded(loaded_data) = &state.file_data else {
+            return Ok(None);
+        };
+        Ok(Some(loaded_data.sound.clone()))
     }
 }
 

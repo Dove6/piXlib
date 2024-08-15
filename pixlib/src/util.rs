@@ -11,27 +11,10 @@ use bevy::{
 };
 use std::ops::Add;
 
-use pixlib_formats::file_formats::img::ImgFile;
 use pixlib_parser::{
     common::{Issue, IssueHandler, IssueKind},
     runner::common::{ImageData, ImageDefinition, SpriteData, SpriteDefinition},
 };
-
-pub fn img_file_to_handle(textures: &mut Assets<Image>, file: ImgFile) -> Handle<Image> {
-    textures.add(Image::new(
-        Extent3d {
-            width: file.header.width_px,
-            height: file.header.height_px,
-            depth_or_array_layers: 1,
-        },
-        bevy::render::render_resource::TextureDimension::D2,
-        file.image_data
-            .to_rgba8888(file.header.color_format, file.header.compression_type)
-            .to_vec(),
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::default(),
-    ))
-}
 
 pub fn image_data_to_handle(
     textures: &mut Assets<Image>,

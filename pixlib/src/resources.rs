@@ -1,6 +1,6 @@
 use std::{
     ops::{Deref, DerefMut},
-    path::{Path, PathBuf},
+    path::Path,
     sync::Arc,
 };
 
@@ -19,8 +19,6 @@ pub struct ChosenEpisode(pub Option<Arc<Path>>);
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SceneDefinition {
     pub name: String,
-    pub path: PathBuf,
-    pub background: Option<String>,
 }
 
 #[derive(Resource, Default, Debug, Clone)]

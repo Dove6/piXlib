@@ -220,17 +220,10 @@ fn reload_main_script(
     chosen_scene.index = 0;
     chosen_scene.list.clear();
     for scene_name in scene_list {
-        let Some(scene_object) = script_runner.get_object(&scene_name) else {
-            panic!("Cannot find defined scene object {}", scene_name); // TODO: check if == 1, not >= 1
-        };
-        let scene_guard = scene_object.content.borrow();
-        let scene: Option<&Scene> = (&*scene_guard).into();
-        let scene = scene.unwrap();
-        chosen_scene.list.push(SceneDefinition {
-            name: scene_name,
-            path: scene.get_script_path().unwrap().into(),
-            background: scene.get_background_path(),
-        });
+        script_runner
+            .get_object(&scene_name)
+            .unwrap_or_else(|| panic!("Cannot find defined scene object {}", scene_name)); // TODO: check if == 1, not >= 1
+        chosen_scene.list.push(SceneDefinition { name: scene_name });
     }
     chosen_scene.list.sort();
     info!("scenes: {:?}", chosen_scene.list);

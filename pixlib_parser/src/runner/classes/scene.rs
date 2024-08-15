@@ -53,8 +53,8 @@ struct SceneState {
     pub min_hs_priority: isize,
     pub max_hs_priority: isize,
     pub music_frequency: usize,
-    pub music_volume: f32,
-    pub music_pan: f32,
+    pub music_volume_permilles: usize,
+    pub music_pan: i32,
     pub is_music_enabled: bool,
 }
 
@@ -111,7 +111,7 @@ impl Scene {
             parent,
             state: RefCell::new(SceneState {
                 is_music_enabled: true,
-                music_volume: 1f32,
+                music_volume_permilles: 1000usize,
                 ..Default::default()
             }),
             event_handlers: SceneEventHandlers {
@@ -150,15 +150,21 @@ impl Scene {
         self.path.clone()
     }
 
-    pub fn get_background_path(&self) -> Option<String> {
+    pub fn has_background_image(&self) -> bool {
         match &self.state.borrow().background_data {
-            ImageFileData::NotLoaded(s) => Some(s.clone()),
-            ImageFileData::Loaded(LoadedImage { filename, .. }) => filename.clone(),
-            _ => None,
+            ImageFileData::NotLoaded(_) | ImageFileData::Loaded(_) => true,
+            _ => false,
         }
     }
 
-    pub fn get_background_to_show(&self) -> RunnerResult<Option<(ImageDefinition, ImageData)>> {
+    pub fn has_background_music(&self) -> bool {
+        match &self.state.borrow().music_data {
+            SoundFileData::NotLoaded(_) | SoundFileData::Loaded(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn get_background_to_show(&self) -> RunnerResult<(ImageDefinition, ImageData)> {
         let mut state = self.state.borrow_mut();
         if let ImageFileData::NotLoaded(filename) = &state.background_data {
             let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
@@ -168,10 +174,36 @@ impl Scene {
             return Err(RunnerError::MissingFilenameToLoad);
         }
         let ImageFileData::Loaded(loaded_background) = &state.background_data else {
-            return Ok(None);
+            unreachable!();
         };
         let image = &loaded_background.image;
-        Ok(Some((image.0.clone(), image.1.clone())))
+        Ok((image.0.clone(), image.1.clone()))
+    }
+
+    pub fn get_music_to_play(&self) -> RunnerResult<SoundData> {
+        let mut state = self.state.borrow_mut();
+        if let SoundFileData::NotLoaded(filename) = &state.music_data {
+            let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+            let path = ScenePath::new(self.path.as_ref().unwrap(), filename);
+            state.load_background(context, &path)?;
+        } else if let SoundFileData::Empty = &state.music_data {
+            return Err(RunnerError::MissingFilenameToLoad);
+        }
+        let SoundFileData::Loaded(loaded_music) = &state.music_data else {
+            unreachable!();
+        };
+        let sound = &loaded_music.sound;
+        Ok(sound.clone())
+    }
+
+    pub fn get_music_volume_pan_freq(&self) -> RunnerResult<(f32, i32, usize)> {
+        Ok(self.state.borrow().use_and_drop(|state| {
+            (
+                state.music_volume_permilles as f32 / 1000f32,
+                state.music_pan,
+                state.music_frequency,
+            )
+        }))
     }
 }
 
@@ -220,7 +252,7 @@ impl CnvType for Scene {
                 .state
                 .borrow()
                 .get_music_volume()
-                .map(|v| Some(CnvValue::Double(v as f64))),
+                .map(|_| Some(CnvValue::Integer(-10000))), // EDGE CASE: this seems to be broken
             CallableIdentifier::Method("GETOBJECTS") => {
                 self.state.borrow().get_objects().map(|_| None)
             }
@@ -456,9 +488,9 @@ impl SceneState {
         todo!()
     }
 
-    pub fn get_music_volume(&self) -> RunnerResult<f32> {
+    pub fn get_music_volume(&self) -> RunnerResult<usize> {
         // GETMUSICVOLUME
-        todo!()
+        Ok(self.music_volume_permilles)
     }
 
     pub fn get_objects(&self) -> RunnerResult<()> {
@@ -593,11 +625,6 @@ impl SceneState {
         context: RunnerContext,
         path: &ScenePath,
     ) -> RunnerResult<()> {
-        let filename = match &self.background_data {
-            ImageFileData::Empty => return Err(RunnerError::MissingFilenameToLoad),
-            ImageFileData::Loaded(_) => return Ok(()),
-            ImageFileData::NotLoaded(filename) => filename,
-        };
         let script = context.current_object.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
@@ -611,7 +638,7 @@ impl SceneState {
             .image_data
             .to_rgba8888(data.header.color_format, data.header.compression_type);
         self.background_data = ImageFileData::Loaded(LoadedImage {
-            filename: Some(filename.to_owned()),
+            filename: Some(path.file_path.to_str()),
             image: (
                 ImageDefinition {
                     size_px: (data.header.width_px, data.header.height_px),
@@ -626,8 +653,23 @@ impl SceneState {
         Ok(())
     }
 
-    pub fn load_music(&mut self, _context: RunnerContext, _path: &ScenePath) -> RunnerResult<()> {
-        // TODO: load music
+    pub fn load_music(&mut self, context: RunnerContext, path: &ScenePath) -> RunnerResult<()> {
+        let script = context.current_object.parent.as_ref();
+        let filesystem = Arc::clone(&script.runner.filesystem);
+        let data = filesystem
+            .borrow_mut()
+            .read_scene_file(Arc::clone(&script.runner.game_paths), path)
+            .map_err(|_| RunnerError::IoError {
+                source: std::io::Error::from(std::io::ErrorKind::NotFound),
+            })?;
+        let converted_data: Arc<[u8]> = data.into();
+        self.music_data = SoundFileData::Loaded(LoadedSound {
+            filename: Some(path.file_path.to_str()),
+            sound: SoundData {
+                hash: xxh3_64(&converted_data),
+                data: converted_data,
+            },
+        });
         Ok(())
     }
 }

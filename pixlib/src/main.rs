@@ -17,11 +17,12 @@ use bevy::{
     winit::WinitSettings,
     DefaultPlugins,
 };
+use bevy_kira_audio::AudioPlugin;
 use filesystems::{InsertedDisk, InsertedDiskResource};
 use pixlib_parser::{common::IssueManager, runner::ObjectBuilderError};
 use plugins::{
     events_plugin::EventsPlugin, graphics_plugin::GraphicsPlugin, inputs_plugin::InputsPlugin,
-    scripts_plugin::ScriptsPlugin, ui_plugin::UiPlugin,
+    scripts_plugin::ScriptsPlugin, sounds_plugin::SoundsPlugin, ui_plugin::UiPlugin,
 };
 use resources::{ChosenScene, ObjectBuilderIssueManager, RootEntityToDespawn, WindowConfiguration};
 use util::IssuePrinter;
@@ -44,7 +45,7 @@ fn main() {
         InsertedDisk::try_from(env::args()).expect("Usage: pixlib path_to_iso [path_to_patch...]"),
     ));
     App::new()
-        .add_plugins(
+        .add_plugins((
             DefaultPlugins
                 .set(WindowPlugin {
                     primary_window: Some(Window {
@@ -56,7 +57,8 @@ fn main() {
                     ..default()
                 })
                 .set(ImagePlugin::default_nearest()),
-        )
+            AudioPlugin,
+        ))
         .insert_resource(WinitSettings::game())
         .insert_resource(WindowConfiguration {
             size: WINDOW_SIZE,
@@ -69,10 +71,13 @@ fn main() {
         .add_systems(Startup, setup_camera)
         .add_systems(OnExit(AppState::SceneChooser), cleanup_root)
         .add_systems(OnExit(AppState::SceneViewer), cleanup_root)
-        .add_plugins(GraphicsPlugin)
-        .add_plugins(InputsPlugin)
-        .add_plugins(EventsPlugin)
-        .add_plugins(ScriptsPlugin { inserted_disk })
+        .add_plugins((
+            EventsPlugin,
+            GraphicsPlugin,
+            InputsPlugin,
+            ScriptsPlugin { inserted_disk },
+            SoundsPlugin,
+        ))
         .add_plugins(UiPlugin)
         .run();
 }
