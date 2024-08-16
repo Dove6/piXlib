@@ -406,8 +406,8 @@ impl CnvRunner {
                                     object_name,
                                 } => {
                                     let Some(sound_object) = self
-                                        .get_script(&script_path)
-                                        .and_then(|s| s.get_object(&object_name))
+                                        .get_script(script_path)
+                                        .and_then(|s| s.get_object(object_name))
                                     else {
                                         eprintln!(
                                             "Object {} / {} not found for event {:?}",

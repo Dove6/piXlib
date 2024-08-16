@@ -146,7 +146,7 @@ impl SoundsState {
         let Some(other) = other.position else {
             return false;
         };
-        return current > other;
+        current > other
     }
 }
 
@@ -342,55 +342,34 @@ fn update_sounds(
                         // info!("Updated data for sound {:?}", snd_source);
                     }
                 }
-                SoundEvent::SoundStarted(_) => {
-                    let Some(instance) = (*handle)
-                        .as_ref()
-                        .map(|h| audio_instances.get_mut(h))
-                        .flatten()
+                _ => {
+                    let Some(instance) =
+                        (*handle).as_ref().and_then(|h| audio_instances.get_mut(h))
                     else {
                         error!("Cannot retrieve audio instance for sound {:?}", snd_source);
                         break;
                     };
-                    instance.resume(EASING);
-                    // info!("Started sound {:?}", snd_source);
-                }
-                SoundEvent::SoundPaused(_) => {
-                    let Some(instance) = (*handle)
-                        .as_ref()
-                        .map(|h| audio_instances.get_mut(h))
-                        .flatten()
-                    else {
-                        error!("Cannot retrieve audio instance for sound {:?}", snd_source);
-                        break;
+                    match &evt.0 {
+                        SoundEvent::SoundStarted(_) => {
+                            instance.resume(EASING);
+                            // info!("Started sound {:?}", snd_source);
+                        }
+                        SoundEvent::SoundPaused(_) => {
+                            instance.pause(EASING);
+                            // info!("Paused sound {:?}", snd_source);
+                        }
+                        SoundEvent::SoundResumed(_) => {
+                            instance.resume(EASING);
+                            // info!("Resumed sound {:?}", snd_source);
+                        }
+                        SoundEvent::SoundStopped(_) => {
+                            instance.pause(EASING);
+                            instance.seek_to(0.0);
+                            state.position = Some(0.0);
+                            // info!("Stopped sound {:?}", snd_source);
+                        }
+                        _ => unreachable!(),
                     };
-                    instance.pause(EASING);
-                    // info!("Paused sound {:?}", snd_source);
-                }
-                SoundEvent::SoundResumed(_) => {
-                    let Some(instance) = (*handle)
-                        .as_ref()
-                        .map(|h| audio_instances.get_mut(h))
-                        .flatten()
-                    else {
-                        error!("Cannot retrieve audio instance for sound {:?}", snd_source);
-                        break;
-                    };
-                    instance.resume(EASING);
-                    // info!("Resumed sound {:?}", snd_source);
-                }
-                SoundEvent::SoundStopped(_) => {
-                    let Some(instance) = (*handle)
-                        .as_ref()
-                        .map(|h| audio_instances.get_mut(h))
-                        .flatten()
-                    else {
-                        error!("Cannot retrieve audio instance for sound {:?}", snd_source);
-                        break;
-                    };
-                    instance.pause(EASING);
-                    instance.seek_to(0.0);
-                    state.position = Some(0.0);
-                    // info!("Stopped sound {:?}", snd_source);
                 }
             };
         }

@@ -12,10 +12,7 @@ use bevy::{
     hierarchy::{BuildChildren, Children, Parent},
     input::ButtonInput,
     log::info,
-    prelude::{
-        default, in_state, Camera, EventReader, Gizmos, GlobalTransform, IntoSystemConfigs,
-        KeyCode, OnEnter,
-    },
+    prelude::{default, in_state, EventReader, IntoSystemConfigs, KeyCode, OnEnter},
     render::color::Color,
     text::{Text, TextStyle},
     ui::{
@@ -23,7 +20,7 @@ use bevy::{
         widget::Button,
         AlignItems, BackgroundColor, BorderColor, Interaction, JustifyContent, Style, UiRect, Val,
     },
-    window::{FileDragAndDrop, Window},
+    window::FileDragAndDrop,
 };
 
 use crate::{
@@ -46,7 +43,7 @@ impl Plugin for UiPlugin {
             (handle_dropped_iso, navigate_chooser, update_chooser_labels)
                 .run_if(in_state(AppState::SceneChooser)),
         )
-        .add_systems(Update, draw_cursor)
+        // .add_systems(Update, draw_cursor)
         .add_systems(OnEnter(AppState::SceneChooser), setup_chooser)
         .add_systems(
             Update,
@@ -259,22 +256,6 @@ pub fn handle_dropped_iso(
             guard.insert(File::open(path_buf).unwrap()).unwrap();
         }
     }
-}
-
-pub fn draw_cursor(
-    camera_query: Query<(&Camera, &GlobalTransform)>,
-    windows: Query<&Window>,
-    mut gizmos: Gizmos,
-) {
-    let (camera, camera_transform) = camera_query.single();
-    let Some(cursor_position) = windows.single().cursor_position() else {
-        return;
-    };
-    let Some(point) = camera.viewport_to_world_2d(camera_transform, cursor_position) else {
-        return;
-    };
-
-    gizmos.circle_2d(point, 10., Color::WHITE);
 }
 
 pub fn detect_return_to_chooser(

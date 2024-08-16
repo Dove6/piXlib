@@ -152,17 +152,11 @@ impl Scene {
     }
 
     pub fn has_background_image(&self) -> bool {
-        match &self.state.borrow().background_data {
-            ImageFileData::NotLoaded(_) | ImageFileData::Loaded(_) => true,
-            _ => false,
-        }
+        !matches!(&self.state.borrow().background_data, ImageFileData::Empty)
     }
 
     pub fn has_background_music(&self) -> bool {
-        match &self.state.borrow().music_data {
-            SoundFileData::NotLoaded(_) | SoundFileData::Loaded(_) => true,
-            _ => false,
-        }
+        !matches!(&self.state.borrow().music_data, SoundFileData::Empty)
     }
 
     pub fn get_background_to_show(&self) -> RunnerResult<(ImageDefinition, ImageData)> {
