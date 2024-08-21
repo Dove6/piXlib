@@ -10,7 +10,7 @@ use bevy::{
     asset::{Assets, Handle},
     log::{error, info},
     prelude::{
-        in_state, BuildChildren, Bundle, Commands, Component, Condition, EventReader, EventWriter,
+        in_state, BuildChildren, Bundle, Commands, Component, Condition, EventReader,
         IntoSystemConfigs, NonSend, OnExit, Query, Res, ResMut, SpatialBundle,
     },
 };
@@ -26,7 +26,7 @@ use pixlib_parser::runner::{
 use crate::AppState;
 
 use super::{
-    events_plugin::{PixlibScriptEvent, PixlibSoundEvent, PostponedPixlibSoundEvent},
+    events_plugin::{PixlibScriptEvent, PixlibSoundEvent},
     scripts_plugin::ScriptRunner,
 };
 
@@ -282,7 +282,6 @@ fn check_for_state_transitions(
 
 fn update_sounds(
     mut reader: EventReader<PixlibSoundEvent>,
-    mut writer: EventWriter<PostponedPixlibSoundEvent>,
     audio: Res<Audio>,
     pool_query: Query<&SoundsPoolMarker>,
     mut query: Query<(
@@ -299,7 +298,7 @@ fn update_sounds(
     }
     let mut reloaded_sources = HashSet::new();
     for evt in reader.read() {
-        let evt_source = match &evt.0 {
+        let evt_source = match &evt.event {
             SoundEvent::SoundLoaded { source, .. } => source,
             SoundEvent::SoundStarted(source) => source,
             SoundEvent::SoundPaused(source) => source,
@@ -307,9 +306,9 @@ fn update_sounds(
             SoundEvent::SoundStopped(source) => source,
         };
         if reloaded_sources.contains(evt_source) {
-            writer.send(PostponedPixlibSoundEvent(evt.0.clone()));
             continue;
         }
+        evt.mark_as_processed();
         // info!("Read sound event: {}", evt.0);
         for (marker, mut ident, mut handle, mut state) in query.iter_mut() {
             let Some(snd_source) = &**marker else {
@@ -319,7 +318,7 @@ fn update_sounds(
                 continue;
             }
             // info!("Matched the sounds pool element");
-            match &evt.0 {
+            match &evt.event {
                 SoundEvent::SoundLoaded { sound_data, .. } => {
                     if !ident.is_some_and(|h| h == sound_data.hash) {
                         let source = audio_sources.add(AudioSource {
@@ -349,7 +348,7 @@ fn update_sounds(
                         error!("Cannot retrieve audio instance for sound {:?}", snd_source);
                         break;
                     };
-                    match &evt.0 {
+                    match &evt.event {
                         SoundEvent::SoundStarted(_) => {
                             instance.resume(EASING);
                             // info!("Started sound {:?}", snd_source);
