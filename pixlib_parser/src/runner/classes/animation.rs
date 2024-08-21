@@ -469,10 +469,11 @@ impl CnvType for Animation {
                     .is_near(context, other, arguments[1].to_int().max(0) as usize)
                     .map(|v| Some(CnvValue::Bool(v)))
             }
-            CallableIdentifier::Method("ISPLAYING") => {
-                self.state.borrow().is_playing();
-                Ok(None)
-            }
+            CallableIdentifier::Method("ISPLAYING") => self
+                .state
+                .borrow()
+                .is_playing()
+                .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("ISVISIBLE") => self
                 .state
                 .borrow()
@@ -623,10 +624,11 @@ impl CnvType for Animation {
                     arguments[1].to_int() as isize,
                 )
                 .map(|_| None),
-            CallableIdentifier::Method("SETPRIORITY") => {
-                self.state.borrow_mut().set_priority();
-                Ok(None)
-            }
+            CallableIdentifier::Method("SETPRIORITY") => self
+                .state
+                .borrow_mut()
+                .set_priority(arguments[0].to_int() as isize)
+                .map(|_| None),
             CallableIdentifier::Method("SETPAN") => {
                 self.state.borrow_mut().set_pan();
                 Ok(None)
@@ -1114,9 +1116,9 @@ impl AnimationState {
         Ok(intersection_area * 100 / union_area > min_iou_percent)
     }
 
-    pub fn is_playing(&self) -> bool {
+    pub fn is_playing(&self) -> RunnerResult<bool> {
         // ISPLAYING BOOL
-        todo!()
+        Ok(self.is_playing)
     }
 
     pub fn is_visible(&self) -> RunnerResult<bool> {
@@ -1431,9 +1433,10 @@ impl AnimationState {
         Ok(())
     }
 
-    pub fn set_priority(&self) {
+    pub fn set_priority(&mut self, priority: isize) -> RunnerResult<()> {
         // SETPRIORITY
-        todo!()
+        self.priority = priority;
+        Ok(())
     }
 
     pub fn set_pan(&self) {
