@@ -42,6 +42,15 @@ pub struct ButtonProperties {
     pub on_start_dragging: Option<Arc<ParsedScript>>, // ONSTARTDRAGGING signal
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Interaction {
+    Hidden,
+    #[default]
+    None,
+    Hovering,
+    Pressing,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ButtonState {
     // initialized from properties
@@ -54,8 +63,7 @@ pub struct ButtonState {
     pub priority: isize,
     pub rect: Option<Rect>,
 
-    // deduced from methods
-    pub is_visible: bool,
+    pub current_interaction: Interaction,
 }
 
 #[derive(Debug, Clone)]
@@ -123,7 +131,7 @@ impl Button {
                 graphics_on_click: props.gfx_on_click,
                 priority: props.priority.unwrap_or_default() as isize,
                 rect: props.rect,
-                is_visible: is_enabled,
+                ..Default::default()
             }),
             event_handlers: ButtonEventHandlers {
                 on_action: props.on_action,
@@ -148,8 +156,40 @@ impl Button {
 
     // custom
 
-    pub fn update(&self, _context: RunnerContext) -> RunnerResult<()> {
-        Ok(())
+    pub fn is_displaying(&self, object_name: &str) -> RunnerResult<bool> {
+        self.state.borrow().is_displaying(object_name)
+    }
+
+    pub fn set_normal(&self) -> RunnerResult<()> {
+        // println!("{}.set_normal()", self.parent.name);
+        self.state.borrow_mut().try_set_interaction(
+            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
+            Interaction::None,
+        )
+    }
+
+    pub fn set_hovering(&self) -> RunnerResult<()> {
+        // println!("{}.set_hovering()", self.parent.name);
+        self.state.borrow_mut().try_set_interaction(
+            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
+            Interaction::Hovering,
+        )
+    }
+
+    pub fn set_pressing(&self) -> RunnerResult<()> {
+        // println!("{}.set_pressing()", self.parent.name);
+        self.state.borrow_mut().try_set_interaction(
+            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
+            Interaction::Pressing,
+        )
+    }
+
+    pub fn keep_pressing(&self) -> RunnerResult<()> {
+        // println!("{}.keep_pressing()", self.parent.name);
+        self.state.borrow_mut().try_keep_interaction(
+            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
+            Interaction::Pressing,
+        )
     }
 }
 
@@ -176,15 +216,19 @@ impl CnvType for Button {
         match name {
             CallableIdentifier::Method("ACCENT") => self.state.borrow_mut().accent().map(|_| None),
             CallableIdentifier::Method("DISABLE") => {
-                self.state.borrow_mut().disable().map(|_| None)
+                self.state.borrow_mut().disable(context).map(|_| None)
             }
-            CallableIdentifier::Method("DISABLEBUTVISIBLE") => {
-                self.state.borrow_mut().disable_but_visible().map(|_| None)
-            }
+            CallableIdentifier::Method("DISABLEBUTVISIBLE") => self
+                .state
+                .borrow_mut()
+                .disable_but_visible(context)
+                .map(|_| None),
             CallableIdentifier::Method("DISABLEDRAGGING") => {
                 self.state.borrow_mut().disable_dragging().map(|_| None)
             }
-            CallableIdentifier::Method("ENABLE") => self.state.borrow_mut().enable().map(|_| None),
+            CallableIdentifier::Method("ENABLE") => {
+                self.state.borrow_mut().enable(context).map(|_| None)
+            }
             CallableIdentifier::Method("ENABLEDRAGGING") => {
                 self.state.borrow_mut().enable_dragging().map(|_| None)
             }
@@ -363,6 +407,15 @@ impl CnvType for Button {
 
 impl Initable for Button {
     fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+        self.state
+            .borrow_mut()
+            .use_and_drop_mut::<RunnerResult<()>>(|state| {
+                state.set_interaction(context.clone(), Interaction::Hidden)?;
+                if state.is_enabled {
+                    state.set_interaction(context.clone(), Interaction::None)?;
+                }
+                Ok(())
+            })?;
         context
             .runner
             .internal_events
@@ -384,14 +437,16 @@ impl ButtonState {
         todo!()
     }
 
-    pub fn disable(&mut self) -> RunnerResult<()> {
+    pub fn disable(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // DISABLE
-        todo!()
+        self.is_enabled = false;
+        self.set_interaction(context, Interaction::Hidden)
     }
 
-    pub fn disable_but_visible(&mut self) -> RunnerResult<()> {
+    pub fn disable_but_visible(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // DISABLEBUTVISIBLE
-        todo!()
+        self.is_enabled = false;
+        self.set_interaction(context, Interaction::None)
     }
 
     pub fn disable_dragging(&mut self) -> RunnerResult<()> {
@@ -399,9 +454,10 @@ impl ButtonState {
         todo!()
     }
 
-    pub fn enable(&mut self) -> RunnerResult<()> {
+    pub fn enable(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // ENABLE
-        todo!()
+        self.is_enabled = true;
+        self.set_interaction(context, Interaction::None)
     }
 
     pub fn enable_dragging(&mut self) -> RunnerResult<()> {
@@ -457,5 +513,221 @@ impl ButtonState {
     pub fn syn(&mut self) -> RunnerResult<()> {
         // SYN
         todo!()
+    }
+
+    // custom
+
+    fn set_interaction(
+        &mut self,
+        context: RunnerContext,
+        interaction: Interaction,
+    ) -> RunnerResult<()> {
+        // println!(
+        //     "{}.set_interaction({:?})",
+        //     context.current_object.name, interaction
+        // );
+        if interaction == self.current_interaction {
+            return Ok(());
+        }
+        let prev_interaction = self.current_interaction;
+        self.current_interaction = interaction;
+        if let Some(normal_obj) = self
+            .graphics_normal
+            .as_ref()
+            .and_then(|name| context.runner.get_object(name))
+        {
+            let guard = normal_obj.content.borrow();
+            let normal_image: Option<&classes::Image> = (&*guard).into();
+            if let Some(normal_image) = normal_image {
+                if interaction == Interaction::None {
+                    normal_image.show()
+                } else {
+                    normal_image.hide()
+                }?
+            } else {
+                let guard = normal_obj.content.borrow();
+                let normal_animation: Option<&classes::Animation> = (&*guard).into();
+                if let Some(normal_animation) = normal_animation {
+                    if interaction == Interaction::None {
+                        normal_animation.play("PLAY")
+                    } else {
+                        normal_animation.stop(false)?;
+                        normal_animation.hide()
+                    }?
+                } else {
+                    return Err(RunnerError::ExpectedGraphicsObject);
+                }
+            }
+        } /*else {
+            println!(
+                "Normal sprite not found for button {}",
+                context.current_object.name
+            );
+        }*/;
+        if let Some(on_hover_obj) = self
+            .graphics_on_hover
+            .as_ref()
+            .and_then(|name| context.runner.get_object(name))
+        {
+            let guard = on_hover_obj.content.borrow();
+            let on_hover_image: Option<&classes::Image> = (&*guard).into();
+            if let Some(on_hover_image) = on_hover_image {
+                if interaction == Interaction::Hovering {
+                    on_hover_image.show()
+                } else {
+                    on_hover_image.hide()
+                }?
+            } else {
+                let guard = on_hover_obj.content.borrow();
+                let on_hover_animation: Option<&classes::Animation> = (&*guard).into();
+                if let Some(on_hover_animation) = on_hover_animation {
+                    if interaction == Interaction::Hovering {
+                        on_hover_animation.play("PLAY")
+                    } else {
+                        on_hover_animation.stop(false)?;
+                        on_hover_animation.hide()
+                    }?
+                } else {
+                    return Err(RunnerError::ExpectedGraphicsObject);
+                }
+            }
+        } /*else {
+            println!(
+                "Hovering sprite not found for button {}",
+                context.current_object.name
+            );
+        }*/;
+        if let Some(on_click_obj) = self
+            .graphics_on_click
+            .as_ref()
+            .and_then(|name| context.runner.get_object(name))
+        {
+            let guard = on_click_obj.content.borrow();
+            let on_click_image: Option<&classes::Image> = (&*guard).into();
+            if let Some(on_click_image) = on_click_image {
+                if interaction == Interaction::Pressing {
+                    on_click_image.show()
+                } else {
+                    on_click_image.hide()
+                }?
+            } else {
+                let guard = on_click_obj.content.borrow();
+                let on_click_animation: Option<&classes::Animation> = (&*guard).into();
+                if let Some(on_click_animation) = on_click_animation {
+                    if interaction == Interaction::Pressing {
+                        on_click_animation.play("PLAY")
+                    } else {
+                        on_click_animation.stop(false)?;
+                        on_click_animation.hide()
+                    }?
+                } else {
+                    return Err(RunnerError::ExpectedGraphicsObject);
+                }
+            }
+        } /*else {
+            println!(
+                "Pressing sprite not found for button {}",
+                context.current_object.name
+            );
+        }*/;
+        if prev_interaction == Interaction::None {
+            context
+                .runner
+                .internal_events
+                .borrow_mut()
+                .use_and_drop_mut(|events| {
+                    events.push_back(InternalEvent {
+                        object: context.current_object.clone(),
+                        callable: CallableIdentifier::Event("ONFOCUSON").to_owned(),
+                        arguments: Vec::new(),
+                    })
+                });
+        } else if interaction == Interaction::None {
+            context
+                .runner
+                .internal_events
+                .borrow_mut()
+                .use_and_drop_mut(|events| {
+                    events.push_back(InternalEvent {
+                        object: context.current_object.clone(),
+                        callable: CallableIdentifier::Event("ONFOCUSOFF").to_owned(),
+                        arguments: Vec::new(),
+                    })
+                });
+        }
+        if prev_interaction == Interaction::Pressing {
+            context
+                .runner
+                .internal_events
+                .borrow_mut()
+                .use_and_drop_mut(|events| {
+                    events.push_back(InternalEvent {
+                        object: context.current_object.clone(),
+                        callable: CallableIdentifier::Event("RELEASED").to_owned(),
+                        arguments: Vec::new(),
+                    })
+                });
+        } else if interaction == Interaction::Pressing {
+            context
+                .runner
+                .internal_events
+                .borrow_mut()
+                .use_and_drop_mut(|events| {
+                    events.push_back(InternalEvent {
+                        object: context.current_object.clone(),
+                        callable: CallableIdentifier::Event("CLICKED").to_owned(),
+                        arguments: Vec::new(),
+                    })
+                });
+        }
+        Ok(())
+    }
+
+    pub fn try_set_interaction(
+        &mut self,
+        context: RunnerContext,
+        interaction: Interaction,
+    ) -> RunnerResult<()> {
+        if !self.is_enabled {
+            return Ok(());
+        }
+        if self.current_interaction == Interaction::Hidden || interaction == Interaction::Hidden {
+            return Ok(());
+        }
+        self.set_interaction(context, interaction)
+    }
+
+    pub fn try_keep_interaction(
+        &mut self,
+        context: RunnerContext,
+        interaction: Interaction,
+    ) -> RunnerResult<()> {
+        if self.current_interaction != Interaction::Pressing && interaction == Interaction::Pressing
+        {
+            return Ok(());
+        }
+        if self.current_interaction != Interaction::Hovering && interaction == Interaction::Hovering
+        {
+            return Ok(());
+        }
+        self.try_set_interaction(context, interaction)
+    }
+
+    pub fn is_displaying(&self, object_name: &str) -> RunnerResult<bool> {
+        Ok(match self.current_interaction {
+            Interaction::Hidden => false,
+            Interaction::None => self
+                .graphics_normal
+                .as_ref()
+                .is_some_and(|n| n == object_name),
+            Interaction::Hovering => self
+                .graphics_on_hover
+                .as_ref()
+                .is_some_and(|n| n == object_name),
+            Interaction::Pressing => self
+                .graphics_on_click
+                .as_ref()
+                .is_some_and(|n| n == object_name),
+        })
     }
 }

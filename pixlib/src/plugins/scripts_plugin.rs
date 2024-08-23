@@ -30,6 +30,7 @@ use crate::{
 #[derive(Debug)]
 pub struct ScriptsPlugin {
     pub inserted_disk: Arc<RwLock<dyn FileSystem>>,
+    pub window_resolution: (usize, usize),
 }
 
 #[allow(clippy::arc_with_non_send_sync)]
@@ -51,6 +52,7 @@ impl Plugin for ScriptsPlugin {
             CnvRunner::try_new(
                 layered_fs,
                 Arc::new(GamePaths::default()),
+                self.window_resolution,
                 runner_issue_manager,
             )
             .unwrap(),

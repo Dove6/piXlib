@@ -289,6 +289,28 @@ impl Animation {
         // eprintln!("[ANIMO: {}] [current frame] position: {:?} + {:?}, hash: {:?}", self.parent.name, sprite.0.offset_px, frame.offset_px, sprite.1.hash);
         Ok(Some((frame.clone(), sprite.0.clone(), sprite.1.clone())))
     }
+
+    pub fn hide(&self) -> RunnerResult<()> {
+        self.state.borrow_mut().hide()
+    }
+
+    pub fn show(&self) -> RunnerResult<()> {
+        self.state.borrow_mut().show()
+    }
+
+    pub fn play(&self, sequence_name: &str) -> RunnerResult<()> {
+        self.state.borrow_mut().play(
+            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
+            sequence_name,
+        )
+    }
+
+    pub fn stop(&self, emit_on_finished: bool) -> RunnerResult<()> {
+        self.state.borrow_mut().stop(
+            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
+            emit_on_finished,
+        )
+    }
 }
 
 impl CnvType for Animation {
@@ -443,10 +465,7 @@ impl CnvType for Animation {
                 self.state.borrow().get_width();
                 Ok(None)
             }
-            CallableIdentifier::Method("HIDE") => {
-                self.state.borrow_mut().hide();
-                Ok(None)
-            }
+            CallableIdentifier::Method("HIDE") => self.state.borrow_mut().hide().map(|_| None),
             CallableIdentifier::Method("INVALIDATE") => {
                 self.state.borrow_mut().invalidate();
                 Ok(None)
@@ -640,18 +659,19 @@ impl CnvType for Animation {
                 self.state.borrow_mut().set_volume();
                 Ok(None)
             }
-            CallableIdentifier::Method("SHOW") => {
-                self.state.borrow_mut().show();
-                Ok(None)
-            }
-            CallableIdentifier::Method("STOP") => {
-                self.state.borrow_mut().stop(if arguments.is_empty() {
-                    true
-                } else {
-                    arguments[0].to_bool()
-                });
-                Ok(None)
-            }
+            CallableIdentifier::Method("SHOW") => self.state.borrow_mut().show().map(|_| None),
+            CallableIdentifier::Method("STOP") => self
+                .state
+                .borrow_mut()
+                .stop(
+                    context,
+                    if arguments.is_empty() {
+                        true
+                    } else {
+                        arguments[0].to_bool()
+                    },
+                )
+                .map(|_| None),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
@@ -1041,9 +1061,10 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn hide(&mut self) {
+    pub fn hide(&mut self) -> RunnerResult<()> {
         // HIDE
         self.is_visible = false;
+        Ok(())
     }
 
     pub fn invalidate(&self) {
@@ -1441,25 +1462,54 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn show(&mut self) {
+    pub fn show(&mut self) -> RunnerResult<()> {
         // SHOW
         self.is_visible = true;
+        Ok(())
     }
 
-    pub fn stop(&self, _emit_on_finished: bool) {
+    pub fn stop(&mut self, context: RunnerContext, emit_on_finished: bool) -> RunnerResult<()> {
         // STOP ([BOOL])
-        todo!()
-        // context
-        //     .runner
-        //     .events_out
-        //     .sound
-        //     .borrow_mut()
-        //     .use_and_drop_mut(|events| {
-        //         events.push_back(SoundEvent::SoundStopped(SoundSource::AnimationSfx {
-        //             script_path: context.current_object.parent.path.clone(),
-        //             object_name: context.current_object.name.clone(),
-        //         }))
-        //     });
+        if let AnimationFileData::NotLoaded(ref filename) = *self.file_data {
+            let filename = filename.clone();
+            self.load(context.clone(), &filename)?;
+        };
+        let AnimationFileData::Loaded(ref loaded_data) = *self.file_data.clone() else {
+            return Err(RunnerError::NoDataLoaded);
+        };
+        if !self.is_playing {
+            return Ok(());
+        }
+        let sequence = &loaded_data.sequences[self.current_frame.sequence_idx];
+        self.current_frame = self.current_frame.with_frame_idx(0);
+        self.is_playing = false;
+        self.is_paused = false;
+        self.is_reversed = false;
+        context
+            .runner
+            .events_out
+            .sound
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(SoundEvent::SoundStopped(SoundSource::AnimationSfx {
+                    script_path: context.current_object.parent.path.clone(),
+                    object_name: context.current_object.name.clone(),
+                }))
+            });
+        if emit_on_finished {
+            context
+                .runner
+                .internal_events
+                .borrow_mut()
+                .use_and_drop_mut(|events| {
+                    events.push_back(InternalEvent {
+                        object: context.current_object.clone(),
+                        callable: CallableIdentifier::Event("ONFINISHED").to_owned(),
+                        arguments: vec![CnvValue::String(sequence.name.clone())],
+                    })
+                });
+        }
+        Ok(())
     }
 
     // custom

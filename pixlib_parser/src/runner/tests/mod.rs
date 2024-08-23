@@ -25,6 +25,7 @@ fn surrounding_quotes_should_be_handled_correctly_with_direct_set(
         Arc::new(RefCell::new(DummyFileSystem)),
         Default::default(),
         Default::default(),
+        Default::default(),
     )
     .unwrap();
     let script = format!(
@@ -78,6 +79,7 @@ fn surrounding_quotes_should_be_handled_correctly_with_direct_set_and_inconvenie
 ) {
     let runner = CnvRunner::try_new(
         Arc::new(RefCell::new(DummyFileSystem)),
+        Default::default(),
         Default::default(),
         Default::default(),
     )
@@ -147,6 +149,7 @@ fn surrounding_quotes_should_be_handled_correctly_with_one_level_indirect_set(
         Arc::new(RefCell::new(DummyFileSystem)),
         Default::default(),
         Default::default(),
+        Default::default(),
     )
     .unwrap();
     let script = format!(
@@ -204,6 +207,7 @@ fn surrounding_quotes_should_be_handled_correctly_with_two_level_indirect_set_an
 ) {
     let runner = CnvRunner::try_new(
         Arc::new(RefCell::new(DummyFileSystem)),
+        Default::default(),
         Default::default(),
         Default::default(),
     )

@@ -159,6 +159,91 @@ pub struct CnvRunner {
     pub game_paths: Arc<GamePaths>,
     pub issue_manager: Arc<RefCell<IssueManager<RunnerIssue>>>,
     pub global_objects: RefCell<ObjectContainer>,
+    pub window_rect: Rect,
+    visible_graphics: RefCell<Vec<GraphicsDescriptor>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Rect {
+    pub top_left_x: isize,
+    pub top_left_y: isize,
+    pub bottom_right_x: isize,
+    pub bottom_right_y: isize,
+}
+
+impl Rect {
+    pub fn intersect(&self, other: &Self) -> Option<Self> {
+        let intersection = Self {
+            top_left_x: self.top_left_x.max(other.top_left_x),
+            top_left_y: self.top_left_y.max(other.top_left_y),
+            bottom_right_x: self.bottom_right_x.min(other.bottom_right_x),
+            bottom_right_y: self.bottom_right_y.min(other.bottom_right_y),
+        };
+        if intersection.bottom_right_x < intersection.top_left_x
+            || intersection.bottom_right_y < intersection.top_left_y
+        {
+            None
+        } else {
+            Some(intersection)
+        }
+    }
+
+    pub fn has_inside(&self, x: isize, y: isize) -> bool {
+        x.clamp(self.top_left_x, self.bottom_right_x) == x
+            && y.clamp(self.top_left_y, self.bottom_right_y) == y
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ObjectIndex {
+    pub script_idx: usize,
+    pub object_idx: usize,
+}
+
+impl PartialOrd for ObjectIndex {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ObjectIndex {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.script_idx.cmp(&other.script_idx) {
+            std::cmp::Ordering::Equal => self.object_idx.cmp(&other.object_idx),
+            ord => ord,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct GraphicsDescriptor {
+    pub priority: isize,
+    pub object_index: ObjectIndex,
+    pub object: Arc<CnvObject>,
+    pub rect: Rect,
+}
+
+impl PartialEq for GraphicsDescriptor {
+    fn eq(&self, other: &Self) -> bool {
+        self.priority == other.priority && self.object_index == other.object_index
+    }
+}
+
+impl Eq for GraphicsDescriptor {}
+
+impl PartialOrd for GraphicsDescriptor {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for GraphicsDescriptor {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match other.priority.cmp(&self.priority) {
+            core::cmp::Ordering::Equal => self.object_index.cmp(&other.object_index),
+            ord => ord,
+        }
+    }
 }
 
 impl core::fmt::Debug for CnvRunner {
@@ -259,6 +344,7 @@ impl CnvRunner {
     pub fn try_new(
         filesystem: Arc<RefCell<dyn FileSystem>>,
         game_paths: Arc<GamePaths>,
+        window_resolution: (usize, usize),
         issue_manager: IssueManager<RunnerIssue>,
     ) -> RunnerResult<Arc<Self>> {
         let runner = Arc::new(Self {
@@ -270,6 +356,13 @@ impl CnvRunner {
             game_paths,
             issue_manager: Arc::new(RefCell::new(issue_manager)),
             global_objects: RefCell::new(ObjectContainer::default()),
+            window_rect: Rect {
+                top_left_x: 0,
+                top_left_y: 0,
+                bottom_right_x: window_resolution.0 as isize,
+                bottom_right_y: window_resolution.1 as isize,
+            },
+            visible_graphics: RefCell::new(Vec::new()),
         });
         let global_script = Arc::new(CnvScript::new(
             Arc::clone(&runner),
@@ -429,53 +522,136 @@ impl CnvRunner {
                 }
                 Ok(())
             })?;
+        let mut buttons = Vec::new();
+        self.find_objects(
+            |o| matches!(&*o.content.borrow(), CnvContent::Button(_)),
+            &mut buttons,
+        );
+        self.filter_map_objects(
+            |id, o| {
+                Ok(match &*o.content.borrow() {
+                    CnvContent::Animation(a) => Some(GraphicsDescriptor {
+                        priority: a.get_priority()?,
+                        object_index: id,
+                        object: o.clone(),
+                        rect: {
+                            let position = a.get_frame_position()?;
+                            let size = a.get_frame_size()?;
+                            Rect {
+                                top_left_x: position.0,
+                                top_left_y: position.1,
+                                bottom_right_x: position.0 + size.0 as isize,
+                                bottom_right_y: position.1 + size.1 as isize,
+                            }
+                        },
+                    }),
+                    CnvContent::Image(i) => Some(GraphicsDescriptor {
+                        priority: i.get_priority()?,
+                        object_index: id,
+                        object: o.clone(),
+                        rect: {
+                            let position = i.get_position()?;
+                            let size = i.get_size()?;
+                            Rect {
+                                top_left_x: position.0,
+                                top_left_y: position.1,
+                                bottom_right_x: position.0 + size.0 as isize,
+                                bottom_right_y: position.1 + size.1 as isize,
+                            }
+                        },
+                    }),
+                    _ => None,
+                })
+            },
+            &mut *self.visible_graphics.borrow_mut(),
+        )?;
+        self.visible_graphics.borrow_mut().sort();
+        let mouse_position = Mouse::get_position()?;
+        let mouse_is_left_button_down = Mouse::is_left_button_down()?;
+        let found_button_index = self.find_active_button(&buttons, mouse_position)?;
+        for (i, o) in buttons.iter().enumerate() {
+            let CnvContent::Button(ref button) = &*o.content.borrow() else {
+                panic!();
+            };
+            if found_button_index.is_some_and(|found| found == i) {
+                if mouse_is_left_button_down {
+                    button.keep_pressing()
+                } else {
+                    button.set_hovering()
+                }
+            } else {
+                button.set_normal()
+            }?
+        }
         let mut mouse_objects = Vec::new();
         self.find_objects(
             |o| matches!(*o.content.borrow(), CnvContent::Mouse(_)),
             &mut mouse_objects,
         );
-        self.internal_events
-            .borrow_mut()
-            .use_and_drop_mut::<RunnerResult<()>>(|internal_events| {
-                Mouse::handle_outgoing_events(|mouse_event| {
-                    // eprintln!("Handling internal mouse event: {:?}", mouse_event);
-                    let callable = CallableIdentifier::Event(match mouse_event {
-                        InternalMouseEvent::LeftButtonPressed { .. }
-                        | InternalMouseEvent::MiddleButtonPressed { .. }
-                        | InternalMouseEvent::RightButtonPressed { .. } => "ONCLICK",
-                        InternalMouseEvent::LeftButtonReleased { .. }
-                        | InternalMouseEvent::MiddleButtonReleased { .. }
-                        | InternalMouseEvent::RightButtonReleased { .. } => "ONRELEASE",
-                        InternalMouseEvent::LeftButtonDoubleClicked { .. } => "ONDBLCLICK",
-                        InternalMouseEvent::MovedBy { .. } => "ONMOVE",
-                        _ => return Ok(()),
-                    });
-                    let arguments = match mouse_event {
-                        InternalMouseEvent::LeftButtonPressed { .. }
-                        | InternalMouseEvent::LeftButtonReleased { .. }
-                        | InternalMouseEvent::LeftButtonDoubleClicked { .. } => {
-                            vec![CnvValue::String("LEFT".into())]
-                        }
-                        InternalMouseEvent::MiddleButtonPressed { .. }
-                        | InternalMouseEvent::MiddleButtonReleased { .. } => {
-                            vec![CnvValue::String("MIDDLE".into())]
-                        }
-                        InternalMouseEvent::RightButtonPressed { .. }
-                        | InternalMouseEvent::RightButtonReleased { .. } => {
-                            vec![CnvValue::String("RIGHT".into())]
-                        }
-                        _ => Vec::new(),
+        Mouse::handle_outgoing_events(|mouse_event| {
+            // eprintln!("Handling internal mouse event: {:?}", mouse_event);
+            if let InternalMouseEvent::LeftButtonPressed { x, y } = &mouse_event {
+                if let Some(button_idx) = self.find_active_button(&buttons, (*x, *y))? {
+                    let CnvContent::Button(ref button) = &*buttons[button_idx].content.borrow()
+                    else {
+                        panic!();
                     };
-                    for mouse_object in mouse_objects.iter() {
+                    button.set_pressing()?;
+                }
+            }
+            if let InternalMouseEvent::LeftButtonReleased { x, y } = &mouse_event {
+                if let Some(button_index) = self.find_active_button(&buttons, (*x, *y))? {
+                    self.internal_events
+                        .borrow_mut()
+                        .use_and_drop_mut(|internal_events| {
+                            internal_events.push_back(InternalEvent {
+                                object: buttons[button_index].clone(),
+                                callable: CallableIdentifier::Event("ONACTION").to_owned(),
+                                arguments: Vec::new(),
+                            })
+                        });
+                }
+            }
+            let callable = CallableIdentifier::Event(match mouse_event {
+                InternalMouseEvent::LeftButtonPressed { .. }
+                | InternalMouseEvent::MiddleButtonPressed { .. }
+                | InternalMouseEvent::RightButtonPressed { .. } => "ONCLICK",
+                InternalMouseEvent::LeftButtonReleased { .. }
+                | InternalMouseEvent::MiddleButtonReleased { .. }
+                | InternalMouseEvent::RightButtonReleased { .. } => "ONRELEASE",
+                InternalMouseEvent::LeftButtonDoubleClicked { .. } => "ONDBLCLICK",
+                InternalMouseEvent::MovedBy { .. } => "ONMOVE",
+                _ => return Ok(()),
+            });
+            let arguments = match mouse_event {
+                InternalMouseEvent::LeftButtonPressed { .. }
+                | InternalMouseEvent::LeftButtonReleased { .. }
+                | InternalMouseEvent::LeftButtonDoubleClicked { .. } => {
+                    vec![CnvValue::String("LEFT".into())]
+                }
+                InternalMouseEvent::MiddleButtonPressed { .. }
+                | InternalMouseEvent::MiddleButtonReleased { .. } => {
+                    vec![CnvValue::String("MIDDLE".into())]
+                }
+                InternalMouseEvent::RightButtonPressed { .. }
+                | InternalMouseEvent::RightButtonReleased { .. } => {
+                    vec![CnvValue::String("RIGHT".into())]
+                }
+                _ => Vec::new(),
+            };
+            for mouse_object in mouse_objects.iter() {
+                self.internal_events
+                    .borrow_mut()
+                    .use_and_drop_mut(|internal_events| {
                         internal_events.push_back(InternalEvent {
                             object: Arc::clone(mouse_object),
                             callable: callable.to_owned(),
                             arguments: arguments.clone(),
                         })
-                    }
-                    Ok(())
-                })
-            })?;
+                    });
+            }
+            Ok(())
+        })?;
         let mut collidable = Vec::new();
         self.find_objects(
             |o| match &*o.content.borrow() {
@@ -570,6 +746,33 @@ impl CnvRunner {
                 .call_method((&evt.callable).into(), &evt.arguments, None)?;
         }
         Ok(())
+    }
+
+    fn find_active_button(
+        &self,
+        buttons: &[Arc<CnvObject>],
+        mouse_position: (isize, isize),
+    ) -> RunnerResult<Option<usize>> {
+        let mut result_index = None;
+        for graphics in self.visible_graphics.borrow().iter() {
+            if result_index.is_some() {
+                break;
+            }
+            if let Some(visible_rect) = graphics.rect.intersect(&self.window_rect) {
+                if visible_rect.has_inside(mouse_position.0, mouse_position.1) {
+                    for (i, o) in buttons.iter().enumerate() {
+                        let CnvContent::Button(ref button) = &*o.content.borrow() else {
+                            panic!();
+                        };
+                        if button.is_displaying(&graphics.object.name)? {
+                            result_index = Some(i);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(result_index)
     }
 
     pub fn load_script(
@@ -722,6 +925,33 @@ impl CnvRunner {
                 }
             }
         }
+    }
+
+    pub fn filter_map_objects<T>(
+        &self,
+        f: impl Fn(ObjectIndex, &Arc<CnvObject>) -> RunnerResult<Option<T>>,
+        buffer: &mut Vec<T>,
+    ) -> RunnerResult<()> {
+        buffer.clear();
+        for object in self.global_objects.borrow().iter() {
+            if let Some(result) = f(ObjectIndex::default(), object)? {
+                buffer.push(result);
+            }
+        }
+        for (script_idx, script) in self.scripts.borrow().iter().enumerate() {
+            for (object_idx, object) in script.objects.borrow().iter().enumerate() {
+                if let Some(result) = f(
+                    ObjectIndex {
+                        script_idx,
+                        object_idx,
+                    },
+                    object,
+                )? {
+                    buffer.push(result);
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn change_scene(self: &Arc<Self>, scene_name: &str) -> RunnerResult<()> {

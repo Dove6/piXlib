@@ -180,6 +180,14 @@ impl Image {
         let image = &loaded_data.image;
         Ok(Some((image.0.clone(), image.1.clone())))
     }
+
+    pub fn hide(&self) -> RunnerResult<()> {
+        self.state.borrow_mut().hide()
+    }
+
+    pub fn show(&self) -> RunnerResult<()> {
+        self.state.borrow_mut().show()
+    }
 }
 
 impl CnvType for Image {

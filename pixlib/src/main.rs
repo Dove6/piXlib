@@ -75,7 +75,10 @@ fn main() {
             EventsPlugin,
             GraphicsPlugin,
             InputsPlugin,
-            ScriptsPlugin { inserted_disk },
+            ScriptsPlugin {
+                inserted_disk,
+                window_resolution: WINDOW_SIZE,
+            },
             SoundsPlugin,
         ))
         .add_plugins(UiPlugin)

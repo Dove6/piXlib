@@ -148,3 +148,12 @@ pub struct FrameIdentifier {
     pub sequence_idx: usize,
     pub frame_idx: usize,
 }
+
+impl FrameIdentifier {
+    pub fn with_frame_idx(&self, frame_idx: usize) -> Self {
+        Self {
+            sequence_idx: self.sequence_idx,
+            frame_idx,
+        }
+    }
+}

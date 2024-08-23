@@ -148,6 +148,16 @@ impl Mouse {
         }
         Ok(())
     }
+
+    pub fn get_position() -> RunnerResult<(isize, isize)> {
+        let mouse_state = GLOBAL_MOUSE_STATE.read().unwrap();
+        Ok(mouse_state.position)
+    }
+
+    pub fn is_left_button_down() -> RunnerResult<bool> {
+        let mouse_state = GLOBAL_MOUSE_STATE.read().unwrap();
+        Ok(mouse_state.is_left_button_down)
+    }
 }
 
 impl CnvType for Mouse {

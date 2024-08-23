@@ -324,7 +324,7 @@ fn update_sounds(
             continue;
         }
         evt.mark_as_processed();
-        info!("Read sound event: {}", evt.event);
+        // info!("Read sound event: {}", evt.event);
         let mut any_marker_matched = false;
         for (marker, mut ident, mut handle, mut state) in query.iter_mut() {
             let Some(snd_source) = &**marker else {
@@ -355,20 +355,20 @@ fn update_sounds(
                         ident.0 = Some(sound_data.hash);
                         state.position = Some(0.0);
                         reloaded_sources.insert(evt_source.clone());
-                        info!("Updated data for sound {:?}", snd_source);
+                        // info!("Updated data for sound {:?}", snd_source);
                     }
                 }
                 _ => {
                     let Some(instance) =
                         (*handle).as_ref().and_then(|h| audio_instances.get_mut(h))
                     else {
-                        error!("Cannot retrieve audio instance for sound {:?}", snd_source);
+                        // warn!("Cannot retrieve audio instance for sound {:?}", snd_source);
                         break;
                     };
                     match &evt.event {
                         SoundEvent::SoundStarted(_) => {
                             instance.resume(EASING);
-                            info!("Started sound {:?}", snd_source);
+                            // info!("Started sound {:?}", snd_source);
                         }
                         SoundEvent::SoundPaused(_) => {
                             instance.pause(EASING);
