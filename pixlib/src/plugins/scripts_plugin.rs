@@ -13,10 +13,7 @@ use bevy::{
 };
 use pixlib_parser::{
     common::{DroppableRefMut, IssueManager},
-    runner::{
-        classes::{Application, Episode},
-        CnvContent, CnvRunner, FileSystem, GamePaths, RunnerIssue, ScenePath, ScriptSource,
-    },
+    runner::{CnvContent, CnvRunner, FileSystem, GamePaths, RunnerIssue, ScenePath, ScriptSource},
     scanner::parse_cnv,
 };
 
@@ -119,14 +116,14 @@ fn reload_main_script(
     //#endregion
 
     let Some(application_object) =
-        script_runner.find_object(|o| matches!(&*o.content.borrow(), CnvContent::Application(_)))
+        script_runner.find_object(|o| matches!(&o.content, CnvContent::Application(_)))
     else {
         panic!("Invalid root script - missing application object"); // TODO: check if == 1, not >= 1
     };
     let application_name = application_object.name.clone();
-    let application_guard = application_object.content.borrow();
-    let application: Option<&Application> = (&*application_guard).into();
-    let application = application.unwrap();
+    let CnvContent::Application(ref application) = &application_object.content else {
+        panic!();
+    };
 
     //#region Loading application script
     if let Some(application_script_path) = application.get_script_path() {
@@ -163,9 +160,9 @@ fn reload_main_script(
     let Some(episode_object) = script_runner.get_object(&episode_name) else {
         panic!("Cannot find defined episode object {}", episode_name); // TODO: check if == 1, not >= 1
     };
-    let episode_guard = episode_object.content.borrow();
-    let episode: Option<&Episode> = (&*episode_guard).into();
-    let episode = episode.unwrap();
+    let CnvContent::Episode(ref episode) = &episode_object.content else {
+        panic!();
+    };
 
     //#region Loading the first episode script
     if let Some(episode_script_path) = episode.get_script_path() {

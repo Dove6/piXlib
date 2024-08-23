@@ -271,7 +271,7 @@ impl CnvType for Sound {
 }
 
 impl Initable for Sound {
-    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
         self.state
             .borrow_mut()
             .use_and_drop_mut::<RunnerResult<()>>(|state| {

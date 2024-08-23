@@ -62,18 +62,20 @@ impl CnvObjectBuilder {
                 ObjectBuildErrorKind::MissingType,
             )); // TODO: readable errors
         };
-        let object = Arc::new(CnvObject {
+        let mut object = Arc::new(CnvObject {
             parent: self.parent,
             name: self.name.clone(),
             index: self.index,
             initialized: RefCell::new(false),
-            content: RefCell::new(CnvContent::None(DummyCnvType {})),
+            content: CnvContent::None(DummyCnvType {}),
         });
         let content =
             CnvTypeFactory::create(Arc::clone(&object), type_name, properties).map_err(|e| {
                 ObjectBuilderError::new(self.name, ObjectBuildErrorKind::ParsingError(e))
             })?;
-        object.content.replace(content);
+        unsafe {
+            Arc::get_mut_unchecked(&mut object).content = content;
+        }
         Ok(object)
     }
 }
@@ -124,7 +126,7 @@ pub struct CnvObject {
     pub name: String,
     pub index: usize,
     pub initialized: RefCell<bool>,
-    pub content: RefCell<CnvContent>,
+    pub content: CnvContent,
 }
 
 impl PartialEq for CnvObject {
@@ -145,7 +147,7 @@ impl core::fmt::Debug for CnvObject {
             )
             .field("name", &self.name)
             .field("index", &self.index)
-            .field("content", &self.content.borrow().get_type_id())
+            .field("content", &self.content.get_type_id())
             .finish()
     }
 }
@@ -172,15 +174,12 @@ impl CnvObject {
         //     "Calling method: {:?} of: {:?} with arguments: {:?}",
         //     identifier, self.name, arguments
         // );
-        self.content
-            .borrow()
-            .call_method(identifier, &arguments, context)
+        self.content.call_method(identifier, &arguments, context)
         // println!("Result is {:?}", result);
     }
 
     pub fn init(self: &Arc<Self>, context: Option<RunnerContext>) -> RunnerResult<()> {
-        let mut content = self.content.borrow_mut();
-        let as_initable: Option<&mut dyn Initable> = (&mut *content).into();
+        let as_initable: Option<&dyn Initable> = (&self.content).into();
         let Some(initable) = as_initable else {
             *self.initialized.borrow_mut() = true;
             return Ok(());

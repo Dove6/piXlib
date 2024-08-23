@@ -73,7 +73,8 @@ impl Condition {
     }
 
     pub fn check(&self) -> RunnerResult<bool> {
-        self.state.borrow().check(self)
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow().check(context)
     }
 }
 
@@ -105,7 +106,7 @@ impl CnvType for Condition {
             CallableIdentifier::Method("CHECK") => self
                 .state
                 .borrow()
-                .check(self)
+                .check(context)
                 .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("ONE_BREAK") => {
                 self.state.borrow().one_break().map(|_| None)
@@ -176,9 +177,10 @@ impl ConditionState {
         todo!()
     }
 
-    pub fn check(&self, condition: &Condition) -> RunnerResult<bool> {
-        let context =
-            RunnerContext::new_minimal(&condition.parent.parent.runner, &condition.parent);
+    pub fn check(&self, context: RunnerContext) -> RunnerResult<bool> {
+        let CnvContent::Condition(ref condition) = &context.current_object.content else {
+            panic!();
+        };
         let left = condition
             .left
             .calculate(context.clone())?

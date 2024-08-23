@@ -114,7 +114,7 @@ impl CnvType for Episode {
             CallableIdentifier::Method("GOTO") => self
                 .state
                 .borrow_mut()
-                .go_to(self, &arguments[0].to_str())
+                .go_to(context, &arguments[0].to_str())
                 .map(|_| None),
             CallableIdentifier::Method("NEXT") => self.state.borrow_mut().next().map(|_| None),
             CallableIdentifier::Method("PREV") => self.state.borrow_mut().prev().map(|_| None),
@@ -193,9 +193,9 @@ impl EpisodeState {
         todo!()
     }
 
-    pub fn go_to(&mut self, episode: &Episode, scene_name: &str) -> RunnerResult<()> {
+    pub fn go_to(&mut self, context: RunnerContext, scene_name: &str) -> RunnerResult<()> {
         // GOTO
-        episode.parent.parent.runner.change_scene(scene_name)
+        context.runner.change_scene(scene_name)
     }
 
     pub fn next(&mut self) -> RunnerResult<()> {

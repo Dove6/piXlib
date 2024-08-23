@@ -107,7 +107,7 @@ pub struct Image {
 impl Image {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: ImageProperties) -> Self {
         let image = Self {
-            parent: Arc::clone(&parent),
+            parent: parent.clone(),
             state: RefCell::new(ImageState {
                 is_button: props.as_button.unwrap_or_default(),
                 does_monitor_collision: props.monitor_collision.unwrap_or_default(),
@@ -280,9 +280,7 @@ impl CnvType for Image {
             }
             CallableIdentifier::Method("ISNEAR") => {
                 let name = arguments[0].to_str();
-                let other = self
-                    .parent
-                    .parent
+                let other = context
                     .runner
                     .get_object(&name)
                     .ok_or(RunnerError::ObjectNotFound { name })?;
@@ -508,7 +506,7 @@ impl CnvType for Image {
 }
 
 impl Initable for Image {
-    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
         let mut state = self.state.borrow_mut();
         if self.should_preload {
             if let ImageFileData::NotLoaded(filename) = &state.file_data {
@@ -654,8 +652,7 @@ impl ImageState {
         // ISNEAR
         let current_position = self.get_position()?;
         let current_size = self.get_size()?;
-        let other_guard = other.content.borrow();
-        let (other_position, other_size) = match &*other_guard {
+        let (other_position, other_size) = match &other.content {
             CnvContent::Animation(a) => (a.get_frame_position()?, a.get_frame_size()?),
             CnvContent::Image(i) => (i.get_position()?, i.get_size()?),
             _ => return Err(RunnerError::ExpectedGraphicsObject),

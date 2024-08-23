@@ -469,7 +469,7 @@ impl CnvType for Scene {
 }
 
 impl Initable for Scene {
-    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
         let mut state = self.state.borrow_mut();
         if let ImageFileData::NotLoaded(filename) = &state.background_data {
             let path = ScenePath::new(self.path.as_ref().unwrap(), filename);

@@ -18,10 +18,7 @@ use bevy_kira_audio::{
     prelude::StaticSoundData, Audio, AudioControl, AudioInstance, AudioSource, AudioTween,
     PlaybackState,
 };
-use pixlib_parser::runner::{
-    classes::{self, Scene},
-    MultimediaEvents, ScriptEvent, SoundEvent, SoundSource,
-};
+use pixlib_parser::runner::{CnvContent, MultimediaEvents, ScriptEvent, SoundEvent, SoundSource};
 
 use crate::AppState;
 
@@ -221,9 +218,9 @@ fn assign_pool(
     let mut iter = query.iter_mut();
     // info!("Current scene: {:?}", runner.get_current_scene());
     if let Some(current_scene) = runner.get_current_scene() {
-        let current_scene_guard = current_scene.content.borrow();
-        let current_scene: Option<&Scene> = (&*current_scene_guard).into();
-        let current_scene = current_scene.unwrap();
+        let CnvContent::Scene(ref current_scene) = &current_scene.content else {
+            panic!();
+        };
         if current_scene.has_background_music() {
             **iter.next().unwrap() = Some(SoundSource::BackgroundMusic);
             bgm_assigned = true;
@@ -234,7 +231,7 @@ fn assign_pool(
             .objects
             .borrow()
             .iter()
-            .filter(|o| Into::<Option<&classes::Sound>>::into(&*o.content.borrow()).is_some())
+            .filter(|o| matches!(&o.content, CnvContent::Sound(_)))
         {
             **iter.next().unwrap() = Some(SoundSource::Sound {
                 script_path: script.path.clone(),
@@ -244,10 +241,11 @@ fn assign_pool(
         }
     }
     for script in runner.scripts.borrow().iter() {
-        for object in
-            script.objects.borrow().iter().filter(|o| {
-                Into::<Option<&classes::Animation>>::into(&*o.content.borrow()).is_some()
-            })
+        for object in script
+            .objects
+            .borrow()
+            .iter()
+            .filter(|o| matches!(&o.content, CnvContent::Animation(_)))
         {
             **iter.next().unwrap() = Some(SoundSource::AnimationSfx {
                 script_path: script.path.clone(),

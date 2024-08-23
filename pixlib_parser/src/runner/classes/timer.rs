@@ -95,7 +95,8 @@ impl Timer {
     // custom
 
     pub fn step(&self, seconds: f64) -> RunnerResult<()> {
-        self.state.borrow_mut().step(self, seconds * 1000f64)
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow_mut().step(context, seconds * 1000f64)
     }
 }
 
@@ -216,7 +217,7 @@ impl CnvType for Timer {
 }
 
 impl Initable for Timer {
-    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
         context
             .runner
             .internal_events
@@ -286,8 +287,11 @@ impl TimerState {
 
     // custom
 
-    pub fn step(&mut self, timer: &Timer, duration_ms: f64) -> RunnerResult<()> {
+    pub fn step(&mut self, context: RunnerContext, duration_ms: f64) -> RunnerResult<()> {
         // eprintln!("Stepping timer {} by {} ms", timer.parent.name, duration_ms);
+        let CnvContent::Timer(timer) = &context.current_object.content else {
+            panic!();
+        };
         if !self.is_enabled
             || self.is_paused
             || self.interval_ms == 0
@@ -307,15 +311,13 @@ impl TimerState {
         {
             self.current_ms += self.interval_ms as f64;
             self.current_ticks += 1;
-            timer
-                .parent
-                .parent
+            context
                 .runner
                 .internal_events
                 .borrow_mut()
                 .use_and_drop_mut(|events| {
                     events.push_back(InternalEvent {
-                        object: timer.parent.clone(),
+                        object: context.current_object.clone(),
                         callable: CallableIdentifier::Event("ONTICK").to_owned(),
                         arguments: vec![CnvValue::Integer(self.current_ticks as i32)],
                     })

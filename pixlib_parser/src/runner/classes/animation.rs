@@ -159,7 +159,7 @@ pub struct Animation {
 impl Animation {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: AnimationProperties) -> Self {
         let animation = Self {
-            parent: Arc::clone(&parent),
+            parent: parent.clone(),
             state: RefCell::new(AnimationState {
                 is_button: props.as_button.unwrap_or_default(),
                 fps: props.fps.unwrap_or(16) as usize,
@@ -213,30 +213,18 @@ impl Animation {
     }
 
     pub fn get_frame_position(&self) -> RunnerResult<(isize, isize)> {
-        self.state
-            .borrow()
-            .get_frame_position(RunnerContext::new_minimal(
-                &self.parent.parent.runner,
-                &self.parent,
-            ))
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow().get_frame_position(context)
     }
 
     pub fn get_frame_size(&self) -> RunnerResult<(usize, usize)> {
-        self.state
-            .borrow()
-            .get_frame_size(RunnerContext::new_minimal(
-                &self.parent.parent.runner,
-                &self.parent,
-            ))
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow().get_frame_size(context)
     }
 
     pub fn get_center_frame_position(&self) -> RunnerResult<(isize, isize)> {
-        self.state
-            .borrow()
-            .get_center_frame_position(RunnerContext::new_minimal(
-                &self.parent.parent.runner,
-                &self.parent,
-            ))
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow().get_center_frame_position(context)
     }
 
     pub fn does_monitor_collision(&self) -> RunnerResult<bool> {
@@ -248,10 +236,8 @@ impl Animation {
     }
 
     pub fn step(&self, seconds: f64) -> RunnerResult<()> {
-        self.state.borrow_mut().step(
-            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
-            seconds,
-        )
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow_mut().step(context, seconds)
     }
 
     pub fn get_frame_to_show(
@@ -299,17 +285,13 @@ impl Animation {
     }
 
     pub fn play(&self, sequence_name: &str) -> RunnerResult<()> {
-        self.state.borrow_mut().play(
-            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
-            sequence_name,
-        )
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow_mut().play(context, sequence_name)
     }
 
     pub fn stop(&self, emit_on_finished: bool) -> RunnerResult<()> {
-        self.state.borrow_mut().stop(
-            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
-            emit_on_finished,
-        )
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow_mut().stop(context, emit_on_finished)
     }
 }
 
@@ -480,9 +462,7 @@ impl CnvType for Animation {
             }
             CallableIdentifier::Method("ISNEAR") => {
                 let name = arguments[0].to_str();
-                let other = self
-                    .parent
-                    .parent
+                let other = context
                     .runner
                     .get_object(&name)
                     .ok_or(RunnerError::ObjectNotFound { name })?;
@@ -881,7 +861,7 @@ impl CnvType for Animation {
 }
 
 impl Initable for Animation {
-    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
         let mut state = self.state.borrow_mut();
         if self.should_preload {
             if let AnimationFileData::NotLoaded(ref filename) = *state.file_data {
@@ -1091,8 +1071,7 @@ impl AnimationState {
         // ISNEAR
         let current_position = self.get_frame_position(context.clone())?;
         let current_size = self.get_frame_size(context.clone())?;
-        let other_guard = other.content.borrow();
-        let (other_position, other_size) = match &*other_guard {
+        let (other_position, other_size) = match &other.content {
             CnvContent::Animation(a) => (a.get_frame_position()?, a.get_frame_size()?),
             CnvContent::Image(i) => (i.get_position()?, i.get_size()?),
             _ => return Err(RunnerError::ExpectedGraphicsObject),

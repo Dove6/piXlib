@@ -371,7 +371,7 @@ impl CnvType for DoubleVar {
 }
 
 impl Initable for DoubleVar {
-    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
         context
             .runner
             .internal_events

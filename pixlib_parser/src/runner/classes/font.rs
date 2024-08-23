@@ -178,7 +178,7 @@ impl CnvType for Font {
 }
 
 impl Initable for Font {
-    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
         context
             .runner
             .internal_events

@@ -10,10 +10,7 @@ use bevy::{
     sprite::{Anchor, Sprite, SpriteBundle},
 };
 
-use pixlib_parser::runner::{
-    classes::{self, Scene},
-    CnvContent, ScenePath, ScriptEvent,
-};
+use pixlib_parser::runner::{CnvContent, ScenePath, ScriptEvent};
 
 use crate::{
     util::{add_tuples, animation_data_to_handle, image_data_to_handle},
@@ -144,9 +141,9 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
     let mut iter = query.iter_mut();
     // info!("Current scene: {:?}", runner.get_current_scene());
     if let Some(current_scene) = runner.get_current_scene() {
-        let current_scene_guard = current_scene.content.borrow();
-        let current_scene: Option<&Scene> = (&*current_scene_guard).into();
-        let current_scene = current_scene.unwrap();
+        let CnvContent::Scene(ref current_scene) = &current_scene.content else {
+            panic!();
+        };
         if current_scene.has_background_image() {
             *iter.next().unwrap() = GraphicsMarker::BackgroundImage;
             background_assigned = true;
@@ -154,7 +151,7 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
     }
     for (script_index, script) in runner.scripts.borrow().iter().enumerate() {
         for (object_index, object) in script.objects.borrow().iter().enumerate() {
-            if !matches!(&*object.content.borrow(), CnvContent::Image(_)) {
+            if !matches!(&object.content, CnvContent::Image(_)) {
                 continue;
             }
             let mut marker = iter.next().unwrap();
@@ -169,7 +166,7 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
     }
     for (script_index, script) in runner.scripts.borrow().iter().enumerate() {
         for (object_index, object) in script.objects.borrow().iter().enumerate() {
-            if !matches!(&*object.content.borrow(), CnvContent::Animation(_)) {
+            if !matches!(&object.content, CnvContent::Animation(_)) {
                 continue;
             }
             let mut marker = iter.next().unwrap();
@@ -212,9 +209,9 @@ pub fn update_background(
         let Some(scene_object) = runner.get_current_scene() else {
             continue;
         };
-        let scene_guard = scene_object.content.borrow_mut();
-        let scene: Option<&Scene> = (&*scene_guard).into();
-        let scene = scene.unwrap();
+        let CnvContent::Scene(ref scene) = &scene_object.content else {
+            panic!();
+        };
         let Ok((image_definition, image_data)) = scene.get_background_to_show() else {
             eprintln!(
                 "Error getting background image for scene {}",
@@ -274,9 +271,7 @@ pub fn update_images(
         let Some(object) = script.objects.borrow().get_object_at(*object_index) else {
             continue;
         };
-        let image_guard = object.content.borrow();
-        let image: Option<&classes::Image> = (&*image_guard).into();
-        let Some(image) = image else {
+        let CnvContent::Image(ref image) = &object.content else {
             continue;
         };
 
@@ -343,9 +338,7 @@ pub fn update_animations(
         let Some(object) = script.objects.borrow().get_object_at(*object_index) else {
             continue;
         };
-        let animation_guard = object.content.borrow();
-        let animation: Option<&classes::Animation> = (&*animation_guard).into();
-        let Some(animation) = animation else {
+        let CnvContent::Animation(ref animation) = &object.content else {
             continue;
         };
 

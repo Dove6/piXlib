@@ -3,11 +3,11 @@ use crate::runner::{RunnerContext, RunnerResult};
 use super::content::CnvContent;
 
 pub trait Initable {
-    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()>;
+    fn initialize(&self, context: RunnerContext) -> RunnerResult<()>;
 }
 
-impl<'a> From<&'a mut CnvContent> for Option<&'a mut dyn Initable> {
-    fn from(value: &'a mut CnvContent) -> Self {
+impl<'a> From<&'a CnvContent> for Option<&'a dyn Initable> {
+    fn from(value: &'a CnvContent) -> Self {
         match value {
             CnvContent::Animation(content) => Some(content),
             CnvContent::Array(content) => Some(content),

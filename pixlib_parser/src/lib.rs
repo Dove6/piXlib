@@ -1,3 +1,5 @@
+#![feature(get_mut_unchecked)]
+
 pub mod common;
 pub mod lexer;
 pub mod parser;

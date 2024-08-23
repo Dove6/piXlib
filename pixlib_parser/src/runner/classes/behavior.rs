@@ -218,7 +218,7 @@ impl CnvType for Behavior {
 }
 
 impl Initable for Behavior {
-    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
         context
             .runner
             .internal_events
@@ -279,18 +279,16 @@ impl BehaviorState {
         // RUNC
         if let Some(condition) = condition_name {
             let condition_object = context.runner.get_object(condition).unwrap();
-            let condition_guard = condition_object.content.borrow();
-            let condition: Option<&Condition> = (&*condition_guard).into();
-            if let Some(condition) = condition {
+            if let CnvContent::Condition(ref condition) = &condition_object.content {
+                if !condition.check()? {
+                    return Ok(None);
+                }
+            } else if let CnvContent::ComplexCondition(ref condition) = &condition_object.content {
                 if !condition.check()? {
                     return Ok(None);
                 }
             } else {
-                let condition: Option<&ComplexCondition> = (&*condition_guard).into(); // TODO: generalize
-                let condition = condition.unwrap();
-                if !condition.check()? {
-                    return Ok(None);
-                }
+                return Err(RunnerError::ExpectedConditionObject);
             }
         }
         self.run(context, code, arguments)

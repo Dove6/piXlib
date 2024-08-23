@@ -70,7 +70,8 @@ impl ComplexCondition {
     }
 
     pub fn check(&self) -> RunnerResult<bool> {
-        self.state.borrow().check(self)
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow().check(context)
     }
 }
 
@@ -98,7 +99,7 @@ impl CnvType for ComplexCondition {
             CallableIdentifier::Method("CHECK") => self
                 .state
                 .borrow()
-                .check(self)
+                .check(context)
                 .map(|v| Some(CnvValue::Bool(v))),
             CallableIdentifier::Method("ONE_BREAK") => {
                 self.state.borrow().one_break().map(|_| None)
@@ -167,19 +168,20 @@ impl ComplexConditionState {
         todo!()
     }
 
-    pub fn check(&self, complex_condition: &ComplexCondition) -> RunnerResult<bool> {
-        let context = RunnerContext::new_minimal(
-            &complex_condition.parent.parent.runner,
-            &complex_condition.parent,
-        );
+    pub fn check(&self, context: RunnerContext) -> RunnerResult<bool> {
+        // TODO: allow for complexconditions built on other complexconditions
+        let CnvContent::ComplexCondition(ref complex_condition) = &context.current_object.content
+        else {
+            panic!();
+        };
         let left_object = context.runner.get_object(&complex_condition.left).unwrap();
-        let left_guard = left_object.content.borrow();
-        let left: Option<&Condition> = (&*left_guard).into();
-        let left = left.unwrap();
+        let CnvContent::Condition(ref left) = &left_object.content else {
+            panic!();
+        };
         let right_object = context.runner.get_object(&complex_condition.right).unwrap();
-        let right_guard = right_object.content.borrow();
-        let right: Option<&Condition> = (&*right_guard).into();
-        let right = right.unwrap();
+        let CnvContent::Condition(ref right) = &right_object.content else {
+            panic!();
+        };
         let result = match complex_condition.operator {
             ComplexConditionOperator::And => {
                 if !left.check()? {

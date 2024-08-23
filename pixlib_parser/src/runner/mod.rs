@@ -45,7 +45,7 @@ use crate::{
     },
     scanner::parse_cnv,
 };
-use classes::{Animation, InternalMouseEvent, Mouse, Scene, Sound, Timer};
+use classes::{InternalMouseEvent, Mouse};
 use object::CnvObjectBuilder;
 
 #[derive(Debug)]
@@ -98,6 +98,7 @@ pub enum RunnerError {
         name: String,
     },
     ExpectedGraphicsObject,
+    ExpectedConditionObject,
     NoDataLoaded,
     SequenceNameNotFound {
         object_name: String,
@@ -129,6 +130,7 @@ pub enum RunnerError {
     ApplicationScriptAlreadyLoaded,
     EpisodeScriptAlreadyLoaded,
     SceneScriptAlreadyLoaded,
+    OrphanedContent,
 
     ParserError(ParserFatal),
 
@@ -442,23 +444,24 @@ impl CnvRunner {
                         TimerEvent::Elapsed { seconds } => {
                             let mut buffer = Vec::new();
                             self.find_objects(
-                                |o| matches!(&*o.content.borrow(), CnvContent::Animation(_)),
+                                |o| matches!(&o.content, CnvContent::Animation(_)),
                                 &mut buffer,
                             );
                             for animation_object in buffer.iter() {
-                                let guard = animation_object.content.borrow();
-                                let animation: Option<&Animation> = (&*guard).into();
-                                let animation = animation.unwrap();
+                                let CnvContent::Animation(animation) = &animation_object.content
+                                else {
+                                    panic!();
+                                };
                                 animation.step(seconds)?;
                             }
                             self.find_objects(
-                                |o| matches!(&*o.content.borrow(), CnvContent::Timer(_)),
+                                |o| matches!(&o.content, CnvContent::Timer(_)),
                                 &mut buffer,
                             );
                             for timer_object in buffer.iter() {
-                                let guard = timer_object.content.borrow();
-                                let timer: Option<&Timer> = (&*guard).into();
-                                let timer = timer.unwrap();
+                                let CnvContent::Timer(ref timer) = &timer_object.content else {
+                                    panic!();
+                                };
                                 timer.step(seconds)?;
                             }
                         }
@@ -489,9 +492,9 @@ impl CnvRunner {
                                         eprintln!("No current scene to handle event {:?}", evt);
                                         continue;
                                     };
-                                    let guard = scene_object.content.borrow();
-                                    let scene: Option<&Scene> = (&*guard).into();
-                                    let scene = scene.unwrap();
+                                    let CnvContent::Scene(ref scene) = &scene_object.content else {
+                                        panic!();
+                                    };
                                     scene.handle_music_finished()?;
                                 }
                                 SoundSource::Sound {
@@ -510,9 +513,9 @@ impl CnvRunner {
                                         );
                                         continue;
                                     };
-                                    let guard = sound_object.content.borrow();
-                                    let sound: Option<&Sound> = (&*guard).into();
-                                    let sound = sound.unwrap();
+                                    let CnvContent::Sound(ref sound) = &sound_object.content else {
+                                        panic!();
+                                    };
                                     sound.handle_finished()?;
                                 }
                                 SoundSource::AnimationSfx { .. } => {}
@@ -524,12 +527,12 @@ impl CnvRunner {
             })?;
         let mut buttons = Vec::new();
         self.find_objects(
-            |o| matches!(&*o.content.borrow(), CnvContent::Button(_)),
+            |o| matches!(&o.content, CnvContent::Button(_)),
             &mut buttons,
         );
         self.filter_map_objects(
             |id, o| {
-                Ok(match &*o.content.borrow() {
+                Ok(match &o.content {
                     CnvContent::Animation(a) => Some(GraphicsDescriptor {
                         priority: a.get_priority()?,
                         object_index: id,
@@ -570,7 +573,7 @@ impl CnvRunner {
         let mouse_is_left_button_down = Mouse::is_left_button_down()?;
         let found_button_index = self.find_active_button(&buttons, mouse_position)?;
         for (i, o) in buttons.iter().enumerate() {
-            let CnvContent::Button(ref button) = &*o.content.borrow() else {
+            let CnvContent::Button(ref button) = &o.content else {
                 panic!();
             };
             if found_button_index.is_some_and(|found| found == i) {
@@ -585,15 +588,14 @@ impl CnvRunner {
         }
         let mut mouse_objects = Vec::new();
         self.find_objects(
-            |o| matches!(*o.content.borrow(), CnvContent::Mouse(_)),
+            |o| matches!(&o.content, CnvContent::Mouse(_)),
             &mut mouse_objects,
         );
         Mouse::handle_outgoing_events(|mouse_event| {
             // eprintln!("Handling internal mouse event: {:?}", mouse_event);
             if let InternalMouseEvent::LeftButtonPressed { x, y } = &mouse_event {
                 if let Some(button_idx) = self.find_active_button(&buttons, (*x, *y))? {
-                    let CnvContent::Button(ref button) = &*buttons[button_idx].content.borrow()
-                    else {
+                    let CnvContent::Button(ref button) = &buttons[button_idx].content else {
                         panic!();
                     };
                     button.set_pressing()?;
@@ -654,7 +656,7 @@ impl CnvRunner {
         })?;
         let mut collidable = Vec::new();
         self.find_objects(
-            |o| match &*o.content.borrow() {
+            |o| match &o.content {
                 CnvContent::Animation(a) => a.does_monitor_collision().unwrap(),
                 CnvContent::Image(i) => i.does_monitor_collision().unwrap(),
                 _ => false,
@@ -666,34 +668,32 @@ impl CnvRunner {
                 for j in (i + 1)..collidable.len() {
                     let left = &collidable[i];
                     let right = &collidable[j];
-                    let (left_position, left_size, left_pixel_perfect) =
-                        match &*left.content.borrow() {
-                            CnvContent::Animation(a) => (
-                                a.get_frame_position()?,
-                                a.get_frame_size()?,
-                                a.does_monitor_collision_pixel_perfect()?,
-                            ),
-                            CnvContent::Image(i) => (
-                                i.get_position()?,
-                                i.get_size()?,
-                                i.does_monitor_collision_pixel_perfect()?,
-                            ),
-                            _ => unreachable!(),
-                        };
-                    let (right_position, right_size, right_pixel_perfect) =
-                        match &*right.content.borrow() {
-                            CnvContent::Animation(a) => (
-                                a.get_frame_position()?,
-                                a.get_frame_size()?,
-                                a.does_monitor_collision_pixel_perfect()?,
-                            ),
-                            CnvContent::Image(i) => (
-                                i.get_position()?,
-                                i.get_size()?,
-                                i.does_monitor_collision_pixel_perfect()?,
-                            ),
-                            _ => unreachable!(),
-                        };
+                    let (left_position, left_size, left_pixel_perfect) = match &left.content {
+                        CnvContent::Animation(a) => (
+                            a.get_frame_position()?,
+                            a.get_frame_size()?,
+                            a.does_monitor_collision_pixel_perfect()?,
+                        ),
+                        CnvContent::Image(i) => (
+                            i.get_position()?,
+                            i.get_size()?,
+                            i.does_monitor_collision_pixel_perfect()?,
+                        ),
+                        _ => unreachable!(),
+                    };
+                    let (right_position, right_size, right_pixel_perfect) = match &right.content {
+                        CnvContent::Animation(a) => (
+                            a.get_frame_position()?,
+                            a.get_frame_size()?,
+                            a.does_monitor_collision_pixel_perfect()?,
+                        ),
+                        CnvContent::Image(i) => (
+                            i.get_position()?,
+                            i.get_size()?,
+                            i.does_monitor_collision_pixel_perfect()?,
+                        ),
+                        _ => unreachable!(),
+                    };
                     let _pixel_perfect = left_pixel_perfect && right_pixel_perfect; // TODO: handle pixel perfect collisions
                     let left_top_left = left_position;
                     let left_bottom_right = (
@@ -761,7 +761,7 @@ impl CnvRunner {
             if let Some(visible_rect) = graphics.rect.intersect(&self.window_rect) {
                 if visible_rect.has_inside(mouse_position.0, mouse_position.1) {
                     for (i, o) in buttons.iter().enumerate() {
-                        let CnvContent::Button(ref button) = &*o.content.borrow() else {
+                        let CnvContent::Button(ref button) = &o.content else {
                             panic!();
                         };
                         if button.is_displaying(&graphics.object.name)? {
@@ -964,9 +964,9 @@ impl CnvRunner {
                 name: scene_name.to_owned(),
             });
         };
-        let scene_guard = scene_object.content.borrow();
-        let scene: Option<&Scene> = (&*scene_guard).into();
-        let scene = scene.unwrap();
+        let CnvContent::Scene(ref scene) = &scene_object.content else {
+            panic!();
+        };
         let scene_name = scene_object.name.clone();
         let scene_path = scene.get_script_path().unwrap();
         let contents = (*self.filesystem)

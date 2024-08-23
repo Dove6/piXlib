@@ -406,7 +406,7 @@ impl CnvType for Button {
 }
 
 impl Initable for Button {
-    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
         self.state
             .borrow_mut()
             .use_and_drop_mut::<RunnerResult<()>>(|state| {
@@ -536,28 +536,22 @@ impl ButtonState {
             .as_ref()
             .and_then(|name| context.runner.get_object(name))
         {
-            let guard = normal_obj.content.borrow();
-            let normal_image: Option<&classes::Image> = (&*guard).into();
-            if let Some(normal_image) = normal_image {
+            if let CnvContent::Image(ref normal_image) = &normal_obj.content {
                 if interaction == Interaction::None {
                     normal_image.show()
                 } else {
                     normal_image.hide()
-                }?
-            } else {
-                let guard = normal_obj.content.borrow();
-                let normal_animation: Option<&classes::Animation> = (&*guard).into();
-                if let Some(normal_animation) = normal_animation {
+                }
+            } else if let CnvContent::Animation(ref normal_animation) = &normal_obj.content {
                     if interaction == Interaction::None {
                         normal_animation.play("PLAY")
                     } else {
                         normal_animation.stop(false)?;
                         normal_animation.hide()
-                    }?
-                } else {
-                    return Err(RunnerError::ExpectedGraphicsObject);
-                }
-            }
+                    }
+            } else {
+                Err(RunnerError::ExpectedGraphicsObject)
+            }?
         } /*else {
             println!(
                 "Normal sprite not found for button {}",
@@ -569,28 +563,22 @@ impl ButtonState {
             .as_ref()
             .and_then(|name| context.runner.get_object(name))
         {
-            let guard = on_hover_obj.content.borrow();
-            let on_hover_image: Option<&classes::Image> = (&*guard).into();
-            if let Some(on_hover_image) = on_hover_image {
+            if let CnvContent::Image(ref on_hover_image) = &on_hover_obj.content {
                 if interaction == Interaction::Hovering {
                     on_hover_image.show()
                 } else {
                     on_hover_image.hide()
-                }?
-            } else {
-                let guard = on_hover_obj.content.borrow();
-                let on_hover_animation: Option<&classes::Animation> = (&*guard).into();
-                if let Some(on_hover_animation) = on_hover_animation {
+                }
+            } else if let CnvContent::Animation(ref on_hover_animation) = &on_hover_obj.content {
                     if interaction == Interaction::Hovering {
                         on_hover_animation.play("PLAY")
                     } else {
                         on_hover_animation.stop(false)?;
                         on_hover_animation.hide()
-                    }?
-                } else {
-                    return Err(RunnerError::ExpectedGraphicsObject);
-                }
-            }
+                    }
+            } else {
+                Err(RunnerError::ExpectedGraphicsObject)
+            }?
         } /*else {
             println!(
                 "Hovering sprite not found for button {}",
@@ -602,28 +590,22 @@ impl ButtonState {
             .as_ref()
             .and_then(|name| context.runner.get_object(name))
         {
-            let guard = on_click_obj.content.borrow();
-            let on_click_image: Option<&classes::Image> = (&*guard).into();
-            if let Some(on_click_image) = on_click_image {
+            if let CnvContent::Image(ref on_click_image) = &on_click_obj.content {
                 if interaction == Interaction::Pressing {
                     on_click_image.show()
                 } else {
                     on_click_image.hide()
-                }?
-            } else {
-                let guard = on_click_obj.content.borrow();
-                let on_click_animation: Option<&classes::Animation> = (&*guard).into();
-                if let Some(on_click_animation) = on_click_animation {
+                }
+            } else if let CnvContent::Animation(ref on_click_animation) = &on_click_obj.content {
                     if interaction == Interaction::Pressing {
                         on_click_animation.play("PLAY")
                     } else {
                         on_click_animation.stop(false)?;
                         on_click_animation.hide()
-                    }?
-                } else {
-                    return Err(RunnerError::ExpectedGraphicsObject);
-                }
-            }
+                    }
+            } else {
+                Err(RunnerError::ExpectedGraphicsObject)
+            }?
         } /*else {
             println!(
                 "Pressing sprite not found for button {}",

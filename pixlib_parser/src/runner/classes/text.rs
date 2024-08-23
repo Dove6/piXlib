@@ -352,7 +352,7 @@ impl CnvType for Text {
 }
 
 impl Initable for Text {
-    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
         context
             .runner
             .internal_events

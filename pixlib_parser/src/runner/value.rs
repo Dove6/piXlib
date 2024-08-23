@@ -99,7 +99,7 @@ impl CnvValue {
 
 fn get_reference_value(r: &Arc<CnvObject>) -> RunnerResult<Option<CnvValue>> {
     let context = RunnerContext::new_minimal(&r.parent.runner, r);
-    match &*r.content.borrow() {
+    match &r.content {
         CnvContent::Expression(e) => Some(e.calculate()).transpose(),
         CnvContent::Behavior(b) => b.run_c(context, Vec::new()),
         CnvContent::Integer(i) => i.get().map(|v| Some(CnvValue::Integer(v))),

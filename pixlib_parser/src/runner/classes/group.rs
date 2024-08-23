@@ -89,9 +89,7 @@ impl CnvType for Group {
         match name {
             CallableIdentifier::Method("ADD") => {
                 let name = arguments[0].to_str();
-                let added_object = self
-                    .parent
-                    .parent
+                let added_object = context
                     .runner
                     .get_object(&name)
                     .ok_or(RunnerError::ObjectNotFound { name })?;
@@ -198,7 +196,7 @@ impl CnvType for Group {
 }
 
 impl Initable for Group {
-    fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
         context
             .runner
             .internal_events
