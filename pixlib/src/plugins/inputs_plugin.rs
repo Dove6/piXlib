@@ -56,11 +56,17 @@ pub fn queue_mouse_input(
     if buttons.just_pressed(MouseButton::Left) {
         in_events.push_back(MouseEvent::LeftButtonPressed);
     }
+    if buttons.just_pressed(MouseButton::Middle) {
+        in_events.push_back(MouseEvent::MiddleButtonPressed);
+    }
     if buttons.just_pressed(MouseButton::Right) {
         in_events.push_back(MouseEvent::RightButtonPressed);
     }
     if buttons.just_released(MouseButton::Left) {
         in_events.push_back(MouseEvent::LeftButtonReleased);
+    }
+    if buttons.just_released(MouseButton::Middle) {
+        in_events.push_back(MouseEvent::MiddleButtonReleased);
     }
     if buttons.just_released(MouseButton::Right) {
         in_events.push_back(MouseEvent::RightButtonReleased);

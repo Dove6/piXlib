@@ -25,6 +25,8 @@ pub enum MouseEvent {
     MovedTo { x: isize, y: isize },
     LeftButtonPressed,
     LeftButtonReleased,
+    MiddleButtonPressed,
+    MiddleButtonReleased,
     RightButtonPressed,
     RightButtonReleased,
 }

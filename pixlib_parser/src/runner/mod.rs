@@ -441,11 +441,12 @@ impl CnvRunner {
                     // eprintln!("Handling internal mouse event: {:?}", mouse_event);
                     let callable = CallableIdentifier::Event(match mouse_event {
                         InternalMouseEvent::LeftButtonPressed { .. }
+                        | InternalMouseEvent::MiddleButtonPressed { .. }
                         | InternalMouseEvent::RightButtonPressed { .. } => "ONCLICK",
                         InternalMouseEvent::LeftButtonReleased { .. }
+                        | InternalMouseEvent::MiddleButtonReleased { .. }
                         | InternalMouseEvent::RightButtonReleased { .. } => "ONRELEASE",
-                        InternalMouseEvent::LeftButtonDoubleClicked { .. }
-                        | InternalMouseEvent::RightButtonDoubleClicked { .. } => "ONDBLCLICK",
+                        InternalMouseEvent::LeftButtonDoubleClicked { .. } => "ONDBLCLICK",
                         InternalMouseEvent::MovedBy { .. } => "ONMOVE",
                         _ => return Ok(()),
                     });
@@ -455,9 +456,12 @@ impl CnvRunner {
                         | InternalMouseEvent::LeftButtonDoubleClicked { .. } => {
                             vec![CnvValue::String("LEFT".into())]
                         }
+                        InternalMouseEvent::MiddleButtonPressed { .. }
+                        | InternalMouseEvent::MiddleButtonReleased { .. } => {
+                            vec![CnvValue::String("MIDDLE".into())]
+                        }
                         InternalMouseEvent::RightButtonPressed { .. }
-                        | InternalMouseEvent::RightButtonReleased { .. }
-                        | InternalMouseEvent::RightButtonDoubleClicked { .. } => {
+                        | InternalMouseEvent::RightButtonReleased { .. } => {
                             vec![CnvValue::String("RIGHT".into())]
                         }
                         _ => Vec::new(),

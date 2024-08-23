@@ -28,7 +28,7 @@ pub struct MouseProperties {
     pub raw: Option<i32>,      // RAW
 
     pub on_click: HashMap<String, Arc<ParsedScript>>, // ONCLICK signal
-    pub on_dbl_click: HashMap<String, Arc<ParsedScript>>, // ONDBLCLICK signal
+    pub on_dbl_click: Option<Arc<ParsedScript>>,      // ONDBLCLICK signal
     pub on_done: Option<Arc<ParsedScript>>,           // ONDONE signal
     pub on_init: Option<Arc<ParsedScript>>,           // ONINIT signal
     pub on_move: Option<Arc<ParsedScript>>,           // ONMOVE signal
@@ -45,9 +45,10 @@ struct MouseState {
     clip_rect: Option<Rect>,
 
     position: (isize, isize),
-    last_click_position: (isize, isize),
-    last_click_time_seconds: f64,
+    last_left_click_position: (isize, isize),
+    last_left_click_time_seconds: f64,
     is_left_button_down: bool,
+    is_middle_button_down: bool,
     is_right_button_down: bool,
     is_locked: bool,
 
@@ -57,7 +58,7 @@ struct MouseState {
 #[derive(Debug, Clone)]
 pub struct MouseEventHandlers {
     pub on_click: HashMap<String, Arc<ParsedScript>>, // ONCLICK signal
-    pub on_dbl_click: HashMap<String, Arc<ParsedScript>>, // ONDBLCLICK signal
+    pub on_dbl_click: Option<Arc<ParsedScript>>,      // ONDBLCLICK signal
     pub on_done: Option<Arc<ParsedScript>>,           // ONDONE signal
     pub on_init: Option<Arc<ParsedScript>>,           // ONINIT signal
     pub on_move: Option<Arc<ParsedScript>>,           // ONMOVE signal
@@ -71,9 +72,7 @@ impl EventHandler for MouseEventHandlers {
             "ONCLICK" => argument
                 .and_then(|a| self.on_click.get(a))
                 .or(self.on_click.get("")),
-            "ONDBLCLICK" => argument
-                .and_then(|a| self.on_dbl_click.get(a))
-                .or(self.on_dbl_click.get("")),
+            "ONDBLCLICK" => self.on_dbl_click.as_ref(),
             "ONDONE" => self.on_done.as_ref(),
             "ONINIT" => self.on_init.as_ref(),
             "ONMOVE" => self.on_move.as_ref(),
@@ -133,6 +132,8 @@ impl Mouse {
             MouseEvent::MovedTo { x, y } => mouse_state.set_position(x, y),
             MouseEvent::LeftButtonPressed => mouse_state.set_left_button_down(true),
             MouseEvent::LeftButtonReleased => mouse_state.set_left_button_down(false),
+            MouseEvent::MiddleButtonPressed => mouse_state.set_middle_button_down(true),
+            MouseEvent::MiddleButtonReleased => mouse_state.set_middle_button_down(false),
             MouseEvent::RightButtonPressed => mouse_state.set_right_button_down(true),
             MouseEvent::RightButtonReleased => mouse_state.set_right_button_down(false),
         }
@@ -300,14 +301,11 @@ impl CnvType for Mouse {
                 on_click.insert(String::from(argument), parse_event_handler(v.to_owned())?);
             }
         }
-        let mut on_dbl_click = HashMap::new();
-        for (k, v) in properties.iter() {
-            if k == "ONDBLCLICK" {
-                on_dbl_click.insert(String::from(""), parse_event_handler(v.to_owned())?);
-            } else if let Some(argument) = k.strip_prefix("ONDBLCLICK^") {
-                on_dbl_click.insert(String::from(argument), parse_event_handler(v.to_owned())?);
-            }
-        }
+        let on_dbl_click = properties
+            .remove("ONDBLCLICK")
+            .and_then(discard_if_empty)
+            .map(parse_event_handler)
+            .transpose()?;
         let on_done = properties
             .remove("ONDONE")
             .and_then(discard_if_empty)
@@ -405,12 +403,12 @@ impl MouseState {
 
     pub fn get_last_click_position_x(&self) -> RunnerResult<isize> {
         // GETLASTCLICKPOSX
-        Ok(self.last_click_position.0)
+        Ok(self.last_left_click_position.0)
     }
 
     pub fn get_last_click_position_y(&self) -> RunnerResult<isize> {
         // GETLASTCLICKPOSY
-        Ok(self.last_click_position.1)
+        Ok(self.last_left_click_position.1)
     }
 
     pub fn get_position_x(&self) -> RunnerResult<isize> {
@@ -507,15 +505,15 @@ impl MouseState {
                     .duration_since(UNIX_EPOCH)
                     .unwrap()
                     .as_secs_f64();
-                if now - self.last_click_time_seconds <= DOUBLE_CLICK_MAX_INTERVAL_SECONDS {
+                if now - self.last_left_click_time_seconds <= DOUBLE_CLICK_MAX_INTERVAL_SECONDS {
                     self.events_out
                         .push_back(InternalMouseEvent::LeftButtonDoubleClicked {
                             x: self.position.0,
                             y: self.position.1,
                         });
                 }
-                self.last_click_position = self.position;
-                self.last_click_time_seconds = now;
+                self.last_left_click_position = self.position;
+                self.last_left_click_time_seconds = now;
             } else {
                 self.events_out
                     .push_back(InternalMouseEvent::LeftButtonReleased {
@@ -528,6 +526,26 @@ impl MouseState {
         Ok(())
     }
 
+    pub fn set_middle_button_down(&mut self, is_down: bool) -> RunnerResult<()> {
+        if is_down != self.is_middle_button_down {
+            if is_down {
+                self.events_out
+                    .push_back(InternalMouseEvent::MiddleButtonPressed {
+                        x: self.position.0,
+                        y: self.position.1,
+                    });
+            } else {
+                self.events_out
+                    .push_back(InternalMouseEvent::MiddleButtonReleased {
+                        x: self.position.0,
+                        y: self.position.1,
+                    });
+            }
+        }
+        self.is_middle_button_down = is_down;
+        Ok(())
+    }
+
     pub fn set_right_button_down(&mut self, is_down: bool) -> RunnerResult<()> {
         if is_down != self.is_right_button_down {
             if is_down {
@@ -536,19 +554,6 @@ impl MouseState {
                         x: self.position.0,
                         y: self.position.1,
                     });
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs_f64();
-                if now - self.last_click_time_seconds <= DOUBLE_CLICK_MAX_INTERVAL_SECONDS {
-                    self.events_out
-                        .push_back(InternalMouseEvent::RightButtonDoubleClicked {
-                            x: self.position.0,
-                            y: self.position.1,
-                        });
-                }
-                self.last_click_position = self.position;
-                self.last_click_time_seconds = now;
             } else {
                 self.events_out
                     .push_back(InternalMouseEvent::RightButtonReleased {
@@ -566,10 +571,11 @@ impl MouseState {
 pub enum InternalMouseEvent {
     LeftButtonPressed { x: isize, y: isize },
     LeftButtonReleased { x: isize, y: isize },
+    MiddleButtonPressed { x: isize, y: isize },
+    MiddleButtonReleased { x: isize, y: isize },
     RightButtonPressed { x: isize, y: isize },
     RightButtonReleased { x: isize, y: isize },
     LeftButtonDoubleClicked { x: isize, y: isize },
-    RightButtonDoubleClicked { x: isize, y: isize },
     MovedBy { x: isize, y: isize },
     CursorLocked,
     CursorReleased,
