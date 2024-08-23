@@ -3,6 +3,7 @@ use super::super::{
     initable::Initable,
     parsers::{discard_if_empty, parse_bool, parse_event_handler, parse_i32},
 };
+use ::rand::{seq::SliceRandom, thread_rng};
 use pixlib_formats::file_formats::ann::{parse_ann, LoopingSettings};
 use std::{any::Any, cell::RefCell, sync::Arc};
 use xxhash_rust::xxh3::xxh3_64;
@@ -53,7 +54,7 @@ pub struct AnimationProperties {
 struct AnimationState {
     // initialized from properties
     pub is_button: bool,
-    pub file_data: AnimationFileData,
+    pub file_data: Arc<AnimationFileData>,
     pub fps: usize,
     pub does_monitor_collision: bool,
     pub priority: isize,
@@ -77,6 +78,7 @@ struct AnimationState {
     // related to sound
     pub panning: isize,
     pub volume: isize,
+    pub current_sfx: SoundFileData,
 }
 
 #[derive(Debug, Clone)]
@@ -190,7 +192,8 @@ impl Animation {
             should_draw_to_canvas: props.to_canvas.unwrap_or(true),
         };
         if let Some(filename) = props.filename {
-            animation.state.borrow_mut().file_data = AnimationFileData::NotLoaded(filename);
+            animation.state.borrow_mut().file_data =
+                Arc::new(AnimationFileData::NotLoaded(filename));
         }
         animation
     }
@@ -260,7 +263,7 @@ impl Animation {
         if !state.is_visible {
             return Ok(None);
         }
-        let AnimationFileData::Loaded(loaded_data) = &state.file_data else {
+        let AnimationFileData::Loaded(ref loaded_data) = *state.file_data else {
             return Ok(None);
         };
         if loaded_data.sequences.is_empty() {
@@ -861,7 +864,7 @@ impl Initable for Animation {
     fn initialize(&mut self, context: RunnerContext) -> RunnerResult<()> {
         let mut state = self.state.borrow_mut();
         if self.should_preload {
-            if let AnimationFileData::NotLoaded(filename) = &state.file_data {
+            if let AnimationFileData::NotLoaded(ref filename) = *state.file_data {
                 let filename = filename.clone();
                 state.load(context.clone(), &filename)?;
             };
@@ -1144,7 +1147,7 @@ impl AnimationState {
             sequence_idx: data.sequences.len().saturating_sub(1),
             frame_idx: 0,
         };
-        self.file_data = AnimationFileData::Loaded(LoadedAnimation {
+        self.file_data = Arc::new(AnimationFileData::Loaded(LoadedAnimation {
             filename: Some(filename.to_owned()),
             sequences: data
                 .sequences
@@ -1162,6 +1165,10 @@ impl AnimationState {
                             offset_px: (f.x_position_px.into(), f.y_position_px.into()),
                             opacity: f.opacity,
                             sprite_idx: s.header.frame_to_sprite_mapping[i].into(),
+                            sfx: f
+                                .random_sfx_list
+                                .map(|d| d.as_ref().to_owned())
+                                .unwrap_or_default(),
                         })
                         .collect(),
                 })
@@ -1189,7 +1196,7 @@ impl AnimationState {
                     )
                 })
                 .collect(),
-        });
+        }));
         Ok(())
     }
 
@@ -1222,8 +1229,8 @@ impl AnimationState {
     pub fn pause(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // PAUSE
         self.is_paused = true;
-        let current_sequence_name = match &self.file_data {
-            AnimationFileData::Loaded(LoadedAnimation { sequences, .. }) => sequences
+        let current_sequence_name = match *self.file_data {
+            AnimationFileData::Loaded(LoadedAnimation { ref sequences, .. }) => sequences
                 .get(self.current_frame.sequence_idx)
                 .map(|s| s.name.clone()),
             _ => None,
@@ -1249,62 +1256,47 @@ impl AnimationState {
 
     pub fn play(&mut self, context: RunnerContext, sequence_name: &str) -> RunnerResult<()> {
         // PLAY (STRING)
-        if let AnimationFileData::NotLoaded(filename) = &self.file_data {
+        if let AnimationFileData::NotLoaded(ref filename) = *self.file_data {
             let filename = filename.clone();
             self.load(context.clone(), &filename)?;
         };
-        let AnimationFileData::Loaded(loaded_data) = &self.file_data else {
+        let AnimationFileData::Loaded(ref loaded_data) = *self.file_data.clone() else {
             return Err(RunnerError::NoDataLoaded);
         };
-        if self.is_playing
-            && self.is_paused
-            && loaded_data.sequences[self.current_frame.sequence_idx].name == sequence_name
-        {
-            // TODO: check if applicable
-            self.is_paused = false;
-            context
-                .runner
-                .internal_events
-                .borrow_mut()
-                .use_and_drop_mut(|events| {
-                    events.push_back(InternalEvent {
-                        object: context.current_object.clone(),
-                        callable: CallableIdentifier::Event("ONRESUMED").to_owned(),
-                        arguments: vec![CnvValue::String(sequence_name.to_owned())],
-                    })
-                });
-        } else {
-            self.current_frame = FrameIdentifier {
-                sequence_idx: loaded_data
-                    .sequences
-                    .iter()
-                    .position(|s| s.name == sequence_name)
-                    .ok_or(RunnerError::SequenceNameNotFound {
-                        object_name: context.current_object.name.clone(),
-                        sequence_name: sequence_name.to_owned(),
-                    })?,
-                frame_idx: 0,
-            };
-            self.is_playing = true;
-            self.is_paused = false;
-            self.is_reversed = false;
-            context
-                .runner
-                .internal_events
-                .borrow_mut()
-                .use_and_drop_mut(|events| {
-                    events.push_back(InternalEvent {
-                        object: context.current_object.clone(),
-                        callable: CallableIdentifier::Event("ONSTARTED").to_owned(),
-                        arguments: vec![CnvValue::String(sequence_name.to_owned())],
-                    });
-                    events.push_back(InternalEvent {
-                        object: context.current_object.clone(),
-                        callable: CallableIdentifier::Event("ONFIRSTFRAME").to_owned(),
-                        arguments: vec![CnvValue::String(sequence_name.to_owned())],
-                    })
-                });
+        let (sequence_idx, sequence) = loaded_data
+            .sequences
+            .iter()
+            .find_position(|s| s.name == sequence_name)
+            .ok_or(RunnerError::SequenceNameNotFound {
+                object_name: context.current_object.name.clone(),
+                sequence_name: sequence_name.to_owned(),
+            })?;
+        self.current_frame = FrameIdentifier {
+            sequence_idx,
+            frame_idx: 0,
+        };
+        self.is_playing = true;
+        self.is_paused = false;
+        self.is_reversed = false;
+        if let Some(sfx) = sequence.frames[0].sfx.choose(&mut thread_rng()).cloned() {
+            self.play_sfx(context.clone(), &sfx)?;
         }
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONSTARTED").to_owned(),
+                    arguments: vec![CnvValue::String(sequence_name.to_owned())],
+                });
+                events.push_back(InternalEvent {
+                    object: context.current_object.clone(),
+                    callable: CallableIdentifier::Event("ONFIRSTFRAME").to_owned(),
+                    arguments: vec![CnvValue::String(sequence_name.to_owned())],
+                })
+            });
         self.is_visible = true;
         Ok(())
     }
@@ -1342,8 +1334,8 @@ impl AnimationState {
     pub fn resume(&mut self, context: RunnerContext) -> RunnerResult<()> {
         // RESUME
         self.is_paused = false;
-        let current_sequence_name = match &self.file_data {
-            AnimationFileData::Loaded(LoadedAnimation { sequences, .. }) => sequences
+        let current_sequence_name = match *self.file_data {
+            AnimationFileData::Loaded(LoadedAnimation { ref sequences, .. }) => sequences
                 .get(self.current_frame.sequence_idx)
                 .map(|s| s.name.clone()),
             _ => None,
@@ -1457,6 +1449,17 @@ impl AnimationState {
     pub fn stop(&self, _emit_on_finished: bool) {
         // STOP ([BOOL])
         todo!()
+        // context
+        //     .runner
+        //     .events_out
+        //     .sound
+        //     .borrow_mut()
+        //     .use_and_drop_mut(|events| {
+        //         events.push_back(SoundEvent::SoundStopped(SoundSource::AnimationSfx {
+        //             script_path: context.current_object.parent.path.clone(),
+        //             object_name: context.current_object.name.clone(),
+        //         }))
+        //     });
     }
 
     // custom
@@ -1500,7 +1503,7 @@ impl AnimationState {
     }
 
     fn get_sequence_data(&self, context: RunnerContext) -> RunnerResult<&SequenceDefinition> {
-        let AnimationFileData::Loaded(loaded_file) = &self.file_data else {
+        let AnimationFileData::Loaded(ref loaded_file) = *self.file_data else {
             return Err(RunnerError::NoDataLoaded);
         };
         let Some(sequence) = loaded_file.sequences.get(self.current_frame.sequence_idx) else {
@@ -1535,7 +1538,7 @@ impl AnimationState {
         &FrameDefinition,
         &(SpriteDefinition, SpriteData),
     )> {
-        let AnimationFileData::Loaded(loaded_file) = &self.file_data else {
+        let AnimationFileData::Loaded(ref loaded_file) = *self.file_data else {
             return Err(RunnerError::NoDataLoaded);
         };
         let (sequence, frame) = self.get_frame_data(context.clone())?;
@@ -1549,7 +1552,8 @@ impl AnimationState {
     }
 
     pub fn step(&mut self, context: RunnerContext, seconds: f64) -> RunnerResult<()> {
-        let AnimationFileData::Loaded(loaded_data) = &self.file_data else {
+        let file_data = self.file_data.clone();
+        let AnimationFileData::Loaded(ref loaded_data) = *file_data else {
             return Ok(());
         };
         if !self.is_playing || self.is_paused {
@@ -1559,11 +1563,13 @@ impl AnimationState {
         let sequence = &loaded_data.sequences[self.current_frame.sequence_idx];
         let sequence_looping = sequence.looping;
         let sequence_length = sequence.frames.len();
+        let sequence_name = sequence.name.clone();
         self.current_frame_duration += seconds;
         let max_frame_duration = self.get_max_frame_duration();
         while self.current_frame_duration >= max_frame_duration {
             // eprintln!("{} / {}", self.current_frame_duration, max_frame_duration);
             self.current_frame_duration -= max_frame_duration;
+            let prev_frame_idx = self.current_frame.frame_idx;
             let finished = if self.is_reversed {
                 if self.current_frame.frame_idx == 0 {
                     true
@@ -1590,20 +1596,34 @@ impl AnimationState {
                 self.is_reversed = false;
                 context
                     .runner
+                    .events_out
+                    .sound
+                    .borrow_mut()
+                    .use_and_drop_mut(|events| {
+                        events.push_back(SoundEvent::SoundStopped(SoundSource::AnimationSfx {
+                            script_path: context.current_object.parent.path.clone(),
+                            object_name: context.current_object.name.clone(),
+                        }))
+                    });
+                context
+                    .runner
                     .internal_events
                     .borrow_mut()
                     .use_and_drop_mut(|events| {
                         events.push_back(InternalEvent {
                             object: context.current_object.clone(),
                             callable: CallableIdentifier::Event("ONFINISHED").to_owned(),
-                            arguments: vec![CnvValue::String(
-                                loaded_data.sequences[self.current_frame.sequence_idx]
-                                    .name
-                                    .clone(),
-                            )],
+                            arguments: vec![CnvValue::String(sequence_name.clone())],
                         })
                     });
-            } else {
+            } else if self.current_frame.frame_idx != prev_frame_idx {
+                if let Some(sfx) = sequence.frames[self.current_frame.frame_idx]
+                    .sfx
+                    .choose(&mut thread_rng())
+                    .cloned()
+                {
+                    self.play_sfx(context.clone(), &sfx)?;
+                }
                 context
                     .runner
                     .internal_events
@@ -1612,16 +1632,73 @@ impl AnimationState {
                         events.push_back(InternalEvent {
                             object: context.current_object.clone(),
                             callable: CallableIdentifier::Event("ONFRAMECHANGED").to_owned(),
-                            arguments: vec![CnvValue::String(
-                                loaded_data.sequences[self.current_frame.sequence_idx]
-                                    .name
-                                    .clone(),
-                            )],
+                            arguments: vec![CnvValue::String(sequence_name.clone())],
                         })
                     });
             }
         }
         // eprintln!("Moved animation {} to frame: {:?}", animation.parent.name, self.current_frame);
+        Ok(())
+    }
+
+    fn load_sfx(&mut self, context: RunnerContext, path: &ScenePath) -> RunnerResult<()> {
+        let script = context.current_object.parent.as_ref();
+        let filesystem = Arc::clone(&script.runner.filesystem);
+        let data = filesystem
+            .borrow_mut()
+            .read_sound(Arc::clone(&script.runner.game_paths), path)
+            .map_err(|_| RunnerError::IoError {
+                source: std::io::Error::from(std::io::ErrorKind::NotFound),
+            })?;
+        let converted_data: Arc<[u8]> = data.into();
+        let sound_data = SoundData {
+            hash: xxh3_64(&converted_data),
+            data: converted_data,
+        };
+        self.current_sfx = SoundFileData::Loaded(LoadedSound {
+            filename: Some(path.file_path.to_str()),
+            sound: sound_data.clone(),
+        });
+        context
+            .runner
+            .events_out
+            .sound
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(SoundEvent::SoundLoaded {
+                    source: SoundSource::AnimationSfx {
+                        script_path: context.current_object.parent.path.clone(),
+                        object_name: context.current_object.name.clone(),
+                    },
+                    sound_data,
+                })
+            });
+        Ok(())
+    }
+
+    fn play_sfx(&mut self, context: RunnerContext, path: &str) -> RunnerResult<()> {
+        if !matches!(self.current_sfx, SoundFileData::Loaded(ref loaded) if loaded.filename.as_deref() == Some(path))
+        {
+            self.load_sfx(
+                context.clone(),
+                &context.current_object.parent.path.with_file_path(path),
+            )?;
+        }
+        context
+            .runner
+            .events_out
+            .sound
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(SoundEvent::SoundStopped(SoundSource::AnimationSfx {
+                    script_path: context.current_object.parent.path.clone(),
+                    object_name: context.current_object.name.clone(),
+                }));
+                events.push_back(SoundEvent::SoundStarted(SoundSource::AnimationSfx {
+                    script_path: context.current_object.parent.path.clone(),
+                    object_name: context.current_object.name.clone(),
+                }))
+            });
         Ok(())
     }
 }

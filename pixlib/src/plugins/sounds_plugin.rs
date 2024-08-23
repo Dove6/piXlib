@@ -217,7 +217,7 @@ fn assign_pool(
 ) {
     let mut bgm_assigned = false;
     let mut sound_counter = 0;
-    let animation_sfx_counter = 0;
+    let mut animation_sfx_counter = 0;
     let mut iter = query.iter_mut();
     // info!("Current scene: {:?}", runner.get_current_scene());
     if let Some(current_scene) = runner.get_current_scene() {
@@ -241,6 +241,19 @@ fn assign_pool(
                 object_name: object.name.clone(),
             });
             sound_counter += 1;
+        }
+    }
+    for script in runner.scripts.borrow().iter() {
+        for object in
+            script.objects.borrow().iter().filter(|o| {
+                Into::<Option<&classes::Animation>>::into(&*o.content.borrow()).is_some()
+            })
+        {
+            **iter.next().unwrap() = Some(SoundSource::AnimationSfx {
+                script_path: script.path.clone(),
+                object_name: object.name.clone(),
+            });
+            animation_sfx_counter += 1;
         }
     }
     pool_query.single_mut().state = PoolState::Assigned;
@@ -305,11 +318,14 @@ fn update_sounds(
             SoundEvent::SoundResumed(source) => source,
             SoundEvent::SoundStopped(source) => source,
         };
-        if reloaded_sources.contains(evt_source) {
+        if reloaded_sources.contains(evt_source)
+            && !matches!(&evt.event, SoundEvent::SoundLoaded { .. })
+        {
             continue;
         }
         evt.mark_as_processed();
-        // info!("Read sound event: {}", evt.0);
+        info!("Read sound event: {}", evt.event);
+        let mut any_marker_matched = false;
         for (marker, mut ident, mut handle, mut state) in query.iter_mut() {
             let Some(snd_source) = &**marker else {
                 continue;
@@ -317,6 +333,7 @@ fn update_sounds(
             if evt_source != snd_source {
                 continue;
             }
+            any_marker_matched = true;
             // info!("Matched the sounds pool element");
             match &evt.event {
                 SoundEvent::SoundLoaded { sound_data, .. } => {
@@ -338,7 +355,7 @@ fn update_sounds(
                         ident.0 = Some(sound_data.hash);
                         state.position = Some(0.0);
                         reloaded_sources.insert(evt_source.clone());
-                        // info!("Updated data for sound {:?}", snd_source);
+                        info!("Updated data for sound {:?}", snd_source);
                     }
                 }
                 _ => {
@@ -351,7 +368,7 @@ fn update_sounds(
                     match &evt.event {
                         SoundEvent::SoundStarted(_) => {
                             instance.resume(EASING);
-                            // info!("Started sound {:?}", snd_source);
+                            info!("Started sound {:?}", snd_source);
                         }
                         SoundEvent::SoundPaused(_) => {
                             instance.pause(EASING);
@@ -371,6 +388,9 @@ fn update_sounds(
                     };
                 }
             };
+        }
+        if !any_marker_matched {
+            error!("No marker matched for event {}", evt.event);
         }
     }
 }

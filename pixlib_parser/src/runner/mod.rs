@@ -422,7 +422,7 @@ impl CnvRunner {
                                     let sound = sound.unwrap();
                                     sound.handle_finished()?;
                                 }
-                                _ => todo!(),
+                                SoundSource::AnimationSfx { .. } => {}
                             };
                         }
                     }

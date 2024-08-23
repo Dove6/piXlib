@@ -92,7 +92,7 @@ pub enum ImageFileData {
     Loaded(LoadedImage),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct SequenceDefinition {
     pub name: String,
     pub opacity: u8,
@@ -100,25 +100,32 @@ pub struct SequenceDefinition {
     pub frames: Vec<FrameDefinition>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct FrameDefinition {
     pub name: String,
     pub offset_px: (i32, i32),
     pub opacity: u8,
     pub sprite_idx: usize,
+    pub sfx: Vec<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct SpriteDefinition {
     pub name: String,
     pub size_px: (u32, u32),
     pub offset_px: (i32, i32),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct SpriteData {
     pub hash: u64,
     pub data: Arc<[u8]>, // RGBA8888
+}
+
+impl PartialEq for SpriteData {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash
+    }
 }
 
 #[derive(Debug, Clone, Default)]
