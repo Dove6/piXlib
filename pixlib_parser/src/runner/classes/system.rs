@@ -1,5 +1,7 @@
 use std::{any::Any, cell::RefCell};
 
+use chrono::Local;
+
 use super::super::content::EventHandler;
 use super::super::parsers::discard_if_empty;
 
@@ -238,7 +240,7 @@ impl SystemState {
 
     pub fn get_date(&self) -> RunnerResult<String> {
         // GETDATE
-        todo!()
+        Ok(Local::now().format("%y%m%d").to_string())
     }
 
     pub fn get_date_string(&self) -> RunnerResult<String> {
