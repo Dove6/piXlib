@@ -38,6 +38,7 @@ use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use events::{IncomingEvents, OutgoingEvents};
 
+use crate::parser::seq_parser::SeqParserError;
 use crate::{
     common::{DroppableRefMut, Issue, IssueHandler, IssueKind, IssueManager},
     parser::declarative_parser::{
@@ -134,6 +135,7 @@ pub enum RunnerError {
     OrphanedContent,
 
     ParserError(ParserFatal),
+    SeqParserError(SeqParserError),
 
     IoError {
         source: std::io::Error,
