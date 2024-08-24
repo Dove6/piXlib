@@ -98,6 +98,7 @@ pub enum RunnerError {
         name: String,
     },
     ExpectedGraphicsObject,
+    ExpectedSoundObject,
     ExpectedConditionObject,
     NoDataLoaded,
     SequenceNameNotFound {
@@ -578,7 +579,7 @@ impl CnvRunner {
             };
             if found_button_index.is_some_and(|found| found == i) {
                 if mouse_is_left_button_down {
-                    button.keep_pressing()
+                    button.promote_to_hovering_or_keep_pressing()
                 } else {
                     button.set_hovering()
                 }

@@ -140,6 +140,20 @@ impl Sound {
             });
         Ok(())
     }
+
+    pub fn play(&self) -> RunnerResult<()> {
+        self.state.borrow_mut().play(RunnerContext::new_minimal(
+            &self.parent.parent.runner,
+            &self.parent,
+        ))
+    }
+
+    pub fn stop(&self) -> RunnerResult<()> {
+        self.state.borrow_mut().stop(RunnerContext::new_minimal(
+            &self.parent.parent.runner,
+            &self.parent,
+        ))
+    }
 }
 
 impl CnvType for Sound {

@@ -184,12 +184,14 @@ impl Button {
         )
     }
 
-    pub fn keep_pressing(&self) -> RunnerResult<()> {
+    pub fn promote_to_hovering_or_keep_pressing(&self) -> RunnerResult<()> {
         // println!("{}.keep_pressing()", self.parent.name);
-        self.state.borrow_mut().try_keep_interaction(
-            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
-            Interaction::Pressing,
-        )
+        self.state
+            .borrow_mut()
+            .promote_to_hovering_or_keep_pressing(RunnerContext::new_minimal(
+                &self.parent.parent.runner,
+                &self.parent,
+            ))
     }
 }
 
@@ -529,6 +531,9 @@ impl ButtonState {
         if interaction == self.current_interaction {
             return Ok(());
         }
+        let CnvContent::Button(button) = &context.current_object.content else {
+            panic!();
+        };
         let prev_interaction = self.current_interaction;
         self.current_interaction = interaction;
         if let Some(normal_obj) = self
@@ -558,6 +563,20 @@ impl ButtonState {
                 context.current_object.name
             );
         }*/;
+        if let Some(normal_sound_obj) = button
+            .sound_normal
+            .as_ref()
+            .and_then(|name| context.runner.get_object(name))
+        {
+            let CnvContent::Sound(normal_sound) = &normal_sound_obj.content else {
+                return Err(RunnerError::ExpectedSoundObject);
+            };
+            if interaction == Interaction::None {
+                normal_sound.play()
+            } else {
+                normal_sound.stop()
+            }?
+        }
         if let Some(on_hover_obj) = self
             .graphics_on_hover
             .as_ref()
@@ -585,6 +604,20 @@ impl ButtonState {
                 context.current_object.name
             );
         }*/;
+        if let Some(on_hover_sound_obj) = button
+            .sound_on_hover
+            .as_ref()
+            .and_then(|name| context.runner.get_object(name))
+        {
+            let CnvContent::Sound(on_hover_sound) = &on_hover_sound_obj.content else {
+                return Err(RunnerError::ExpectedSoundObject);
+            };
+            if interaction == Interaction::Hovering {
+                on_hover_sound.play()
+            } else {
+                on_hover_sound.stop()
+            }?
+        }
         if let Some(on_click_obj) = self
             .graphics_on_click
             .as_ref()
@@ -612,6 +645,20 @@ impl ButtonState {
                 context.current_object.name
             );
         }*/;
+        if let Some(on_click_sound_obj) = button
+            .sound_on_click
+            .as_ref()
+            .and_then(|name| context.runner.get_object(name))
+        {
+            let CnvContent::Sound(on_click_sound) = &on_click_sound_obj.content else {
+                return Err(RunnerError::ExpectedSoundObject);
+            };
+            if interaction == Interaction::Pressing {
+                on_click_sound.play()
+            } else {
+                on_click_sound.stop()
+            }?
+        }
         if prev_interaction == Interaction::None {
             context
                 .runner
@@ -679,20 +726,17 @@ impl ButtonState {
         self.set_interaction(context, interaction)
     }
 
-    pub fn try_keep_interaction(
+    pub fn promote_to_hovering_or_keep_pressing(
         &mut self,
         context: RunnerContext,
-        interaction: Interaction,
     ) -> RunnerResult<()> {
-        if self.current_interaction != Interaction::Pressing && interaction == Interaction::Pressing
-        {
+        if matches!(
+            self.current_interaction,
+            Interaction::Pressing | Interaction::Hovering
+        ) {
             return Ok(());
         }
-        if self.current_interaction != Interaction::Hovering && interaction == Interaction::Hovering
-        {
-            return Ok(());
-        }
-        self.try_set_interaction(context, interaction)
+        self.try_set_interaction(context, Interaction::Hovering)
     }
 
     pub fn is_displaying(&self, object_name: &str) -> RunnerResult<bool> {
