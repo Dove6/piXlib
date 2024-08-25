@@ -21,6 +21,7 @@ Expression: ast::Expression = {
     "{" ";"? <(<Statement> ";"+)*> "}" => ast::Expression::Block(<>),
     "true" => ast::Expression::LiteralBool(true),
     "false" => ast::Expression::LiteralBool(false),
+    "null" => ast::Expression::LiteralNull,
 }
 
 Callable: ast::Expression = {
@@ -77,6 +78,7 @@ extern {
         "true" => CnvToken::KeywordTrue,
         "false" => CnvToken::KeywordFalse,
         "this" => CnvToken::KeywordThis,
+        "null" => CnvToken::KeywordNull,
         "+" => CnvToken::Plus,
         "-" => CnvToken::Minus,
         "*" => CnvToken::Asterisk,

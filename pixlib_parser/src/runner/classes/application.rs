@@ -115,60 +115,77 @@ impl CnvType for Application {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
-            CallableIdentifier::Method("DISABLEMUSIC") => {
-                self.state.borrow_mut().disable_music().map(|_| None)
+            CallableIdentifier::Method("DISABLEMUSIC") => self
+                .state
+                .borrow_mut()
+                .disable_music()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("ENABLEMUSIC") => self
+                .state
+                .borrow_mut()
+                .enable_music()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("EXISTSENV") => {
+                self.state.borrow().exists_env().map(CnvValue::Bool)
             }
-            CallableIdentifier::Method("ENABLEMUSIC") => {
-                self.state.borrow_mut().enable_music().map(|_| None)
+            CallableIdentifier::Method("EXIT") => {
+                self.state.borrow_mut().exit().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("EXISTSENV") => self
-                .state
-                .borrow()
-                .exists_env()
-                .map(|v| Some(CnvValue::Bool(v))),
-            CallableIdentifier::Method("EXIT") => self.state.borrow_mut().exit().map(|_| None),
-            CallableIdentifier::Method("GETLANGUAGE") => self
-                .state
-                .borrow()
-                .get_language()
-                .map(|v| Some(CnvValue::String(v))),
-            CallableIdentifier::Method("GETPLAYER") => self
-                .state
-                .borrow()
-                .get_player()
-                .map(|v| Some(CnvValue::String(v))),
-            CallableIdentifier::Method("GOTO") => self.state.borrow_mut().goto().map(|_| None),
-            CallableIdentifier::Method("PRINT") => self.state.borrow_mut().print().map(|_| None),
-            CallableIdentifier::Method("RELOAD") => self.state.borrow_mut().reload().map(|_| None),
+            CallableIdentifier::Method("GETLANGUAGE") => {
+                self.state.borrow().get_language().map(CnvValue::String)
+            }
+            CallableIdentifier::Method("GETPLAYER") => {
+                self.state.borrow().get_player().map(CnvValue::String)
+            }
+            CallableIdentifier::Method("GOTO") => {
+                self.state.borrow_mut().goto().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("PRINT") => {
+                self.state.borrow_mut().print().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("RELOAD") => {
+                self.state.borrow_mut().reload().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("RESTART") => {
-                self.state.borrow_mut().restart().map(|_| None)
+                self.state.borrow_mut().restart().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("RUN") => self.state.borrow_mut().run().map(|_| None),
-            CallableIdentifier::Method("RUNENV") => self.state.borrow_mut().run_env().map(|_| None),
-            CallableIdentifier::Method("SETLANGUAGE") => {
-                self.state.borrow_mut().set_language().map(|_| None)
+            CallableIdentifier::Method("RUN") => {
+                self.state.borrow_mut().run().map(|_| CnvValue::Null)
             }
+            CallableIdentifier::Method("RUNENV") => {
+                self.state.borrow_mut().run_env().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("SETLANGUAGE") => self
+                .state
+                .borrow_mut()
+                .set_language()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("STARTDRAGGINGWINDOW") => self
                 .state
                 .borrow_mut()
                 .start_dragging_window()
-                .map(|_| None),
-            CallableIdentifier::Method("STOPDRAGGINGWINDOW") => {
-                self.state.borrow_mut().stop_dragging_window().map(|_| None)
-            }
-            CallableIdentifier::Method("STOREBINARY") => {
-                self.state.borrow_mut().store_binary().map(|_| None)
-            }
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("STOPDRAGGINGWINDOW") => self
+                .state
+                .borrow_mut()
+                .stop_dragging_window()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("STOREBINARY") => self
+                .state
+                .borrow_mut()
+                .store_binary()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

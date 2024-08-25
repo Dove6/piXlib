@@ -124,110 +124,117 @@ impl CnvType for IntegerVar {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
-            CallableIdentifier::Method("ABS") => self
-                .state
-                .borrow_mut()
-                .abs(context)
-                .map(|v| Some(CnvValue::Integer(v))),
+            CallableIdentifier::Method("ABS") => {
+                self.state.borrow_mut().abs(context).map(CnvValue::Integer)
+            }
             CallableIdentifier::Method("ADD") => self
                 .state
                 .borrow_mut()
                 .add(context, arguments[0].to_int())
-                .map(|v| Some(CnvValue::Integer(v))),
+                .map(CnvValue::Integer),
             CallableIdentifier::Method("AND") => self
                 .state
                 .borrow_mut()
                 .and(context, arguments[0].to_int())
-                .map(|v| Some(CnvValue::Integer(v))),
+                .map(CnvValue::Integer),
             CallableIdentifier::Method("CLAMP") => self
                 .state
                 .borrow_mut()
                 .clamp(context, arguments[0].to_int(), arguments[1].to_int())
-                .map(|v| Some(CnvValue::Integer(v))),
-            CallableIdentifier::Method("CLEAR") => {
-                self.state.borrow_mut().clear(context).map(|_| None)
+                .map(CnvValue::Integer),
+            CallableIdentifier::Method("CLEAR") => self
+                .state
+                .borrow_mut()
+                .clear(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("COPYFILE") => self
+                .state
+                .borrow_mut()
+                .copy_file(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("DEC") => {
+                self.state.borrow_mut().dec(context).map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("COPYFILE") => {
-                self.state.borrow_mut().copy_file(context).map(|_| None)
-            }
-            CallableIdentifier::Method("DEC") => self.state.borrow_mut().dec(context).map(|_| None),
             CallableIdentifier::Method("DIV") => self
                 .state
                 .borrow_mut()
                 .div(context, arguments[0].to_int())
-                .map(|_| None),
-            CallableIdentifier::Method("GET") => self
-                .state
-                .borrow()
-                .get(context)
-                .map(|v| Some(CnvValue::Integer(v))),
-            CallableIdentifier::Method("INC") => self.state.borrow_mut().inc(context).map(|_| None),
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GET") => {
+                self.state.borrow().get(context).map(CnvValue::Integer)
+            }
+            CallableIdentifier::Method("INC") => {
+                self.state.borrow_mut().inc(context).map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("MOD") => self
                 .state
                 .borrow_mut()
                 .modulus(context, arguments[0].to_int())
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("MUL") => self
                 .state
                 .borrow_mut()
                 .mul(context, arguments[0].to_int())
-                .map(|_| None),
-            CallableIdentifier::Method("NOT") => self
-                .state
-                .borrow_mut()
-                .not(context)
-                .map(|v| Some(CnvValue::Integer(v))),
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("NOT") => {
+                self.state.borrow_mut().not(context).map(CnvValue::Integer)
+            }
             CallableIdentifier::Method("OR") => self
                 .state
                 .borrow_mut()
                 .or(context, arguments[0].to_int())
-                .map(|v| Some(CnvValue::Integer(v))),
+                .map(CnvValue::Integer),
             CallableIdentifier::Method("POWER") => self
                 .state
                 .borrow_mut()
                 .power(context, arguments[0].to_int())
-                .map(|v| Some(CnvValue::Integer(v))),
-            CallableIdentifier::Method("RANDOM") => {
-                self.state.borrow_mut().random(context).map(|_| None)
-            }
-            CallableIdentifier::Method("RESETINI") => {
-                self.state.borrow_mut().reset_ini(context).map(|_| None)
-            }
+                .map(CnvValue::Integer),
+            CallableIdentifier::Method("RANDOM") => self
+                .state
+                .borrow_mut()
+                .random(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("RESETINI") => self
+                .state
+                .borrow_mut()
+                .reset_ini(context)
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SET") => self
                 .state
                 .borrow_mut()
                 .set(context, arguments[0].to_int())
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETDEFAULT") => self
                 .state
                 .borrow_mut()
                 .set_default(context, arguments[0].to_int())
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SUB") => self
                 .state
                 .borrow_mut()
                 .sub(context, arguments[0].to_int())
-                .map(|v| Some(CnvValue::Integer(v))),
+                .map(CnvValue::Integer),
             CallableIdentifier::Method("SWITCH") => self
                 .state
                 .borrow_mut()
                 .switch(context, arguments[0].to_int(), arguments[1].to_int())
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("XOR") => self
                 .state
                 .borrow_mut()
                 .xor(context, arguments[0].to_int())
-                .map(|v| Some(CnvValue::Integer(v))),
+                .map(CnvValue::Integer),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

@@ -131,118 +131,139 @@ impl CnvType for Text {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
-            CallableIdentifier::Method("CLEARCLIPPING") => {
-                self.state.borrow_mut().clear_clipping().map(|_| None)
-            }
+            CallableIdentifier::Method("CLEARCLIPPING") => self
+                .state
+                .borrow_mut()
+                .clear_clipping()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("DRAWONTO") => {
-                self.state.borrow_mut().draw_onto().map(|_| None)
+                self.state.borrow_mut().draw_onto().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("GETHEIGHT") => self
                 .state
                 .borrow()
                 .get_height()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETNUMWORDS") => self
                 .state
                 .borrow()
                 .get_num_words()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETPOSITIONX") => self
                 .state
                 .borrow()
                 .get_position_x()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETPOSITIONY") => self
                 .state
                 .borrow()
                 .get_position_y()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETWIDTH") => self
                 .state
                 .borrow()
                 .get_width()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
-            CallableIdentifier::Method("GETWORDAT") => self
-                .state
-                .borrow()
-                .get_word_at()
-                .map(|v| Some(CnvValue::String(v))),
-            CallableIdentifier::Method("GETWORDATXY") => self
-                .state
-                .borrow()
-                .get_word_at_xy()
-                .map(|v| Some(CnvValue::String(v))),
+                .map(|v| CnvValue::Integer(v as i32)),
+            CallableIdentifier::Method("GETWORDAT") => {
+                self.state.borrow().get_word_at().map(CnvValue::String)
+            }
+            CallableIdentifier::Method("GETWORDATXY") => {
+                self.state.borrow().get_word_at_xy().map(CnvValue::String)
+            }
             CallableIdentifier::Method("GETWORDPOSX") => self
                 .state
                 .borrow()
                 .get_word_pos_x()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETWORDPOSY") => self
                 .state
                 .borrow()
                 .get_word_pos_y()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETWORDWIDTH") => self
                 .state
                 .borrow()
                 .get_word_width()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
-            CallableIdentifier::Method("HIDE") => self.state.borrow_mut().hide().map(|_| None),
+                .map(|v| CnvValue::Integer(v as i32)),
+            CallableIdentifier::Method("HIDE") => {
+                self.state.borrow_mut().hide().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("INVALIDATE") => {
-                self.state.borrow_mut().invalidate().map(|_| None)
+                self.state.borrow_mut().invalidate().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("ISNEAR") => self
+            CallableIdentifier::Method("ISNEAR") => {
+                self.state.borrow().is_near().map(CnvValue::Bool)
+            }
+            CallableIdentifier::Method("LOAD") => {
+                self.state.borrow_mut().load().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("MOVE") => {
+                self.state.borrow_mut().move_by().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("SEARCH") => {
+                self.state.borrow_mut().search().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("SETCLIPPING") => self
                 .state
-                .borrow()
-                .is_near()
-                .map(|v| Some(CnvValue::Bool(v))),
-            CallableIdentifier::Method("LOAD") => self.state.borrow_mut().load().map(|_| None),
-            CallableIdentifier::Method("MOVE") => self.state.borrow_mut().move_by().map(|_| None),
-            CallableIdentifier::Method("SEARCH") => self.state.borrow_mut().search().map(|_| None),
-            CallableIdentifier::Method("SETCLIPPING") => {
-                self.state.borrow_mut().set_clipping().map(|_| None)
-            }
+                .borrow_mut()
+                .set_clipping()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETCOLOR") => {
-                self.state.borrow_mut().set_color().map(|_| None)
+                self.state.borrow_mut().set_color().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("SETFONT") => {
-                self.state.borrow_mut().set_font().map(|_| None)
+                self.state.borrow_mut().set_font().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SETJUSTIFY") => {
-                self.state.borrow_mut().set_justify().map(|_| None)
-            }
-            CallableIdentifier::Method("SETOPACITY") => {
-                self.state.borrow_mut().set_opacity().map(|_| None)
-            }
-            CallableIdentifier::Method("SETPOSITION") => {
-                self.state.borrow_mut().set_position().map(|_| None)
-            }
-            CallableIdentifier::Method("SETPRIORITY") => {
-                self.state.borrow_mut().set_priority().map(|_| None)
-            }
+            CallableIdentifier::Method("SETJUSTIFY") => self
+                .state
+                .borrow_mut()
+                .set_justify()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETOPACITY") => self
+                .state
+                .borrow_mut()
+                .set_opacity()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETPOSITION") => self
+                .state
+                .borrow_mut()
+                .set_position()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETPRIORITY") => self
+                .state
+                .borrow_mut()
+                .set_priority()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETRECT") => {
-                self.state.borrow_mut().set_rect().map(|_| None)
+                self.state.borrow_mut().set_rect().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("SETTEXT") => {
-                self.state.borrow_mut().set_text().map(|_| None)
+                self.state.borrow_mut().set_text().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SETTEXTDOUBLE") => {
-                self.state.borrow_mut().set_text_double().map(|_| None)
+            CallableIdentifier::Method("SETTEXTDOUBLE") => self
+                .state
+                .borrow_mut()
+                .set_text_double()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETWORDCOLOR") => self
+                .state
+                .borrow_mut()
+                .set_word_color()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SHOW") => {
+                self.state.borrow_mut().show().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SETWORDCOLOR") => {
-                self.state.borrow_mut().set_word_color().map(|_| None)
-            }
-            CallableIdentifier::Method("SHOW") => self.state.borrow_mut().show().map(|_| None),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

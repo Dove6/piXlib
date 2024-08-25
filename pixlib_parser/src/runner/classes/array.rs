@@ -98,112 +98,193 @@ impl CnvType for Array {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
-            CallableIdentifier::Method("ADD") => self.state.borrow_mut().add().map(|_| None),
-            CallableIdentifier::Method("ADDAT") => self.state.borrow_mut().add_at().map(|_| None),
+            CallableIdentifier::Method("ADD") => {
+                self.state.borrow_mut().add().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("ADDAT") => {
+                self.state.borrow_mut().add_at().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("ADDCLONES") => {
-                self.state.borrow_mut().add_clones().map(|_| None)
+                self.state.borrow_mut().add_clones().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("CHANGEAT") => {
-                self.state.borrow_mut().change_at().map(|_| None)
+                self.state.borrow_mut().change_at().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("CLAMPAT") => {
-                self.state.borrow_mut().clamp_at().map(|_| None)
+                self.state.borrow_mut().clamp_at().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("COMPARE") => self.state.borrow().compare().map(|_| None),
-            CallableIdentifier::Method("CONTAINS") => self.state.borrow().contains().map(|_| None),
-            CallableIdentifier::Method("COPYTO") => self.state.borrow_mut().copy_to().map(|_| None),
-            CallableIdentifier::Method("DIR") => self.state.borrow_mut().dir().map(|_| None),
-            CallableIdentifier::Method("DIV") => self.state.borrow_mut().div().map(|_| None),
-            CallableIdentifier::Method("DIVA") => self.state.borrow_mut().div_a().map(|_| None),
-            CallableIdentifier::Method("DIVAT") => self.state.borrow_mut().div_at().map(|_| None),
-            CallableIdentifier::Method("FILL") => self.state.borrow_mut().fill().map(|_| None),
-            CallableIdentifier::Method("FIND") => self.state.borrow().find().map(|_| None),
-            CallableIdentifier::Method("FINDALL") => self.state.borrow().find_all().map(|_| None),
+            CallableIdentifier::Method("COMPARE") => {
+                self.state.borrow().compare().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("CONTAINS") => {
+                self.state.borrow().contains().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("COPYTO") => {
+                self.state.borrow_mut().copy_to().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("DIR") => {
+                self.state.borrow_mut().dir().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("DIV") => {
+                self.state.borrow_mut().div().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("DIVA") => {
+                self.state.borrow_mut().div_a().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("DIVAT") => {
+                self.state.borrow_mut().div_at().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("FILL") => {
+                self.state.borrow_mut().fill().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("FIND") => {
+                self.state.borrow().find().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("FINDALL") => {
+                self.state.borrow().find_all().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("GET") => {
                 self.state.borrow().get(arguments[0].to_int() as usize)
             }
             CallableIdentifier::Method("GETMARKERPOS") => {
-                self.state.borrow().get_marker_pos().map(|_| None)
+                self.state.borrow().get_marker_pos().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("GETSIZE") => self.state.borrow().get_size().map(|_| None),
+            CallableIdentifier::Method("GETSIZE") => {
+                self.state.borrow().get_size().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("GETSUMVALUE") => {
-                self.state.borrow().get_sum_value().map(|_| None)
+                self.state.borrow().get_sum_value().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("INSERTAT") => {
-                self.state.borrow_mut().insert_at().map(|_| None)
+                self.state.borrow_mut().insert_at().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("LOAD") => self.state.borrow_mut().load().map(|_| None),
+            CallableIdentifier::Method("LOAD") => {
+                self.state.borrow_mut().load().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("LOADINI") => {
-                self.state.borrow_mut().load_ini().map(|_| None)
+                self.state.borrow_mut().load_ini().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("MAX") => self.state.borrow_mut().max().map(|_| None),
-            CallableIdentifier::Method("MAXD") => self.state.borrow_mut().max_d().map(|_| None),
-            CallableIdentifier::Method("MIN") => self.state.borrow_mut().min().map(|_| None),
-            CallableIdentifier::Method("MIND") => self.state.borrow_mut().min_d().map(|_| None),
-            CallableIdentifier::Method("MODAT") => self.state.borrow_mut().mod_at().map(|_| None),
-            CallableIdentifier::Method("MUL") => self.state.borrow_mut().mul().map(|_| None),
-            CallableIdentifier::Method("MULA") => self.state.borrow_mut().mul_a().map(|_| None),
-            CallableIdentifier::Method("MULAT") => self.state.borrow_mut().mul_at().map(|_| None),
-            CallableIdentifier::Method("NEXT") => self.state.borrow_mut().next().map(|_| None),
-            CallableIdentifier::Method("PREV") => self.state.borrow_mut().prev().map(|_| None),
-            CallableIdentifier::Method("RANDOMFILL") => {
-                self.state.borrow_mut().random_fill().map(|_| None)
+            CallableIdentifier::Method("MAX") => {
+                self.state.borrow_mut().max().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("REMOVE") => self.state.borrow_mut().remove().map(|_| None),
+            CallableIdentifier::Method("MAXD") => {
+                self.state.borrow_mut().max_d().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("MIN") => {
+                self.state.borrow_mut().min().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("MIND") => {
+                self.state.borrow_mut().min_d().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("MODAT") => {
+                self.state.borrow_mut().mod_at().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("MUL") => {
+                self.state.borrow_mut().mul().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("MULA") => {
+                self.state.borrow_mut().mul_a().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("MULAT") => {
+                self.state.borrow_mut().mul_at().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("NEXT") => {
+                self.state.borrow_mut().next().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("PREV") => {
+                self.state.borrow_mut().prev().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("RANDOMFILL") => self
+                .state
+                .borrow_mut()
+                .random_fill()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("REMOVE") => {
+                self.state.borrow_mut().remove().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("REMOVEALL") => {
-                self.state.borrow_mut().remove_all().map(|_| None)
+                self.state.borrow_mut().remove_all().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("REMOVEAT") => {
-                self.state.borrow_mut().remove_at().map(|_| None)
+                self.state.borrow_mut().remove_at().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("RESETMARKER") => {
-                self.state.borrow_mut().reset_marker().map(|_| None)
-            }
+            CallableIdentifier::Method("RESETMARKER") => self
+                .state
+                .borrow_mut()
+                .reset_marker()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("REVERSEFIND") => {
-                self.state.borrow().reverse_find().map(|_| None)
+                self.state.borrow().reverse_find().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("ROTATELEFT") => {
-                self.state.borrow_mut().rotate_left().map(|_| None)
+            CallableIdentifier::Method("ROTATELEFT") => self
+                .state
+                .borrow_mut()
+                .rotate_left()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("ROTATERIGHT") => self
+                .state
+                .borrow_mut()
+                .rotate_right()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SAVE") => {
+                self.state.borrow_mut().save().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("ROTATERIGHT") => {
-                self.state.borrow_mut().rotate_right().map(|_| None)
-            }
-            CallableIdentifier::Method("SAVE") => self.state.borrow_mut().save().map(|_| None),
             CallableIdentifier::Method("SAVEINI") => {
-                self.state.borrow_mut().save_ini().map(|_| None)
+                self.state.borrow_mut().save_ini().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SENDONCHANGE") => {
-                self.state.borrow_mut().send_on_change().map(|_| None)
-            }
-            CallableIdentifier::Method("SETMARKERPOS") => {
-                self.state.borrow_mut().set_marker_pos().map(|_| None)
-            }
+            CallableIdentifier::Method("SENDONCHANGE") => self
+                .state
+                .borrow_mut()
+                .send_on_change()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETMARKERPOS") => self
+                .state
+                .borrow_mut()
+                .set_marker_pos()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SHIFTLEFT") => {
-                self.state.borrow_mut().shift_left().map(|_| None)
+                self.state.borrow_mut().shift_left().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SHIFTRIGHT") => {
-                self.state.borrow_mut().shift_right().map(|_| None)
+            CallableIdentifier::Method("SHIFTRIGHT") => self
+                .state
+                .borrow_mut()
+                .shift_right()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SORT") => {
+                self.state.borrow_mut().sort().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SORT") => self.state.borrow_mut().sort().map(|_| None),
             CallableIdentifier::Method("SORTMANY") => {
-                self.state.borrow_mut().sort_many().map(|_| None)
+                self.state.borrow_mut().sort_many().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SUB") => self.state.borrow_mut().sub().map(|_| None),
-            CallableIdentifier::Method("SUBA") => self.state.borrow_mut().sub_a().map(|_| None),
-            CallableIdentifier::Method("SUBAT") => self.state.borrow_mut().sub_at().map(|_| None),
-            CallableIdentifier::Method("SUM") => self.state.borrow_mut().sum().map(|_| None),
-            CallableIdentifier::Method("SUMA") => self.state.borrow_mut().sum_a().map(|_| None),
-            CallableIdentifier::Method("SWAP") => self.state.borrow_mut().swap().map(|_| None),
+            CallableIdentifier::Method("SUB") => {
+                self.state.borrow_mut().sub().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("SUBA") => {
+                self.state.borrow_mut().sub_a().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("SUBAT") => {
+                self.state.borrow_mut().sub_at().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("SUM") => {
+                self.state.borrow_mut().sum().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("SUMA") => {
+                self.state.borrow_mut().sum_a().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("SWAP") => {
+                self.state.borrow_mut().swap().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
@@ -339,7 +420,7 @@ impl ArrayState {
         todo!()
     }
 
-    pub fn find(&self) -> anyhow::Result<Option<CnvValue>> {
+    pub fn find(&self) -> anyhow::Result<CnvValue> {
         // FIND
         todo!()
     }
@@ -349,9 +430,9 @@ impl ArrayState {
         todo!()
     }
 
-    pub fn get(&self, index: usize) -> anyhow::Result<Option<CnvValue>> {
+    pub fn get(&self, index: usize) -> anyhow::Result<CnvValue> {
         // GET
-        Ok(self.values.get(index).cloned())
+        Ok(self.values.get(index).cloned().unwrap_or(CnvValue::Null))
     }
 
     pub fn get_marker_pos(&self) -> anyhow::Result<usize> {
@@ -459,7 +540,7 @@ impl ArrayState {
         todo!()
     }
 
-    pub fn reverse_find(&self) -> anyhow::Result<Option<CnvValue>> {
+    pub fn reverse_find(&self) -> anyhow::Result<CnvValue> {
         // REVERSEFIND
         todo!()
     }

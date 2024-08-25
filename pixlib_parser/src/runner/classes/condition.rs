@@ -96,29 +96,30 @@ impl CnvType for Condition {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         // eprintln!(
         //     "Calling method {:?} of condition {}",
         //     name, self.parent.name
         // );
         match name {
-            CallableIdentifier::Method("BREAK") => self.state.borrow().break_run().map(|_| None),
-            CallableIdentifier::Method("CHECK") => self
-                .state
-                .borrow()
-                .check(context)
-                .map(|v| Some(CnvValue::Bool(v))),
+            CallableIdentifier::Method("BREAK") => {
+                self.state.borrow().break_run().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("CHECK") => {
+                self.state.borrow().check(context).map(CnvValue::Bool)
+            }
             CallableIdentifier::Method("ONE_BREAK") => {
-                self.state.borrow().one_break().map(|_| None)
+                self.state.borrow().one_break().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
@@ -182,28 +183,18 @@ impl ConditionState {
         let CnvContent::Condition(ref condition) = &context.current_object.content else {
             panic!();
         };
-        let left = condition
-            .left
-            .calculate(context.clone())?
-            .map(|v| {
-                if let ast::Expression::Identifier(_) = &condition.left.value {
-                    v.resolve(context.clone())
-                } else {
-                    v
-                }
-            })
-            .unwrap();
-        let right = condition
-            .right
-            .calculate(context.clone())?
-            .map(|v| {
-                if let ast::Expression::Identifier(_) = &condition.right.value {
-                    v.resolve(context.clone())
-                } else {
-                    v
-                }
-            })
-            .unwrap();
+        let left = condition.left.calculate(context.clone())?;
+        let left = if let ast::Expression::Identifier(_) = &condition.left.value {
+            left.resolve(context.clone())
+        } else {
+            left
+        };
+        let right = condition.right.calculate(context.clone())?;
+        let right = if let ast::Expression::Identifier(_) = &condition.right.value {
+            right.resolve(context.clone())
+        } else {
+            right
+        };
         let result = match condition.operator {
             ConditionOperator::Equal => Ok(left == right),
             ConditionOperator::NotEqual => Ok(left != right),

@@ -178,7 +178,7 @@ impl CnvType for Mouse {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("CLICK") => self
@@ -186,71 +186,79 @@ impl CnvType for Mouse {
                 .write()
                 .unwrap()
                 .click_left_button()
-                .map(|_| None),
-            CallableIdentifier::Method("DISABLE") => {
-                self.state.write().unwrap().disable().map(|_| None)
-            }
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("DISABLE") => self
+                .state
+                .write()
+                .unwrap()
+                .disable()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("DISABLESIGNAL") => self
                 .state
                 .write()
                 .unwrap()
                 .disable_event_handling()
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("ENABLE") => {
-                self.state.write().unwrap().enable().map(|_| None)
+                self.state.write().unwrap().enable().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("ENABLESIGNAL") => self
                 .state
                 .write()
                 .unwrap()
                 .enable_event_handling()
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("GETLASTCLICKPOSX") => self
                 .state
                 .read()
                 .unwrap()
                 .get_last_click_position_x()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETLASTCLICKPOSY") => self
                 .state
                 .read()
                 .unwrap()
                 .get_last_click_position_y()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETPOSX") => self
                 .state
                 .read()
                 .unwrap()
                 .get_position_x()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETPOSY") => self
                 .state
                 .read()
                 .unwrap()
                 .get_position_y()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
-            CallableIdentifier::Method("HIDE") => self.state.write().unwrap().hide().map(|_| None),
+                .map(|v| CnvValue::Integer(v as i32)),
+            CallableIdentifier::Method("HIDE") => {
+                self.state.write().unwrap().hide().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("ISLBUTTONDOWN") => self
                 .state
                 .read()
                 .unwrap()
                 .is_left_button_down()
-                .map(|v| Some(CnvValue::Bool(v))),
+                .map(CnvValue::Bool),
             CallableIdentifier::Method("ISRBUTTONDOWN") => self
                 .state
                 .read()
                 .unwrap()
                 .is_right_button_down()
-                .map(|v| Some(CnvValue::Bool(v))),
-            CallableIdentifier::Method("LOCKACTIVECURSOR") => {
-                self.state.write().unwrap().lock_cursor().map(|_| None)
-            }
+                .map(CnvValue::Bool),
+            CallableIdentifier::Method("LOCKACTIVECURSOR") => self
+                .state
+                .write()
+                .unwrap()
+                .lock_cursor()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("MOUSERELEASE") => self
                 .state
                 .write()
                 .unwrap()
                 .release_left_button()
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("MOVE") => self
                 .state
                 .write()
@@ -259,14 +267,22 @@ impl CnvType for Mouse {
                     arguments[0].to_int() as isize,
                     arguments[1].to_int() as isize,
                 )
-                .map(|_| None),
-            CallableIdentifier::Method("SET") => self.state.write().unwrap().set().map(|_| None),
-            CallableIdentifier::Method("SETACTIVERECT") => {
-                self.state.write().unwrap().set_active_rect().map(|_| None)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SET") => {
+                self.state.write().unwrap().set().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SETCLIPRECT") => {
-                self.state.write().unwrap().set_clip_rect().map(|_| None)
-            }
+            CallableIdentifier::Method("SETACTIVERECT") => self
+                .state
+                .write()
+                .unwrap()
+                .set_active_rect()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETCLIPRECT") => self
+                .state
+                .write()
+                .unwrap()
+                .set_clip_rect()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETPOSITION") => self
                 .state
                 .write()
@@ -275,16 +291,19 @@ impl CnvType for Mouse {
                     arguments[0].to_int() as isize,
                     arguments[1].to_int() as isize,
                 )
-                .map(|_| None),
-            CallableIdentifier::Method("SHOW") => self.state.write().unwrap().show().map(|_| None),
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SHOW") => {
+                self.state.write().unwrap().show().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

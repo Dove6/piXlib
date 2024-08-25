@@ -113,52 +113,69 @@ impl CnvType for CanvasObserver {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
-            CallableIdentifier::Method("ADD") => self.state.borrow_mut().add().map(|_| None),
-            CallableIdentifier::Method("ENABLENOTIFY") => {
-                self.state.borrow_mut().enable_notify().map(|_| None)
+            CallableIdentifier::Method("ADD") => {
+                self.state.borrow_mut().add().map(|_| CnvValue::Null)
             }
+            CallableIdentifier::Method("ENABLENOTIFY") => self
+                .state
+                .borrow_mut()
+                .enable_notify()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("GETBPP") => self
                 .state
                 .borrow()
                 .get_bpp()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETGRAPHICSAT") => self
                 .state
                 .borrow()
                 .get_graphics_at()
-                .map(|v| v.map(CnvValue::String)),
+                .map(|v| v.map(CnvValue::String).unwrap_or_default()),
             CallableIdentifier::Method("GETGRAPHICSAT2") => self
                 .state
                 .borrow()
                 .get_graphics_at2()
-                .map(|v| v.map(CnvValue::String)),
+                .map(|v| v.map(CnvValue::String).unwrap_or_default()),
             CallableIdentifier::Method("MOVEBKG") => {
-                self.state.borrow_mut().move_bkg().map(|_| None)
+                self.state.borrow_mut().move_bkg().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("PASTE") => self.state.borrow_mut().paste().map(|_| None),
-            CallableIdentifier::Method("REDRAW") => self.state.borrow_mut().redraw().map(|_| None),
+            CallableIdentifier::Method("PASTE") => {
+                self.state.borrow_mut().paste().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("REDRAW") => {
+                self.state.borrow_mut().redraw().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("REFRESH") => {
-                self.state.borrow_mut().refresh().map(|_| None)
+                self.state.borrow_mut().refresh().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("REMOVE") => self.state.borrow_mut().remove().map(|_| None),
-            CallableIdentifier::Method("SAVE") => self.state.borrow_mut().save().map(|_| None),
-            CallableIdentifier::Method("SETBACKGROUND") => {
-                self.state.borrow_mut().set_background().map(|_| None)
+            CallableIdentifier::Method("REMOVE") => {
+                self.state.borrow_mut().remove().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SETBKGPOS") => {
-                self.state.borrow_mut().set_bkg_pos().map(|_| None)
+            CallableIdentifier::Method("SAVE") => {
+                self.state.borrow_mut().save().map(|_| CnvValue::Null)
             }
+            CallableIdentifier::Method("SETBACKGROUND") => self
+                .state
+                .borrow_mut()
+                .set_background()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETBKGPOS") => self
+                .state
+                .borrow_mut()
+                .set_bkg_pos()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

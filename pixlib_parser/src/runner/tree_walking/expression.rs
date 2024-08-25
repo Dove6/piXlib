@@ -6,37 +6,38 @@ use crate::{
 use super::super::{CnvStatement, CnvValue, RunnerContext};
 
 pub trait CnvExpression {
-    fn calculate(&self, context: RunnerContext) -> anyhow::Result<Option<CnvValue>>;
+    fn calculate(&self, context: RunnerContext) -> anyhow::Result<CnvValue>;
 }
 
 impl CnvExpression for IgnorableExpression {
-    fn calculate(&self, context: RunnerContext) -> anyhow::Result<Option<CnvValue>> {
+    fn calculate(&self, context: RunnerContext) -> anyhow::Result<CnvValue> {
         // println!("IgnorableExpression::calculate: {:?}", self);
         if self.ignored {
-            return Ok(None);
+            Ok(CnvValue::Null)
+        } else {
+            self.value.calculate(context)
         }
-        self.value.calculate(context)
     }
 }
 
 impl CnvExpression for Expression {
-    fn calculate(&self, context: RunnerContext) -> anyhow::Result<Option<CnvValue>> {
+    fn calculate(&self, context: RunnerContext) -> anyhow::Result<CnvValue> {
         // println!("Expression::calculate: {:?} with context: {}", self, context);
         let result = match self {
-            Expression::LiteralBool(b) => Ok(Some(CnvValue::Bool(*b))),
-            Expression::Identifier(name) => Ok(Some(CnvValue::String(name.to_owned()))),
+            Expression::LiteralBool(b) => Ok(CnvValue::Bool(*b)),
+            Expression::LiteralNull => Ok(CnvValue::Null),
+            Expression::Identifier(name) => Ok(CnvValue::String(name.to_owned())),
             Expression::Invocation(invocation) => invocation.calculate(context.clone()),
-            Expression::SelfReference => {
-                Ok(Some(CnvValue::String(context.self_object.name.clone())))
-            }
+            Expression::SelfReference => Ok(CnvValue::String(context.self_object.name.clone())),
             Expression::Parameter(name) => Ok(context
                 .arguments
                 .get(name.parse::<usize>().unwrap() - 1)
-                .cloned()),
+                .expect("Expected argument")
+                .clone()),
             Expression::NameResolution(expression) => {
-                let name = &expression.calculate(context.clone())?.unwrap();
+                let name = &expression.calculate(context.clone())?;
                 let name = name.to_str();
-                Ok(Some(CnvValue::String(name)))
+                Ok(CnvValue::String(name))
             }
             Expression::FieldAccess(_expression, _field) => todo!(),
             Expression::Operation(expression, operations) => {
@@ -55,7 +56,7 @@ impl CnvExpression for Expression {
                         Operation::Remainder => &result % &argument,
                     }
                 }
-                Ok(Some(result))
+                Ok(result)
             }
             Expression::Block(block) => {
                 // TODO: create an anonymous function object
@@ -63,7 +64,7 @@ impl CnvExpression for Expression {
                 for statement in block {
                     statement.run(context.clone())?;
                 }
-                Ok(None)
+                Ok(CnvValue::Null)
             }
         };
         // println!("    result: {:?}", result);
@@ -72,10 +73,10 @@ impl CnvExpression for Expression {
 }
 
 impl CnvExpression for Invocation {
-    fn calculate(&self, context: RunnerContext) -> anyhow::Result<Option<CnvValue>> {
+    fn calculate(&self, context: RunnerContext) -> anyhow::Result<CnvValue> {
         // println!("Invocation::calculate: {:?} with context {}", self, context);
         if self.parent.is_none() {
-            Ok(None) // TODO: match &self.name
+            Ok(CnvValue::Null) // TODO: match &self.name
         } else {
             let parent = self
                 .parent
@@ -88,7 +89,7 @@ impl CnvExpression for Invocation {
                 .iter()
                 .map(|e| e.calculate(context.clone()))
                 .collect::<anyhow::Result<Vec<_>>>()?;
-            let arguments: Vec<_> = arguments.into_iter().map(|e| e.unwrap()).collect();
+            let arguments: Vec<_> = arguments.into_iter().collect();
             // println!("Calling method: {:?} of: {:?}", self.name, self.parent);
             let name = parent.to_str();
             context

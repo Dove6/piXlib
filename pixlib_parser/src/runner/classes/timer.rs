@@ -118,39 +118,48 @@ impl CnvType for Timer {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("DISABLE") => {
-                self.state.borrow_mut().disable().map(|_| None)
+                self.state.borrow_mut().disable().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("ENABLE") => self.state.borrow_mut().enable().map(|_| None),
+            CallableIdentifier::Method("ENABLE") => {
+                self.state.borrow_mut().enable().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("GETTICKS") => self
                 .state
                 .borrow()
                 .get_ticks()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
-            CallableIdentifier::Method("PAUSE") => self.state.borrow_mut().pause().map(|_| None),
-            CallableIdentifier::Method("RESET") => self.state.borrow_mut().reset().map(|_| None),
-            CallableIdentifier::Method("RESUME") => self.state.borrow_mut().resume().map(|_| None),
+                .map(|v| CnvValue::Integer(v as i32)),
+            CallableIdentifier::Method("PAUSE") => {
+                self.state.borrow_mut().pause().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("RESET") => {
+                self.state.borrow_mut().reset().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("RESUME") => {
+                self.state.borrow_mut().resume().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("SET") => self
                 .state
                 .borrow_mut()
                 .set(arguments[0].to_int() as f64)
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETELAPSE") => self
                 .state
                 .borrow_mut()
                 .set_elapse(arguments[0].to_int() as usize)
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

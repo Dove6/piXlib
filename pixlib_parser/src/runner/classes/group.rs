@@ -85,7 +85,7 @@ impl CnvType for Group {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
             CallableIdentifier::Method("ADD") => {
                 let name = arguments[0].to_str();
@@ -93,66 +93,78 @@ impl CnvType for Group {
                     .runner
                     .get_object(&name)
                     .ok_or(RunnerError::ObjectNotFound { name })?;
-                self.state.borrow_mut().add(added_object).map(|_| None)
+                self.state
+                    .borrow_mut()
+                    .add(added_object)
+                    .map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("ADDCLONES") => {
-                self.state.borrow_mut().add_clones().map(|_| None)
+                self.state.borrow_mut().add_clones().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("CLONE") => {
-                self.state.borrow_mut().clone_object().map(|_| None)
-            }
+            CallableIdentifier::Method("CLONE") => self
+                .state
+                .borrow_mut()
+                .clone_object()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("CONTAINS") => {
-                self.state.borrow_mut().contains().map(|_| None)
+                self.state.borrow_mut().contains().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("GETCLONEINDEX") => self
                 .state
                 .borrow()
                 .get_clone_index()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETMARKERPOS") => self
                 .state
                 .borrow()
                 .get_marker_pos()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
-            CallableIdentifier::Method("GETNAME") => self
-                .state
-                .borrow()
-                .get_name()
-                .map(|v| Some(CnvValue::String(v))),
+                .map(|v| CnvValue::Integer(v as i32)),
+            CallableIdentifier::Method("GETNAME") => {
+                self.state.borrow().get_name().map(CnvValue::String)
+            }
             CallableIdentifier::Method("GETNAMEATMARKER") => self
                 .state
                 .borrow()
                 .get_name_at_marker()
-                .map(|v| Some(CnvValue::String(v))),
+                .map(CnvValue::String),
             CallableIdentifier::Method("GETSIZE") => self
                 .state
                 .borrow()
                 .get_size()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
-            CallableIdentifier::Method("NEXT") => self.state.borrow_mut().next().map(|_| None),
-            CallableIdentifier::Method("PREV") => self.state.borrow_mut().prev().map(|_| None),
+                .map(|v| CnvValue::Integer(v as i32)),
+            CallableIdentifier::Method("NEXT") => {
+                self.state.borrow_mut().next().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("PREV") => {
+                self.state.borrow_mut().prev().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("REMOVE") => self
                 .state
                 .borrow_mut()
                 .remove(&arguments[0].to_str())
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("REMOVEALL") => {
-                self.state.borrow_mut().remove_all().map(|_| None)
+                self.state.borrow_mut().remove_all().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("RESETMARKER") => {
-                self.state.borrow_mut().reset_marker().map(|_| None)
-            }
-            CallableIdentifier::Method("SETMARKERPOS") => {
-                self.state.borrow_mut().set_marker_pos().map(|_| None)
-            }
+            CallableIdentifier::Method("RESETMARKER") => self
+                .state
+                .borrow_mut()
+                .reset_marker()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETMARKERPOS") => self
+                .state
+                .borrow_mut()
+                .set_marker_pos()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             callable => {
                 let _ = self
@@ -160,7 +172,7 @@ impl CnvType for Group {
                     .borrow()
                     .call_method_on_objects(context, callable, arguments);
                 // TODO: ignoring errors
-                Ok(None)
+                Ok(CnvValue::Null)
             }
         }
     }

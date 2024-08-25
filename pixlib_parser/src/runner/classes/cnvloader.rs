@@ -66,20 +66,23 @@ impl CnvType for CnvLoader {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
-            CallableIdentifier::Method("LOAD") => self.state.borrow_mut().load().map(|_| None),
+            CallableIdentifier::Method("LOAD") => {
+                self.state.borrow_mut().load().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("RELEASE") => {
-                self.state.borrow_mut().release().map(|_| None)
+                self.state.borrow_mut().release().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

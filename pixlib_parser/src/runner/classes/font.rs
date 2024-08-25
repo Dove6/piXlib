@@ -96,33 +96,34 @@ impl CnvType for Font {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
             CallableIdentifier::Method("GETHEIGHT") => self
                 .state
                 .borrow()
                 .get_height()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("SETCOLOR") => {
-                self.state.borrow_mut().set_color().map(|_| None)
+                self.state.borrow_mut().set_color().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("SETFAMILY") => {
-                self.state.borrow_mut().set_family().map(|_| None)
+                self.state.borrow_mut().set_family().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("SETSIZE") => {
-                self.state.borrow_mut().set_size().map(|_| None)
+                self.state.borrow_mut().set_size().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("SETSTYLE") => {
-                self.state.borrow_mut().set_style().map(|_| None)
+                self.state.borrow_mut().set_style().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

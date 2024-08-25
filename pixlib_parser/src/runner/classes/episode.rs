@@ -105,36 +105,47 @@ impl CnvType for Episode {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
-            CallableIdentifier::Method("BACK") => {
-                self.state.borrow_mut().back(context).map(|_| None)
-            }
-            CallableIdentifier::Method("GETCURRENTSCENE") => {
-                self.state.borrow().get_current_scene().map(|_| None)
-            }
-            CallableIdentifier::Method("GETLATESTSCENE") => {
-                self.state.borrow().get_latest_scene().map(|_| None)
-            }
+            CallableIdentifier::Method("BACK") => self
+                .state
+                .borrow_mut()
+                .back(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GETCURRENTSCENE") => self
+                .state
+                .borrow()
+                .get_current_scene()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GETLATESTSCENE") => self
+                .state
+                .borrow()
+                .get_latest_scene()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("GOTO") => self
                 .state
                 .borrow_mut()
                 .go_to(context, &arguments[0].to_str())
-                .map(|_| None),
-            CallableIdentifier::Method("NEXT") => self.state.borrow_mut().next().map(|_| None),
-            CallableIdentifier::Method("PREV") => self.state.borrow_mut().prev().map(|_| None),
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("NEXT") => {
+                self.state.borrow_mut().next().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("PREV") => {
+                self.state.borrow_mut().prev().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("RESTART") => {
-                self.state.borrow_mut().restart().map(|_| None)
+                self.state.borrow_mut().restart().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

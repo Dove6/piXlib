@@ -337,152 +337,143 @@ impl CnvType for Animation {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
-            CallableIdentifier::Method("CLEARCLIPPING") => {
-                self.state.borrow_mut().clear_clipping();
-                Ok(None)
-            }
+            CallableIdentifier::Method("CLEARCLIPPING") => self
+                .state
+                .borrow_mut()
+                .clear_clipping()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("DRAWONTO") => {
-                self.state.borrow_mut().draw_onto();
-                Ok(None)
+                self.state.borrow_mut().draw_onto().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("FLIPH") => {
-                self.state.borrow_mut().flip_h();
-                Ok(None)
+                self.state.borrow_mut().flip_h().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("FLIPV") => {
-                self.state.borrow_mut().flip_v();
-                Ok(None)
+                self.state.borrow_mut().flip_v().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("GETALPHA") => {
-                self.state.borrow().get_alpha();
-                Ok(None)
+                self.state.borrow().get_alpha().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("GETANCHOR") => {
-                self.state.borrow().get_anchor();
-                Ok(None)
-            }
+            CallableIdentifier::Method("GETANCHOR") => self
+                .state
+                .borrow()
+                .get_anchor()
+                .map(|v| CnvValue::String(v.to_owned())),
             CallableIdentifier::Method("GETCENTERX") => {
-                self.state.borrow().get_center_x();
-                Ok(None)
+                self.state.borrow().get_center_x().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("GETCENTERY") => {
-                self.state.borrow().get_center_y();
-                Ok(None)
+                self.state.borrow().get_center_y().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("GETCFRAMEINEVENT") => {
-                self.state.borrow().get_cframe_in_event();
-                Ok(None)
-            }
-            CallableIdentifier::Method("GETCURRFRAMEPOSX") => {
-                self.state.borrow().get_curr_frame_pos_x();
-                Ok(None)
-            }
-            CallableIdentifier::Method("GETCURRFRAMEPOSY") => {
-                self.state.borrow().get_curr_frame_pos_y();
-                Ok(None)
-            }
+            CallableIdentifier::Method("GETCFRAMEINEVENT") => self
+                .state
+                .borrow()
+                .get_cframe_in_event()
+                .map(|v| CnvValue::Integer(v as i32)),
+            CallableIdentifier::Method("GETCURRFRAMEPOSX") => self
+                .state
+                .borrow()
+                .get_curr_frame_pos_x()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GETCURRFRAMEPOSY") => self
+                .state
+                .borrow()
+                .get_curr_frame_pos_y()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("GETENDX") => {
-                self.state.borrow().get_end_x();
-                Ok(None)
+                self.state.borrow().get_end_x().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("GETENDY") => {
-                self.state.borrow().get_end_y();
-                Ok(None)
+                self.state.borrow().get_end_y().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("GETEVENTNAME") => self
                 .state
                 .borrow()
                 .get_sequence_name(context)
-                .map(|v| Some(CnvValue::String(v))),
-            CallableIdentifier::Method("GETEVENTNUMBER") => {
-                self.state.borrow().get_sequence_index();
-                Ok(None)
-            }
+                .map(CnvValue::String),
+            CallableIdentifier::Method("GETEVENTNUMBER") => self
+                .state
+                .borrow()
+                .get_sequence_index()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("GETFPS") => {
-                self.state.borrow().get_fps();
-                Ok(None)
+                self.state.borrow().get_fps().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("GETFRAME") => {
-                self.state.borrow().get_frame();
-                Ok(None)
-            }
+            CallableIdentifier::Method("GETFRAME") => self
+                .state
+                .borrow()
+                .get_frame()
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETFRAMENAME") => {
-                self.state.borrow().get_frame_name();
-                Ok(None)
+                self.state.borrow().get_frame_name().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("GETFRAMENO") => self
                 .state
                 .borrow()
                 .get_frame_index()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETHEIGHT") => {
-                self.state.borrow().get_height();
-                Ok(None)
+                self.state.borrow().get_height().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("GETMAXHEIGHT") => {
-                self.state.borrow().get_max_height();
-                Ok(None)
+                self.state.borrow().get_max_height().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("GETMAXWIDTH") => {
-                self.state.borrow().get_max_width();
-                Ok(None)
+                self.state.borrow().get_max_width().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("GETNOE") => {
-                self.state.borrow().get_sequence_count();
-                Ok(None)
-            }
-            CallableIdentifier::Method("GETNOF") => {
-                self.state.borrow().get_total_frame_count();
-                Ok(None)
-            }
-            CallableIdentifier::Method("GETNOFINEVENT") => {
-                self.state
-                    .borrow()
-                    .get_sequence_frame_count(&arguments[0].to_str());
-                Ok(None)
-            }
+            CallableIdentifier::Method("GETNOE") => self
+                .state
+                .borrow()
+                .get_sequence_count()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GETNOF") => self
+                .state
+                .borrow()
+                .get_total_frame_count()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GETNOFINEVENT") => self
+                .state
+                .borrow()
+                .get_sequence_frame_count(&arguments[0].to_str())
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETOPACITY") => {
-                self.state.borrow().get_opacity();
-                Ok(None)
+                self.state.borrow().get_opacity().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("GETPIXEL") => {
-                self.state.borrow().get_pixel();
-                Ok(None)
+                self.state.borrow().get_pixel().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("GETPOSITIONX") => self
                 .state
                 .borrow()
                 .get_frame_position_x(context)
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETPOSITIONY") => self
                 .state
                 .borrow()
                 .get_frame_position_y(context)
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETPRIORITY") => self
                 .state
                 .borrow()
                 .get_priority()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETWIDTH") => {
-                self.state.borrow().get_width();
-                Ok(None)
+                self.state.borrow().get_width().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("HIDE") => self.state.borrow_mut().hide().map(|_| None),
+            CallableIdentifier::Method("HIDE") => {
+                self.state.borrow_mut().hide().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("INVALIDATE") => {
-                self.state.borrow_mut().invalidate();
-                Ok(None)
+                self.state.borrow_mut().invalidate().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("ISAT") => {
-                self.state.borrow().is_at();
-                Ok(None)
+                self.state.borrow().is_at().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("ISINSIDE") => {
-                self.state.borrow().is_inside();
-                Ok(None)
+                self.state.borrow().is_inside().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("ISNEAR") => {
                 let name = arguments[0].to_str();
@@ -493,114 +484,120 @@ impl CnvType for Animation {
                 self.state
                     .borrow()
                     .is_near(context, other, arguments[1].to_int().max(0) as usize)
-                    .map(|v| Some(CnvValue::Bool(v)))
+                    .map(CnvValue::Bool)
             }
-            CallableIdentifier::Method("ISPLAYING") => self
+            CallableIdentifier::Method("ISPLAYING") => {
+                self.state.borrow().is_playing().map(CnvValue::Bool)
+            }
+            CallableIdentifier::Method("ISVISIBLE") => {
+                self.state.borrow().is_visible().map(CnvValue::Bool)
+            }
+            CallableIdentifier::Method("LOAD") => self
                 .state
-                .borrow()
-                .is_playing()
-                .map(|v| Some(CnvValue::Bool(v))),
-            CallableIdentifier::Method("ISVISIBLE") => self
+                .borrow_mut()
+                .load(context, &arguments[0].to_str())
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("MERGEALPHA") => self
                 .state
-                .borrow()
-                .is_visible()
-                .map(|v| Some(CnvValue::Bool(v))),
-            CallableIdentifier::Method("LOAD") => {
-                self.state
-                    .borrow_mut()
-                    .load(context, &arguments[0].to_str())?;
-                Ok(None)
-            }
-            CallableIdentifier::Method("MERGEALPHA") => {
-                self.state.borrow_mut().merge_alpha();
-                Ok(None)
-            }
-            CallableIdentifier::Method("MONITORCOLLISION") => {
-                self.state.borrow_mut().monitor_collision();
-                Ok(None)
-            }
-            CallableIdentifier::Method("MOVE") => {
-                self.state.borrow_mut().move_by(
+                .borrow_mut()
+                .merge_alpha()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("MONITORCOLLISION") => self
+                .state
+                .borrow_mut()
+                .monitor_collision()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("MOVE") => self
+                .state
+                .borrow_mut()
+                .move_by(
                     arguments[0].to_int() as isize,
                     arguments[1].to_int() as isize,
-                )?;
-                Ok(None)
-            }
+                )
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("NEXTFRAME") => {
-                self.state.borrow_mut().next_frame();
-                Ok(None)
+                self.state.borrow_mut().next_frame().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("NPLAY") => {
-                self.state.borrow_mut().n_play();
-                Ok(None)
+                self.state.borrow_mut().n_play().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("PAUSE") => {
-                self.state.borrow_mut().pause(context).map(|_| None)
-            }
+            CallableIdentifier::Method("PAUSE") => self
+                .state
+                .borrow_mut()
+                .pause(context)
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("PLAY") => self
                 .state
                 .borrow_mut()
                 .play(context, &arguments[0].to_str())
-                .map(|_| None),
-            CallableIdentifier::Method("PLAYRAND") => {
-                self.state.borrow_mut().play_rand(
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("PLAYRAND") => self
+                .state
+                .borrow_mut()
+                .play_rand(
                     &arguments[0].to_str(),
                     arguments[1].to_int() as usize,
                     arguments[2].to_int() as usize,
-                );
-                Ok(None)
-            }
-            CallableIdentifier::Method("PLAYREVERSE") => {
-                self.state.borrow_mut().play_reverse();
-                Ok(None)
-            }
+                )
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("PLAYREVERSE") => self
+                .state
+                .borrow_mut()
+                .play_reverse()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("PREVFRAME") => {
-                self.state.borrow_mut().prev_frame();
-                Ok(None)
+                self.state.borrow_mut().prev_frame().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("REMOVEMONITORCOLLISION") => {
-                self.state.borrow_mut().remove_monitor_collision();
-                Ok(None)
-            }
-            CallableIdentifier::Method("REPLACECOLOR") => {
-                self.state.borrow_mut().replace_color();
-                Ok(None)
-            }
-            CallableIdentifier::Method("RESETFLIPS") => {
-                self.state.borrow_mut().reset_flips();
-                Ok(None)
-            }
-            CallableIdentifier::Method("RESUME") => {
-                self.state.borrow_mut().resume(context).map(|_| None)
-            }
-            CallableIdentifier::Method("SETANCHOR") => {
-                self.state.borrow_mut().set_anchor(&arguments[0].to_str());
-                Ok(None)
-            }
-            CallableIdentifier::Method("SETASBUTTON") => {
-                self.state
-                    .borrow_mut()
-                    .set_as_button(arguments[0].to_bool(), arguments[1].to_bool());
-                Ok(None)
-            }
-            CallableIdentifier::Method("SETBACKWARD") => {
-                self.state.borrow_mut().set_backward();
-                Ok(None)
-            }
-            CallableIdentifier::Method("SETCLIPPING") => {
-                self.state.borrow_mut().set_clipping();
-                Ok(None)
-            }
-            CallableIdentifier::Method("SETFORWARD") => {
-                self.state.borrow_mut().set_forward();
-                Ok(None)
-            }
-            CallableIdentifier::Method("SETFPS") => {
-                self.state
-                    .borrow_mut()
-                    .set_fps(arguments[0].to_int() as usize);
-                Ok(None)
-            }
+            CallableIdentifier::Method("REMOVEMONITORCOLLISION") => self
+                .state
+                .borrow_mut()
+                .remove_monitor_collision()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("REPLACECOLOR") => self
+                .state
+                .borrow_mut()
+                .replace_color()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("RESETFLIPS") => self
+                .state
+                .borrow_mut()
+                .reset_flips()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("RESUME") => self
+                .state
+                .borrow_mut()
+                .resume(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETANCHOR") => self
+                .state
+                .borrow_mut()
+                .set_anchor(&arguments[0].to_str())
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETASBUTTON") => self
+                .state
+                .borrow_mut()
+                .set_as_button(arguments[0].to_bool(), arguments[1].to_bool())
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETBACKWARD") => self
+                .state
+                .borrow_mut()
+                .set_backward()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETCLIPPING") => self
+                .state
+                .borrow_mut()
+                .set_clipping()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETFORWARD") => self
+                .state
+                .borrow_mut()
+                .set_forward()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETFPS") => self
+                .state
+                .borrow_mut()
+                .set_fps(arguments[0].to_int() as usize)
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETFRAME") => {
                 let (sequence_name, frame_no) = match arguments.len() {
                     1 => (None, arguments[0].to_int()),
@@ -626,24 +623,24 @@ impl CnvType for Animation {
                 self.state
                     .borrow_mut()
                     .set_frame(sequence_name.as_deref(), frame_no.max(0) as usize)
-                    .map(|_| None)
+                    .map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SETFRAMENAME") => {
-                self.state.borrow_mut().set_frame_name();
-                Ok(None)
-            }
+            CallableIdentifier::Method("SETFRAMENAME") => self
+                .state
+                .borrow_mut()
+                .set_frame_name()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETFREQ") => {
-                self.state.borrow_mut().set_freq();
-                Ok(None)
+                self.state.borrow_mut().set_freq().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("SETONFF") => {
-                self.state.borrow_mut().set_onff();
-                Ok(None)
+                self.state.borrow_mut().set_onff().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SETOPACITY") => {
-                self.state.borrow_mut().set_opacity();
-                Ok(None)
-            }
+            CallableIdentifier::Method("SETOPACITY") => self
+                .state
+                .borrow_mut()
+                .set_opacity()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETPOSITION") => self
                 .state
                 .borrow_mut()
@@ -651,21 +648,21 @@ impl CnvType for Animation {
                     arguments[0].to_int() as isize,
                     arguments[1].to_int() as isize,
                 )
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETPRIORITY") => self
                 .state
                 .borrow_mut()
                 .set_priority(arguments[0].to_int() as isize)
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETPAN") => {
-                self.state.borrow_mut().set_pan();
-                Ok(None)
+                self.state.borrow_mut().set_pan().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("SETVOLUME") => {
-                self.state.borrow_mut().set_volume();
-                Ok(None)
+                self.state.borrow_mut().set_volume().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SHOW") => self.state.borrow_mut().show().map(|_| None),
+            CallableIdentifier::Method("SHOW") => {
+                self.state.borrow_mut().show().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("STOP") => self
                 .state
                 .borrow_mut()
@@ -677,15 +674,16 @@ impl CnvType for Animation {
                         arguments[0].to_bool()
                     },
                 )
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
@@ -912,67 +910,69 @@ impl Initable for Animation {
 }
 
 impl AnimationState {
-    pub fn clear_clipping(&self) {
+    pub fn clear_clipping(&self) -> anyhow::Result<()> {
         // CLEARCLIPPING
         todo!()
     }
 
-    pub fn draw_onto(&self) {
+    pub fn draw_onto(&self) -> anyhow::Result<()> {
         // DRAWONTO
         todo!()
     }
 
-    pub fn flip_h(&mut self) {
+    pub fn flip_h(&mut self) -> anyhow::Result<()> {
         // FLIPH
         self.is_flipped_horizontally = !self.is_flipped_horizontally;
+        Ok(())
     }
 
-    pub fn flip_v(&mut self) {
+    pub fn flip_v(&mut self) -> anyhow::Result<()> {
         // FLIPV
         self.is_flipped_vertically = !self.is_flipped_vertically;
+        Ok(())
     }
 
-    pub fn get_alpha(&self) {
+    pub fn get_alpha(&self) -> anyhow::Result<()> {
         // GETALPHA
         todo!()
     }
 
-    pub fn get_anchor(&self) -> &str {
+    pub fn get_anchor(&self) -> anyhow::Result<&str> {
         // GETANCHOR STRING
         todo!()
     }
 
-    pub fn get_center_x(&self) {
+    pub fn get_center_x(&self) -> anyhow::Result<()> {
         // GETCENTERX
         todo!()
     }
 
-    pub fn get_center_y(&self) {
+    pub fn get_center_y(&self) -> anyhow::Result<()> {
         // GETCENTERY
         todo!()
     }
 
-    pub fn get_cframe_in_event(&self) -> usize {
+    pub fn get_cframe_in_event(&self) -> anyhow::Result<usize> {
         // GETCFRAMEINEVENT INTEGER
         todo!()
     }
 
-    pub fn get_curr_frame_pos_x(&self) {
+    pub fn get_curr_frame_pos_x(&self) -> anyhow::Result<()> {
         // GETCURRFRAMEPOSX
         todo!()
     }
 
-    pub fn get_curr_frame_pos_y(&self) {
+    pub fn get_curr_frame_pos_y(&self) -> anyhow::Result<()> {
         // GETCURRFRAMEPOSY
         todo!()
     }
 
-    pub fn get_end_x(&self) {
+    pub fn get_end_x(&self) -> anyhow::Result<()> {
         // GETENDX
         todo!()
     }
 
-    pub fn get_end_y(&self) {
+    pub fn get_end_y(&self) -> anyhow::Result<()> {
         // GETENDY
         todo!()
     }
@@ -983,22 +983,22 @@ impl AnimationState {
         Ok(sequence.name.clone())
     }
 
-    pub fn get_sequence_index(&self) {
+    pub fn get_sequence_index(&self) -> anyhow::Result<()> {
         // GETEVENTNUMBER
         todo!()
     }
 
-    pub fn get_fps(&self) {
+    pub fn get_fps(&self) -> anyhow::Result<()> {
         // GETFPS
         todo!()
     }
 
-    pub fn get_frame(&self) -> usize {
+    pub fn get_frame(&self) -> anyhow::Result<usize> {
         // GETFRAME INTEGER
         todo!()
     }
 
-    pub fn get_frame_name(&self) {
+    pub fn get_frame_name(&self) -> anyhow::Result<()> {
         // GETFRAMENAME
         todo!()
     }
@@ -1008,42 +1008,42 @@ impl AnimationState {
         Ok(self.current_frame.frame_idx)
     }
 
-    pub fn get_height(&self) {
+    pub fn get_height(&self) -> anyhow::Result<()> {
         // GETHEIGHT
         todo!()
     }
 
-    pub fn get_max_height(&self) {
+    pub fn get_max_height(&self) -> anyhow::Result<()> {
         // GETMAXHEIGHT
         todo!()
     }
 
-    pub fn get_max_width(&self) {
+    pub fn get_max_width(&self) -> anyhow::Result<()> {
         // GETMAXWIDTH
         todo!()
     }
 
-    pub fn get_sequence_count(&self) {
+    pub fn get_sequence_count(&self) -> anyhow::Result<()> {
         // GETNOE
         todo!()
     }
 
-    pub fn get_total_frame_count(&self) {
+    pub fn get_total_frame_count(&self) -> anyhow::Result<()> {
         // GETNOF
         todo!()
     }
 
-    pub fn get_sequence_frame_count(&self, _sequence_name: &str) -> usize {
+    pub fn get_sequence_frame_count(&self, _sequence_name: &str) -> anyhow::Result<usize> {
         // GETNOFINEVENT INTEGER (STRING event)
         todo!()
     }
 
-    pub fn get_opacity(&self) {
+    pub fn get_opacity(&self) -> anyhow::Result<()> {
         // GETOPACITY
         todo!()
     }
 
-    pub fn get_pixel(&self) {
+    pub fn get_pixel(&self) -> anyhow::Result<()> {
         // GETPIXEL
         todo!()
     }
@@ -1063,7 +1063,7 @@ impl AnimationState {
         Ok(self.priority)
     }
 
-    pub fn get_width(&self) {
+    pub fn get_width(&self) -> anyhow::Result<()> {
         // GETWIDTH
         todo!()
     }
@@ -1074,17 +1074,17 @@ impl AnimationState {
         Ok(())
     }
 
-    pub fn invalidate(&self) {
+    pub fn invalidate(&self) -> anyhow::Result<()> {
         // INVALIDATE
         todo!()
     }
 
-    pub fn is_at(&self) {
+    pub fn is_at(&self) -> anyhow::Result<()> {
         // ISAT
         todo!()
     }
 
-    pub fn is_inside(&self) {
+    pub fn is_inside(&self) -> anyhow::Result<()> {
         // ISINSIDE
         todo!()
     }
@@ -1227,14 +1227,15 @@ impl AnimationState {
         Ok(())
     }
 
-    pub fn merge_alpha(&self) {
+    pub fn merge_alpha(&self) -> anyhow::Result<()> {
         // MERGEALPHA
         todo!()
     }
 
-    pub fn monitor_collision(&mut self) {
+    pub fn monitor_collision(&mut self) -> anyhow::Result<()> {
         // MONITORCOLLISION
         self.does_monitor_collision = true;
+        Ok(())
     }
 
     pub fn move_by(&mut self, x: isize, y: isize) -> anyhow::Result<()> {
@@ -1243,12 +1244,12 @@ impl AnimationState {
         Ok(())
     }
 
-    pub fn next_frame(&self) {
+    pub fn next_frame(&self) -> anyhow::Result<()> {
         // NEXTFRAME
         todo!()
     }
 
-    pub fn n_play(&self) {
+    pub fn n_play(&self) -> anyhow::Result<()> {
         // NPLAY
         todo!()
     }
@@ -1327,32 +1328,33 @@ impl AnimationState {
         Ok(())
     }
 
-    pub fn play_rand(&self, _arg1: &str, _arg2: usize, _arg3: usize) {
+    pub fn play_rand(&self, _arg1: &str, _arg2: usize, _arg3: usize) -> anyhow::Result<()> {
         // PLAYRAND (STRING, INT, INT)
         todo!()
     }
 
-    pub fn play_reverse(&self) {
+    pub fn play_reverse(&self) -> anyhow::Result<()> {
         // PLAYREVERSE
         todo!()
     }
 
-    pub fn prev_frame(&self) {
+    pub fn prev_frame(&self) -> anyhow::Result<()> {
         // PREVFRAME
         todo!()
     }
 
-    pub fn remove_monitor_collision(&mut self) {
+    pub fn remove_monitor_collision(&mut self) -> anyhow::Result<()> {
         // REMOVEMONITORCOLLISION
         self.does_monitor_collision = false;
+        Ok(())
     }
 
-    pub fn replace_color(&self) {
+    pub fn replace_color(&self) -> anyhow::Result<()> {
         // REPLACECOLOR
         todo!()
     }
 
-    pub fn reset_flips(&self) {
+    pub fn reset_flips(&self) -> anyhow::Result<()> {
         // RESETFLIPS
         todo!()
     }
@@ -1385,34 +1387,37 @@ impl AnimationState {
         Ok(())
     }
 
-    pub fn set_anchor(&self, _arg1: &str) {
+    pub fn set_anchor(&self, _arg1: &str) -> anyhow::Result<()> {
         // SETANCHOR (STRING)
         todo!()
     }
 
-    pub fn set_as_button(&self, _enabled: bool, _arg2: bool) {
+    pub fn set_as_button(&self, _enabled: bool, _arg2: bool) -> anyhow::Result<()> {
         // SETASBUTTON (BOOL enabled, BOOL)
         todo!()
     }
 
-    pub fn set_backward(&mut self) {
+    pub fn set_backward(&mut self) -> anyhow::Result<()> {
         // SETBACKWARD
         self.is_reversed = true;
+        Ok(())
     }
 
-    pub fn set_clipping(&self) {
+    pub fn set_clipping(&self) -> anyhow::Result<()> {
         // SETCLIPPING
         todo!()
     }
 
-    pub fn set_forward(&mut self) {
+    pub fn set_forward(&mut self) -> anyhow::Result<()> {
         // SETFORWARD
         self.is_reversed = false;
+        Ok(())
     }
 
-    pub fn set_fps(&mut self, fps: usize) {
+    pub fn set_fps(&mut self, fps: usize) -> anyhow::Result<()> {
         // SETFPS
         self.fps = fps;
+        Ok(())
     }
 
     pub fn set_frame(
@@ -1429,22 +1434,22 @@ impl AnimationState {
         Ok(())
     }
 
-    pub fn set_frame_name(&self) {
+    pub fn set_frame_name(&self) -> anyhow::Result<()> {
         // SETFRAMENAME
         todo!()
     }
 
-    pub fn set_freq(&self) {
+    pub fn set_freq(&self) -> anyhow::Result<()> {
         // SETFREQ
         todo!()
     }
 
-    pub fn set_onff(&self) {
+    pub fn set_onff(&self) -> anyhow::Result<()> {
         // SETONFF
         todo!()
     }
 
-    pub fn set_opacity(&self) {
+    pub fn set_opacity(&self) -> anyhow::Result<()> {
         // SETOPACITY
         todo!()
     }
@@ -1461,12 +1466,12 @@ impl AnimationState {
         Ok(())
     }
 
-    pub fn set_pan(&self) {
+    pub fn set_pan(&self) -> anyhow::Result<()> {
         // SETPAN
         todo!()
     }
 
-    pub fn set_volume(&self) {
+    pub fn set_volume(&self) -> anyhow::Result<()> {
         // SETVOLUME
         todo!()
     }
@@ -1522,8 +1527,8 @@ impl AnimationState {
 
     // custom
 
-    fn get_max_frame_duration(&self) -> f64 {
-        1f64 / (self.fps as f64)
+    fn get_max_frame_duration(&self) -> anyhow::Result<f64> {
+        Ok(1f64 / (self.fps as f64))
     }
 
     pub fn get_base_position(&self) -> anyhow::Result<(isize, isize)> {
@@ -1630,7 +1635,7 @@ impl AnimationState {
         let sequence_length = sequence.frames.len();
         let sequence_name = sequence.name.clone();
         self.current_frame_duration += seconds;
-        let max_frame_duration = self.get_max_frame_duration();
+        let max_frame_duration = self.get_max_frame_duration()?;
         while self.current_frame_duration >= max_frame_duration {
             // eprintln!("{} / {}", self.current_frame_duration, max_frame_duration);
             self.current_frame_duration -= max_frame_duration;

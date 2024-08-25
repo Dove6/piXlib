@@ -121,7 +121,7 @@ impl CnvType for StringVar {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         // eprintln!(
         //     "Calling method {:?} with arguments [{}]",
         //     name,
@@ -132,13 +132,17 @@ impl CnvType for StringVar {
                 .state
                 .borrow_mut()
                 .add(context, &arguments[0].to_str())
-                .map(|v| Some(CnvValue::String(v))),
-            CallableIdentifier::Method("CLEAR") => {
-                self.state.borrow_mut().clear(context).map(|_| None)
-            }
-            CallableIdentifier::Method("COPYFILE") => {
-                self.state.borrow_mut().copy_file(context).map(|_| None)
-            }
+                .map(CnvValue::String),
+            CallableIdentifier::Method("CLEAR") => self
+                .state
+                .borrow_mut()
+                .clear(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("COPYFILE") => self
+                .state
+                .borrow_mut()
+                .copy_file(context)
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("CUT") => self
                 .state
                 .borrow_mut()
@@ -147,7 +151,7 @@ impl CnvType for StringVar {
                     arguments[0].to_int() as usize,
                     arguments[1].to_int() as usize,
                 )
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("FIND") => self
                 .state
                 .borrow()
@@ -156,7 +160,7 @@ impl CnvType for StringVar {
                     arguments.get(1).map(|v| v.to_int() as usize),
                 )
                 .map(|v| v.map(|u| u as i32).unwrap_or(-1))
-                .map(|v| Some(CnvValue::Integer(v))),
+                .map(CnvValue::Integer),
             CallableIdentifier::Method("GET") => self
                 .state
                 .borrow()
@@ -164,7 +168,7 @@ impl CnvType for StringVar {
                     arguments.first().map(|v| v.to_int() as usize),
                     arguments.get(1).map(|v| v.to_int() as usize),
                 )
-                .map(|v| Some(CnvValue::String(v))),
+                .map(CnvValue::String),
             CallableIdentifier::Method("INSERTAT") => self
                 .state
                 .borrow_mut()
@@ -174,29 +178,35 @@ impl CnvType for StringVar {
                     &arguments[1].to_str(),
                     arguments.get(2).map(|v| v.to_int() as usize).unwrap_or(1),
                 )
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("ISUPPERLETTER") => self
                 .state
                 .borrow()
                 .is_upper_letter(arguments[0].to_int() as usize)
-                .map(|v| Some(CnvValue::Bool(v))),
+                .map(CnvValue::Bool),
             CallableIdentifier::Method("LENGTH") => self
                 .state
                 .borrow_mut()
                 .length()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
-            CallableIdentifier::Method("LOWER") => {
-                self.state.borrow_mut().lower(context).map(|_| None)
+                .map(|v| CnvValue::Integer(v as i32)),
+            CallableIdentifier::Method("LOWER") => self
+                .state
+                .borrow_mut()
+                .lower(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("NOT") => {
+                self.state.borrow_mut().not(context).map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("NOT") => self.state.borrow_mut().not(context).map(|_| None),
-            CallableIdentifier::Method("RANDOM") => {
-                self.state.borrow_mut().random(context).map(|_| None)
-            }
+            CallableIdentifier::Method("RANDOM") => self
+                .state
+                .borrow_mut()
+                .random(context)
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("REPLACE") => self
                 .state
                 .borrow_mut()
                 .replace(context, &arguments[0].to_str(), &arguments[1].to_str())
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("REPLACEAT") => self
                 .state
                 .borrow_mut()
@@ -205,20 +215,22 @@ impl CnvType for StringVar {
                     arguments[0].to_int() as usize,
                     &arguments[1].to_str(),
                 )
-                .map(|_| None),
-            CallableIdentifier::Method("RESETINI") => {
-                self.state.borrow_mut().reset_ini(context).map(|_| None)
-            }
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("RESETINI") => self
+                .state
+                .borrow_mut()
+                .reset_ini(context)
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SET") => self
                 .state
                 .borrow_mut()
                 .set(context, &arguments[0].to_str())
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETDEFAULT") => self
                 .state
                 .borrow_mut()
                 .set_default(context, &arguments[0].to_str())
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SUB") => self
                 .state
                 .borrow_mut()
@@ -227,23 +239,26 @@ impl CnvType for StringVar {
                     arguments[0].to_int() as usize,
                     arguments[1].to_int() as usize,
                 )
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SWITCH") => self
                 .state
                 .borrow_mut()
                 .switch(context, &arguments[0].to_str(), &arguments[1].to_str())
-                .map(|_| None),
-            CallableIdentifier::Method("UPPER") => {
-                self.state.borrow_mut().upper(context).map(|_| None)
-            }
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("UPPER") => self
+                .state
+                .borrow_mut()
+                .upper(context)
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

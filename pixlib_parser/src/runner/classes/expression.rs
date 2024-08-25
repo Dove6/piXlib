@@ -60,28 +60,18 @@ impl Expression {
 
     pub fn calculate(&self) -> anyhow::Result<CnvValue> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
-        let left = self
-            .left
-            .calculate(context.clone())?
-            .map(|v| {
-                if let ast::Expression::Identifier(_) = &self.left.value {
-                    v.resolve(context.clone())
-                } else {
-                    v
-                }
-            })
-            .unwrap();
-        let right = self
-            .right
-            .calculate(context.clone())?
-            .map(|v| {
-                if let ast::Expression::Identifier(_) = &self.right.value {
-                    v.resolve(context.clone())
-                } else {
-                    v
-                }
-            })
-            .unwrap();
+        let left = self.left.calculate(context.clone())?;
+        let left = if let ast::Expression::Identifier(_) = &self.left.value {
+            left.resolve(context.clone())
+        } else {
+            left
+        };
+        let right = self.right.calculate(context.clone())?;
+        let right = if let ast::Expression::Identifier(_) = &self.right.value {
+            right.resolve(context.clone())
+        } else {
+            right
+        };
         Ok(match self.operator {
             ExpressionOperator::Add => &left + &right,
             ExpressionOperator::Sub => &left - &right,
@@ -110,16 +100,17 @@ impl CnvType for Expression {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

@@ -158,7 +158,7 @@ impl CnvObject {
         identifier: CallableIdentifier,
         arguments: &[CnvValue],
         context: Option<RunnerContext>,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         let context = context
             .map(|c| c.with_current_object(self.clone()))
             .unwrap_or(RunnerContext::new_minimal(&self.parent.runner, self));

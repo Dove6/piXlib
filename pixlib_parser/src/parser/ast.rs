@@ -28,6 +28,7 @@ pub struct Invocation {
 #[derive(Debug, Clone)]
 pub enum Expression {
     LiteralBool(bool),
+    LiteralNull,
     SelfReference,
     Identifier(String),
     Invocation(Box<Invocation>),

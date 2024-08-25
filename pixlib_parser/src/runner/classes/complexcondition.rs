@@ -93,25 +93,26 @@ impl CnvType for ComplexCondition {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
-            CallableIdentifier::Method("BREAK") => self.state.borrow().break_run().map(|_| None),
-            CallableIdentifier::Method("CHECK") => self
-                .state
-                .borrow()
-                .check(context)
-                .map(|v| Some(CnvValue::Bool(v))),
+            CallableIdentifier::Method("BREAK") => {
+                self.state.borrow().break_run().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("CHECK") => {
+                self.state.borrow().check(context).map(CnvValue::Bool)
+            }
             CallableIdentifier::Method("ONE_BREAK") => {
-                self.state.borrow().one_break().map(|_| None)
+                self.state.borrow().one_break().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

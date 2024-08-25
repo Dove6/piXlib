@@ -56,10 +56,7 @@ fn surrounding_quotes_should_be_handled_correctly_with_direct_set(
         .call_method(CallableIdentifier::Method("GET"), &Vec::new(), None)
         .unwrap();
 
-    assert_eq!(
-        result.as_ref(),
-        Some(CnvValue::String(expected.into())).as_ref()
-    );
+    assert_eq!(result, CnvValue::String(expected.into()));
 }
 
 #[test_case("zero levels", "ABCDEFG", "HIJKLMN")]
@@ -124,10 +121,7 @@ fn surrounding_quotes_should_be_handled_correctly_with_direct_set_and_inconvenie
         .call_method(CallableIdentifier::Method("GET"), &Vec::new(), None)
         .unwrap();
 
-    assert_eq!(
-        result.as_ref(),
-        Some(CnvValue::String(expected.into())).as_ref()
-    );
+    assert_eq!(result, CnvValue::String(expected.into()));
 }
 
 #[test_case("zero levels", "ABCDEFG", "ABCDEFG")]
@@ -184,10 +178,7 @@ fn surrounding_quotes_should_be_handled_correctly_with_one_level_indirect_set(
         .call_method(CallableIdentifier::Method("GET"), &Vec::new(), None)
         .unwrap();
 
-    assert_eq!(
-        result.as_ref(),
-        Some(CnvValue::String(expected.into())).as_ref()
-    );
+    assert_eq!(result, CnvValue::String(expected.into()));
 }
 
 #[test_case("zero levels", "ABCDEFG", "VWXYZ")]
@@ -260,10 +251,7 @@ fn surrounding_quotes_should_be_handled_correctly_with_two_level_indirect_set_an
         .call_method(CallableIdentifier::Method("GET"), &Vec::new(), None)
         .unwrap();
 
-    assert_eq!(
-        result.as_ref(),
-        Some(CnvValue::String(expected.into())).as_ref()
-    );
+    assert_eq!(result, CnvValue::String(expected.into()));
 }
 
 fn as_parser_input(string: &str) -> impl Iterator<Item = declarative_parser::ParserInput> + '_ {

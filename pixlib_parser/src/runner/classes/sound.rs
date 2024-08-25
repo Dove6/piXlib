@@ -174,46 +174,55 @@ impl CnvType for Sound {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
-            CallableIdentifier::Method("ISPLAYING") => self
-                .state
-                .borrow()
-                .is_playing()
-                .map(|v| Some(CnvValue::Bool(v))),
+            CallableIdentifier::Method("ISPLAYING") => {
+                self.state.borrow().is_playing().map(CnvValue::Bool)
+            }
             CallableIdentifier::Method("LOAD") => self
                 .state
                 .borrow_mut()
                 .load(context, &arguments[0].to_str())
-                .map(|_| None),
-            CallableIdentifier::Method("PAUSE") => {
-                self.state.borrow_mut().pause(context).map(|_| None)
-            }
-            CallableIdentifier::Method("PLAY") => {
-                self.state.borrow_mut().play(context).map(|_| None)
-            }
-            CallableIdentifier::Method("RESUME") => {
-                self.state.borrow_mut().resume(context).map(|_| None)
-            }
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("PAUSE") => self
+                .state
+                .borrow_mut()
+                .pause(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("PLAY") => self
+                .state
+                .borrow_mut()
+                .play(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("RESUME") => self
+                .state
+                .borrow_mut()
+                .resume(context)
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETFREQ") => {
-                self.state.borrow_mut().set_freq().map(|_| None)
+                self.state.borrow_mut().set_freq().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SETPAN") => self.state.borrow_mut().set_pan().map(|_| None),
+            CallableIdentifier::Method("SETPAN") => {
+                self.state.borrow_mut().set_pan().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("SETVOLUME") => {
-                self.state.borrow_mut().set_volume().map(|_| None)
+                self.state.borrow_mut().set_volume().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("STOP") => {
-                self.state.borrow_mut().stop(context).map(|_| None)
-            }
+            CallableIdentifier::Method("STOP") => self
+                .state
+                .borrow_mut()
+                .stop(context)
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

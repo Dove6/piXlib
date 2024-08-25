@@ -62,7 +62,7 @@ impl CnvType for Rand {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
             CallableIdentifier::Method("GET") => match arguments.len() {
                 0 => Err(RunnerError::TooFewArguments {
@@ -81,18 +81,19 @@ impl CnvType for Rand {
                 }
                 .into()),
             }
-            .map(|v| Some(CnvValue::Integer(v as i32))),
+            .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETPLENTY") => {
-                self.state.borrow().get_plenty().map(|_| None)
+                self.state.borrow().get_plenty().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

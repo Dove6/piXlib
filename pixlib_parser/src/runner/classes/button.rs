@@ -213,57 +213,78 @@ impl CnvType for Button {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
-            CallableIdentifier::Method("ACCENT") => self.state.borrow_mut().accent().map(|_| None),
-            CallableIdentifier::Method("DISABLE") => {
-                self.state.borrow_mut().disable(context).map(|_| None)
+            CallableIdentifier::Method("ACCENT") => {
+                self.state.borrow_mut().accent().map(|_| CnvValue::Null)
             }
+            CallableIdentifier::Method("DISABLE") => self
+                .state
+                .borrow_mut()
+                .disable(context)
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("DISABLEBUTVISIBLE") => self
                 .state
                 .borrow_mut()
                 .disable_but_visible(context)
-                .map(|_| None),
-            CallableIdentifier::Method("DISABLEDRAGGING") => {
-                self.state.borrow_mut().disable_dragging().map(|_| None)
-            }
-            CallableIdentifier::Method("ENABLE") => {
-                self.state.borrow_mut().enable(context).map(|_| None)
-            }
-            CallableIdentifier::Method("ENABLEDRAGGING") => {
-                self.state.borrow_mut().enable_dragging().map(|_| None)
-            }
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("DISABLEDRAGGING") => self
+                .state
+                .borrow_mut()
+                .disable_dragging()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("ENABLE") => self
+                .state
+                .borrow_mut()
+                .enable(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("ENABLEDRAGGING") => self
+                .state
+                .borrow_mut()
+                .enable_dragging()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("GETONCLICK") => self.state.borrow().get_on_click(),
             CallableIdentifier::Method("GETONMOVE") => self.state.borrow().get_on_move(),
             CallableIdentifier::Method("GETPRIORITY") => self
                 .state
                 .borrow()
                 .get_priority()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETSTD") => self.state.borrow().get_std(),
-            CallableIdentifier::Method("SETONCLICK") => {
-                self.state.borrow_mut().set_on_click().map(|_| None)
-            }
-            CallableIdentifier::Method("SETONMOVE") => {
-                self.state.borrow_mut().set_on_move().map(|_| None)
-            }
-            CallableIdentifier::Method("SETPRIORITY") => {
-                self.state.borrow_mut().set_priority().map(|_| None)
-            }
+            CallableIdentifier::Method("SETONCLICK") => self
+                .state
+                .borrow_mut()
+                .set_on_click()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETONMOVE") => self
+                .state
+                .borrow_mut()
+                .set_on_move()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETPRIORITY") => self
+                .state
+                .borrow_mut()
+                .set_priority()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETRECT") => {
-                self.state.borrow_mut().set_rect().map(|_| None)
+                self.state.borrow_mut().set_rect().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SETSTD") => self.state.borrow_mut().set_std().map(|_| None),
-            CallableIdentifier::Method("SYN") => self.state.borrow_mut().syn().map(|_| None),
+            CallableIdentifier::Method("SETSTD") => {
+                self.state.borrow_mut().set_std().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("SYN") => {
+                self.state.borrow_mut().syn().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
@@ -468,12 +489,12 @@ impl ButtonState {
         todo!()
     }
 
-    pub fn get_on_click(&self) -> anyhow::Result<Option<CnvValue>> {
+    pub fn get_on_click(&self) -> anyhow::Result<CnvValue> {
         // GETONCLICK
         todo!()
     }
 
-    pub fn get_on_move(&self) -> anyhow::Result<Option<CnvValue>> {
+    pub fn get_on_move(&self) -> anyhow::Result<CnvValue> {
         // GETONMOVE
         todo!()
     }
@@ -483,7 +504,7 @@ impl ButtonState {
         todo!()
     }
 
-    pub fn get_std(&self) -> anyhow::Result<Option<CnvValue>> {
+    pub fn get_std(&self) -> anyhow::Result<CnvValue> {
         // GETSTD
         todo!()
     }

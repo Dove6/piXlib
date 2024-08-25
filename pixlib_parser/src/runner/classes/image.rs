@@ -224,75 +224,101 @@ impl CnvType for Image {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
-            CallableIdentifier::Method("CLEARCLIPPING") => {
-                self.state.borrow_mut().clear_clipping().map(|_| None)
-            }
+            CallableIdentifier::Method("CLEARCLIPPING") => self
+                .state
+                .borrow_mut()
+                .clear_clipping()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("DRAWONTO") => {
-                self.state.borrow_mut().draw_onto().map(|_| None)
+                self.state.borrow_mut().draw_onto().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("FLIPH") => self.state.borrow_mut().flip_h().map(|_| None),
-            CallableIdentifier::Method("FLIPV") => self.state.borrow_mut().flip_v().map(|_| None),
+            CallableIdentifier::Method("FLIPH") => {
+                self.state.borrow_mut().flip_h().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("FLIPV") => {
+                self.state.borrow_mut().flip_v().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("GETALPHA") => {
-                self.state.borrow_mut().get_alpha().map(|_| None)
+                self.state.borrow_mut().get_alpha().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("GETCENTERX") => {
-                self.state.borrow_mut().get_center_x().map(|_| None)
-            }
-            CallableIdentifier::Method("GETCENTERY") => {
-                self.state.borrow_mut().get_center_y().map(|_| None)
-            }
-            CallableIdentifier::Method("GETCOLORAT") => {
-                self.state.borrow_mut().get_color_at().map(|_| None)
-            }
-            CallableIdentifier::Method("GETCOLORBAT") => {
-                self.state.borrow_mut().get_color_b_at().map(|_| None)
-            }
-            CallableIdentifier::Method("GETCOLORGAT") => {
-                self.state.borrow_mut().get_color_g_at().map(|_| None)
-            }
-            CallableIdentifier::Method("GETCOLORRAT") => {
-                self.state.borrow_mut().get_color_r_at().map(|_| None)
-            }
+            CallableIdentifier::Method("GETCENTERX") => self
+                .state
+                .borrow_mut()
+                .get_center_x()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GETCENTERY") => self
+                .state
+                .borrow_mut()
+                .get_center_y()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GETCOLORAT") => self
+                .state
+                .borrow_mut()
+                .get_color_at()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GETCOLORBAT") => self
+                .state
+                .borrow_mut()
+                .get_color_b_at()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GETCOLORGAT") => self
+                .state
+                .borrow_mut()
+                .get_color_g_at()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GETCOLORRAT") => self
+                .state
+                .borrow_mut()
+                .get_color_r_at()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("GETHEIGHT") => {
-                self.state.borrow_mut().get_height().map(|_| None)
+                self.state.borrow_mut().get_height().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("GETOPACITY") => {
-                self.state.borrow_mut().get_opacity().map(|_| None)
-            }
+            CallableIdentifier::Method("GETOPACITY") => self
+                .state
+                .borrow_mut()
+                .get_opacity()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("GETPIXEL") => {
-                self.state.borrow_mut().get_pixel().map(|_| None)
+                self.state.borrow_mut().get_pixel().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("GETPOSITIONX") => self
                 .state
                 .borrow()
                 .get_position_x()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETPOSITIONY") => self
                 .state
                 .borrow()
                 .get_position_y()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETPRIORITY") => self
                 .state
                 .borrow_mut()
                 .get_priority()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
-            CallableIdentifier::Method("GETSLIDECOMPS") => {
-                self.state.borrow_mut().get_slide_comps().map(|_| None)
-            }
+                .map(|v| CnvValue::Integer(v as i32)),
+            CallableIdentifier::Method("GETSLIDECOMPS") => self
+                .state
+                .borrow_mut()
+                .get_slide_comps()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("GETWIDTH") => {
-                self.state.borrow_mut().get_width().map(|_| None)
+                self.state.borrow_mut().get_width().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("HIDE") => self.state.borrow_mut().hide().map(|_| None),
+            CallableIdentifier::Method("HIDE") => {
+                self.state.borrow_mut().hide().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("INVALIDATE") => {
-                self.state.borrow_mut().invalidate().map(|_| None)
+                self.state.borrow_mut().invalidate().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("ISAT") => self.state.borrow_mut().is_at().map(|_| None),
+            CallableIdentifier::Method("ISAT") => {
+                self.state.borrow_mut().is_at().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("ISINSIDE") => {
-                self.state.borrow_mut().is_inside().map(|_| None)
+                self.state.borrow_mut().is_inside().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("ISNEAR") => {
                 let name = arguments[0].to_str();
@@ -303,28 +329,34 @@ impl CnvType for Image {
                 self.state
                     .borrow()
                     .is_near(context, other, arguments[1].to_int().max(0) as usize)
-                    .map(|v| Some(CnvValue::Bool(v)))
+                    .map(CnvValue::Bool)
             }
-            CallableIdentifier::Method("ISVISIBLE") => self
-                .state
-                .borrow_mut()
-                .is_visible()
-                .map(|v| Some(CnvValue::Bool(v))),
-            CallableIdentifier::Method("LINK") => self.state.borrow_mut().link().map(|_| None),
+            CallableIdentifier::Method("ISVISIBLE") => {
+                self.state.borrow_mut().is_visible().map(CnvValue::Bool)
+            }
+            CallableIdentifier::Method("LINK") => {
+                self.state.borrow_mut().link().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("LOAD") => self
                 .state
                 .borrow_mut()
                 .load(context, &arguments[0].to_str())
-                .map(|_| None),
-            CallableIdentifier::Method("MERGEALPHA") => {
-                self.state.borrow_mut().merge_alpha().map(|_| None)
-            }
-            CallableIdentifier::Method("MERGEALPHA2") => {
-                self.state.borrow_mut().merge_alpha2().map(|_| None)
-            }
-            CallableIdentifier::Method("MONITORCOLLISION") => {
-                self.state.borrow_mut().monitor_collision().map(|_| None)
-            }
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("MERGEALPHA") => self
+                .state
+                .borrow_mut()
+                .merge_alpha()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("MERGEALPHA2") => self
+                .state
+                .borrow_mut()
+                .merge_alpha2()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("MONITORCOLLISION") => self
+                .state
+                .borrow_mut()
+                .monitor_collision()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("MOVE") => self
                 .state
                 .borrow_mut()
@@ -332,34 +364,48 @@ impl CnvType for Image {
                     arguments[0].to_int() as isize,
                     arguments[1].to_int() as isize,
                 )
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("REMOVEMONITORCOLLISION") => self
                 .state
                 .borrow_mut()
                 .remove_monitor_collision()
-                .map(|_| None),
-            CallableIdentifier::Method("REPLACECOLOR") => {
-                self.state.borrow_mut().replace_color().map(|_| None)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("REPLACECOLOR") => self
+                .state
+                .borrow_mut()
+                .replace_color()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("RESETFLIPS") => self
+                .state
+                .borrow_mut()
+                .reset_flips()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("RESETPOSITION") => self
+                .state
+                .borrow_mut()
+                .reset_position()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SAVE") => {
+                self.state.borrow_mut().save().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("RESETFLIPS") => {
-                self.state.borrow_mut().reset_flips().map(|_| None)
-            }
-            CallableIdentifier::Method("RESETPOSITION") => {
-                self.state.borrow_mut().reset_position().map(|_| None)
-            }
-            CallableIdentifier::Method("SAVE") => self.state.borrow_mut().save().map(|_| None),
             CallableIdentifier::Method("SETANCHOR") => {
-                self.state.borrow_mut().set_anchor().map(|_| None)
+                self.state.borrow_mut().set_anchor().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SETASBUTTON") => {
-                self.state.borrow_mut().set_as_button().map(|_| None)
-            }
-            CallableIdentifier::Method("SETCLIPPING") => {
-                self.state.borrow_mut().set_clipping().map(|_| None)
-            }
-            CallableIdentifier::Method("SETOPACITY") => {
-                self.state.borrow_mut().set_opacity().map(|_| None)
-            }
+            CallableIdentifier::Method("SETASBUTTON") => self
+                .state
+                .borrow_mut()
+                .set_as_button()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETCLIPPING") => self
+                .state
+                .borrow_mut()
+                .set_clipping()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETOPACITY") => self
+                .state
+                .borrow_mut()
+                .set_opacity()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETPOSITION") => self
                 .state
                 .borrow_mut()
@@ -367,10 +413,12 @@ impl CnvType for Image {
                     arguments[0].to_int() as isize,
                     arguments[1].to_int() as isize,
                 )
-                .map(|_| None),
-            CallableIdentifier::Method("SETPRIORITY") => {
-                self.state.borrow_mut().set_priority().map(|_| None)
-            }
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETPRIORITY") => self
+                .state
+                .borrow_mut()
+                .set_priority()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETRESETPOSITION") => self
                 .state
                 .borrow_mut()
@@ -378,19 +426,24 @@ impl CnvType for Image {
                     arguments[0].to_int() as isize,
                     arguments[1].to_int() as isize,
                 )
-                .map(|_| None),
-            CallableIdentifier::Method("SETSCALEFACTOR") => {
-                self.state.borrow_mut().set_scale_factor().map(|_| None)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETSCALEFACTOR") => self
+                .state
+                .borrow_mut()
+                .set_scale_factor()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SHOW") => {
+                self.state.borrow_mut().show().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SHOW") => self.state.borrow_mut().show().map(|_| None),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

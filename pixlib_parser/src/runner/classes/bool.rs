@@ -121,62 +121,77 @@ impl CnvType for BoolVar {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
             CallableIdentifier::Method("AND") => self
                 .state
                 .borrow_mut()
                 .and(context, arguments[0].to_int())
-                .map(|_| None),
-            CallableIdentifier::Method("CLEAR") => {
-                self.state.borrow_mut().clear(context).map(|_| None)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("CLEAR") => self
+                .state
+                .borrow_mut()
+                .clear(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("COPYFILE") => self
+                .state
+                .borrow_mut()
+                .copy_file(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("DEC") => {
+                self.state.borrow_mut().dec(context).map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("COPYFILE") => {
-                self.state.borrow_mut().copy_file(context).map(|_| None)
+            CallableIdentifier::Method("GET") => self.state.borrow().get().map(CnvValue::Bool),
+            CallableIdentifier::Method("INC") => {
+                self.state.borrow_mut().inc(context).map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("DEC") => self.state.borrow_mut().dec(context).map(|_| None),
-            CallableIdentifier::Method("GET") => {
-                self.state.borrow().get().map(|v| Some(CnvValue::Bool(v)))
+            CallableIdentifier::Method("NOT") => {
+                self.state.borrow_mut().not(context).map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("INC") => self.state.borrow_mut().inc(context).map(|_| None),
-            CallableIdentifier::Method("NOT") => self.state.borrow_mut().not(context).map(|_| None),
             CallableIdentifier::Method("OR") => self
                 .state
                 .borrow_mut()
                 .or(context, arguments[0].to_int())
-                .map(|_| None),
-            CallableIdentifier::Method("RANDOM") => {
-                self.state.borrow_mut().random(context).map(|_| None)
-            }
-            CallableIdentifier::Method("RESETINI") => {
-                self.state.borrow_mut().reset_ini(context).map(|_| None)
-            }
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("RANDOM") => self
+                .state
+                .borrow_mut()
+                .random(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("RESETINI") => self
+                .state
+                .borrow_mut()
+                .reset_ini(context)
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SET") => self
                 .state
                 .borrow_mut()
                 .set(context, arguments[0].to_bool())
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETDEFAULT") => self
                 .state
                 .borrow_mut()
                 .set_default(context, arguments[0].to_bool())
-                .map(|_| None),
-            CallableIdentifier::Method("SWITCH") => {
-                self.state.borrow_mut().switch(context).map(|_| None)
-            }
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SWITCH") => self
+                .state
+                .borrow_mut()
+                .switch(context)
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("XOR") => self
                 .state
                 .borrow_mut()
                 .xor(context, arguments[0].to_int())
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

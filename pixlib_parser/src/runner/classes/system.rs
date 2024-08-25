@@ -68,130 +68,119 @@ impl CnvType for System {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
             CallableIdentifier::Method("COPYFILE") => {
-                self.state.borrow_mut().copy_file().map(|_| None)
+                self.state.borrow_mut().copy_file().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("CREATEDIR") => {
-                self.state.borrow_mut().create_dir().map(|_| None)
+                self.state.borrow_mut().create_dir().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("DELAY") => self.state.borrow_mut().delay().map(|_| None),
+            CallableIdentifier::Method("DELAY") => {
+                self.state.borrow_mut().delay().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("GETCMDLINEPARAMETER") => self
                 .state
                 .borrow()
                 .get_cmd_line_parameter()
-                .map(|v| Some(CnvValue::String(v))),
-            CallableIdentifier::Method("GETCOMMANDLINE") => self
-                .state
-                .borrow()
-                .get_command_line()
-                .map(|v| Some(CnvValue::String(v))),
-            CallableIdentifier::Method("GETDATE") => self
-                .state
-                .borrow()
-                .get_date()
-                .map(|v| Some(CnvValue::String(v))),
-            CallableIdentifier::Method("GETDATESTRING") => self
-                .state
-                .borrow()
-                .get_date_string()
-                .map(|v| Some(CnvValue::String(v))),
+                .map(CnvValue::String),
+            CallableIdentifier::Method("GETCOMMANDLINE") => {
+                self.state.borrow().get_command_line().map(CnvValue::String)
+            }
+            CallableIdentifier::Method("GETDATE") => {
+                self.state.borrow().get_date().map(CnvValue::String)
+            }
+            CallableIdentifier::Method("GETDATESTRING") => {
+                self.state.borrow().get_date_string().map(CnvValue::String)
+            }
             CallableIdentifier::Method("GETDAY") => self
                 .state
                 .borrow()
                 .get_day()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETDAYOFWEEK") => self
                 .state
                 .borrow()
                 .get_day_of_week()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETDAYOFWEEKSTRING") => self
                 .state
                 .borrow()
                 .get_day_of_week_string()
-                .map(|v| Some(CnvValue::String(v))),
+                .map(CnvValue::String),
             CallableIdentifier::Method("GETFOLDERLOCATION") => self
                 .state
                 .borrow()
                 .get_folder_location()
-                .map(|v| Some(CnvValue::String(v))),
+                .map(CnvValue::String),
             CallableIdentifier::Method("GETHOUR") => self
                 .state
                 .borrow()
                 .get_hour()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETMHZ") => self
                 .state
                 .borrow()
                 .get_mhz()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETMINUTES") => self
                 .state
                 .borrow()
                 .get_minutes()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETMONTH") => self
                 .state
                 .borrow()
                 .get_month()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
-            CallableIdentifier::Method("GETMONTHSTRING") => self
-                .state
-                .borrow()
-                .get_month_string()
-                .map(|v| Some(CnvValue::String(v))),
+                .map(|v| CnvValue::Integer(v as i32)),
+            CallableIdentifier::Method("GETMONTHSTRING") => {
+                self.state.borrow().get_month_string().map(CnvValue::String)
+            }
             CallableIdentifier::Method("GETSECONDS") => self
                 .state
                 .borrow()
                 .get_seconds()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
-            CallableIdentifier::Method("GETSYSTEMTIME") => self
-                .state
-                .borrow()
-                .get_system_time()
-                .map(|v| Some(CnvValue::String(v))),
-            CallableIdentifier::Method("GETTIMESTRING") => self
-                .state
-                .borrow()
-                .get_time_string()
-                .map(|v| Some(CnvValue::String(v))),
+                .map(|v| CnvValue::Integer(v as i32)),
+            CallableIdentifier::Method("GETSYSTEMTIME") => {
+                self.state.borrow().get_system_time().map(CnvValue::String)
+            }
+            CallableIdentifier::Method("GETTIMESTRING") => {
+                self.state.borrow().get_time_string().map(CnvValue::String)
+            }
             CallableIdentifier::Method("GETUSERNAME") => {
-                self.state.borrow().get_user_name().map(|_| None)
+                self.state.borrow().get_user_name().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("GETYEAR") => self
                 .state
                 .borrow()
                 .get_year()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("INSTALL") => {
-                self.state.borrow_mut().install().map(|_| None)
+                self.state.borrow_mut().install().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("ISCMDLINEPARAMETER") => self
                 .state
                 .borrow()
                 .is_cmd_line_parameter()
-                .map(|v| Some(CnvValue::Bool(v))),
-            CallableIdentifier::Method("ISFILEEXIST") => self
-                .state
-                .borrow()
-                .is_file_exist()
-                .map(|v| Some(CnvValue::Bool(v))),
+                .map(CnvValue::Bool),
+            CallableIdentifier::Method("ISFILEEXIST") => {
+                self.state.borrow().is_file_exist().map(CnvValue::Bool)
+            }
             CallableIdentifier::Method("MINIMIZE") => {
-                self.state.borrow_mut().minimize().map(|_| None)
+                self.state.borrow_mut().minimize().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("UNINSTALL") => {
-                self.state.borrow_mut().uninstall().map(|_| None)
+                self.state.borrow_mut().uninstall().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

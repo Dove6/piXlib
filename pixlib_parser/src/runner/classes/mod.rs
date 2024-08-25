@@ -17,7 +17,7 @@ pub trait CnvType: std::fmt::Debug {
         identifier: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>>;
+    ) -> anyhow::Result<CnvValue>;
 
     fn new_content(
         parent: Arc<CnvObject>,
@@ -50,7 +50,7 @@ impl CnvType for DummyCnvType {
         name: CallableIdentifier,
         _arguments: &[CnvValue],
         _context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         todo!("{:?} {:?}", self.get_type_id(), name)
     }
 

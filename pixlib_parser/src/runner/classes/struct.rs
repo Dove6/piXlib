@@ -89,27 +89,30 @@ impl CnvType for Struct {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
             CallableIdentifier::Method("GETFIELD") => self
                 .state
                 .borrow_mut()
                 .get_field(&arguments[0].to_str())
-                .map(|_| None),
-            CallableIdentifier::Method("SET") => self.state.borrow_mut().set().map(|_| None),
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SET") => {
+                self.state.borrow_mut().set().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("SETFIELD") => self
                 .state
                 .borrow_mut()
                 .set_field(&arguments[0].to_str(), arguments[1].clone())
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

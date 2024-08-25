@@ -110,45 +110,54 @@ impl CnvType for Sequence {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
-            CallableIdentifier::Method("GETEVENTNAME") => self
-                .state
-                .borrow()
-                .get_event_name()
-                .map(|v| Some(CnvValue::String(v))),
-            CallableIdentifier::Method("GETPLAYING") => self
-                .state
-                .borrow()
-                .get_playing()
-                .map(|v| Some(CnvValue::String(v))),
-            CallableIdentifier::Method("HIDE") => self.state.borrow_mut().hide().map(|_| None),
-            CallableIdentifier::Method("ISPLAYING") => self
-                .state
-                .borrow()
-                .is_playing()
-                .map(|v| Some(CnvValue::Bool(v))),
-            CallableIdentifier::Method("PAUSE") => self.state.borrow_mut().pause().map(|_| None),
-            CallableIdentifier::Method("PLAY") => self.state.borrow_mut().play().map(|_| None),
-            CallableIdentifier::Method("RESUME") => self.state.borrow_mut().resume().map(|_| None),
+            CallableIdentifier::Method("GETEVENTNAME") => {
+                self.state.borrow().get_event_name().map(CnvValue::String)
+            }
+            CallableIdentifier::Method("GETPLAYING") => {
+                self.state.borrow().get_playing().map(CnvValue::String)
+            }
+            CallableIdentifier::Method("HIDE") => {
+                self.state.borrow_mut().hide().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("ISPLAYING") => {
+                self.state.borrow().is_playing().map(CnvValue::Bool)
+            }
+            CallableIdentifier::Method("PAUSE") => {
+                self.state.borrow_mut().pause().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("PLAY") => {
+                self.state.borrow_mut().play().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("RESUME") => {
+                self.state.borrow_mut().resume().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("SETFREQ") => {
-                self.state.borrow_mut().set_freq().map(|_| None)
+                self.state.borrow_mut().set_freq().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SETPAN") => self.state.borrow_mut().set_pan().map(|_| None),
+            CallableIdentifier::Method("SETPAN") => {
+                self.state.borrow_mut().set_pan().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("SETVOLUME") => {
-                self.state.borrow_mut().set_volume().map(|_| None)
+                self.state.borrow_mut().set_volume().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SHOW") => self.state.borrow_mut().show().map(|_| None),
-            CallableIdentifier::Method("STOP") => self.state.borrow_mut().stop().map(|_| None),
+            CallableIdentifier::Method("SHOW") => {
+                self.state.borrow_mut().show().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("STOP") => {
+                self.state.borrow_mut().stop().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

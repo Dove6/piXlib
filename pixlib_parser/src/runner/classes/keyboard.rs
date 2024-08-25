@@ -103,35 +103,46 @@ impl CnvType for Keyboard {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
             CallableIdentifier::Method("DISABLE") => {
-                self.state.borrow_mut().disable().map(|_| None)
+                self.state.borrow_mut().disable().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("ENABLE") => self.state.borrow_mut().enable().map(|_| None),
-            CallableIdentifier::Method("GETLATESTKEY") => {
-                self.state.borrow_mut().get_latest_key().map(|_| None)
+            CallableIdentifier::Method("ENABLE") => {
+                self.state.borrow_mut().enable().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("GETLATESTKEYS") => {
-                self.state.borrow_mut().get_latest_keys().map(|_| None)
-            }
+            CallableIdentifier::Method("GETLATESTKEY") => self
+                .state
+                .borrow_mut()
+                .get_latest_key()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GETLATESTKEYS") => self
+                .state
+                .borrow_mut()
+                .get_latest_keys()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("ISENABLED") => {
-                self.state.borrow_mut().is_enabled().map(|_| None)
+                self.state.borrow_mut().is_enabled().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("ISKEYDOWN") => {
-                self.state.borrow_mut().is_key_down().map(|_| None)
-            }
-            CallableIdentifier::Method("SETAUTOREPEAT") => {
-                self.state.borrow_mut().set_auto_repeat().map(|_| None)
-            }
+            CallableIdentifier::Method("ISKEYDOWN") => self
+                .state
+                .borrow_mut()
+                .is_key_down()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETAUTOREPEAT") => self
+                .state
+                .borrow_mut()
+                .set_auto_repeat()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

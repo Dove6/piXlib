@@ -300,6 +300,9 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
                 } else if lexeme.eq_ignore_ascii_case("THIS") {
                     // TODO: check if case should be ignored
                     return Some(Ok((pos, CnvToken::KeywordThis, self.next_position)));
+                } else if lexeme.eq_ignore_ascii_case("NULL") {
+                    // TODO: check if case should be ignored
+                    return Some(Ok((pos, CnvToken::KeywordNull, self.next_position)));
                 }
                 Some(Ok((pos, CnvToken::Identifier(lexeme), self.next_position)))
             }
@@ -321,6 +324,7 @@ pub enum CnvToken {
     KeywordTrue,
     KeywordFalse,
     KeywordThis,
+    KeywordNull,
     Plus,
     Minus,
     Asterisk,

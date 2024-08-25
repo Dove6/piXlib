@@ -82,11 +82,11 @@ impl Behavior {
         &self,
         context: RunnerContext,
         arguments: Vec<CnvValue>,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         if let Some(code) = self.code.as_ref() {
             self.state.borrow().run(context, code.clone(), arguments)
         } else {
-            Ok(None)
+            Ok(CnvValue::Null)
         }
     }
 
@@ -94,13 +94,13 @@ impl Behavior {
         &self,
         context: RunnerContext,
         arguments: Vec<CnvValue>,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         if let Some(code) = self.code.as_ref() {
             self.state
                 .borrow()
                 .run_c(context, code.clone(), self.condition.as_deref(), arguments)
         } else {
-            Ok(None)
+            Ok(CnvValue::Null)
         }
     }
 }
@@ -123,22 +123,24 @@ impl CnvType for Behavior {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         let context = context.with_current_object(self.parent.clone());
         match name {
-            CallableIdentifier::Method("BREAK") => self.state.borrow().break_run().map(|_| None),
+            CallableIdentifier::Method("BREAK") => {
+                self.state.borrow().break_run().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("DISABLE") => {
-                self.state.borrow_mut().disable().map(|_| None)
+                self.state.borrow_mut().disable().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("RUN") => {
                 if let Some(code) = self.code.as_ref() {
                     self.state
                         .borrow()
                         .run(context, code.clone(), arguments.to_owned())
-                        .map(|_| None)
+                        .map(|_| CnvValue::Null)
                 } else {
-                    Ok(None)
+                    Ok(CnvValue::Null)
                 }
             }
             CallableIdentifier::Method("RUNC") => {
@@ -151,22 +153,23 @@ impl CnvType for Behavior {
                             self.condition.as_deref(),
                             arguments.to_owned(),
                         )
-                        .map(|_| None)
+                        .map(|_| CnvValue::Null)
                 } else {
-                    Ok(None)
+                    Ok(CnvValue::Null)
                 }
             }
             CallableIdentifier::Method("RUNLOOPED") => {
-                self.state.borrow().run_looped().map(|_| None)
+                self.state.borrow().run_looped().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
@@ -253,7 +256,7 @@ impl BehaviorState {
         context: RunnerContext,
         code: Arc<ParsedScript>,
         arguments: Vec<CnvValue>,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         // RUN
         // eprintln!(
         //     "Running behavior {} with arguments [{}]",
@@ -276,17 +279,17 @@ impl BehaviorState {
         code: Arc<ParsedScript>,
         condition_name: Option<&str>,
         arguments: Vec<CnvValue>,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         // RUNC
         if let Some(condition) = condition_name {
             let condition_object = context.runner.get_object(condition).unwrap();
             if let CnvContent::Condition(ref condition) = &condition_object.content {
                 if !condition.check()? {
-                    return Ok(None);
+                    return Ok(CnvValue::Null);
                 }
             } else if let CnvContent::ComplexCondition(ref condition) = &condition_object.content {
                 if !condition.check()? {
-                    return Ok(None);
+                    return Ok(CnvValue::Null);
                 }
             } else {
                 return Err(RunnerError::ExpectedConditionObject.into());

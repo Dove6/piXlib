@@ -257,63 +257,83 @@ impl CnvType for Scene {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
-            CallableIdentifier::Method("CREATEOBJECT") => {
-                self.state.borrow_mut().create_object().map(|_| None)
-            }
-            CallableIdentifier::Method("GETDRAGGEDNAME") => {
-                self.state.borrow().get_dragged_name().map(|_| None)
-            }
+            CallableIdentifier::Method("CREATEOBJECT") => self
+                .state
+                .borrow_mut()
+                .create_object()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GETDRAGGEDNAME") => self
+                .state
+                .borrow()
+                .get_dragged_name()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("GETELEMENTSNO") => self
                 .state
                 .borrow()
                 .get_elements_no()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETMAXHSPRIORITY") => self
                 .state
                 .borrow()
                 .get_max_hs_priority()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETMINHSPRIORITY") => self
                 .state
                 .borrow()
                 .get_min_hs_priority()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETMUSICVOLUME") => self
                 .state
                 .borrow()
                 .get_music_volume()
-                .map(|_| Some(CnvValue::Integer(-10000))), // EDGE CASE: this seems to be broken
+                .map(|_| CnvValue::Integer(-10000)), // EDGE CASE: this seems to be broken
             CallableIdentifier::Method("GETOBJECTS") => {
-                self.state.borrow().get_objects().map(|_| None)
+                self.state.borrow().get_objects().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("GETPLAYINGANIMO") => {
-                self.state.borrow().get_playing_animo().map(|_| None)
-            }
-            CallableIdentifier::Method("GETPLAYINGSEQ") => {
-                self.state.borrow().get_playing_seq().map(|_| None)
-            }
-            CallableIdentifier::Method("GETRUNNINGTIMER") => {
-                self.state.borrow().get_running_timer().map(|_| None)
-            }
-            CallableIdentifier::Method("ISPAUSED") => self
+            CallableIdentifier::Method("GETPLAYINGANIMO") => self
                 .state
                 .borrow()
-                .is_paused()
-                .map(|v| Some(CnvValue::Bool(v))),
-            CallableIdentifier::Method("PAUSE") => self.state.borrow_mut().pause().map(|_| None),
-            CallableIdentifier::Method("REMOVE") => self.state.borrow_mut().remove().map(|_| None),
-            CallableIdentifier::Method("REMOVECLONES") => {
-                self.state.borrow_mut().remove_clones().map(|_| None)
+                .get_playing_animo()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GETPLAYINGSEQ") => self
+                .state
+                .borrow()
+                .get_playing_seq()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("GETRUNNINGTIMER") => self
+                .state
+                .borrow()
+                .get_running_timer()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("ISPAUSED") => {
+                self.state.borrow().is_paused().map(CnvValue::Bool)
             }
-            CallableIdentifier::Method("RESUME") => self.state.borrow_mut().resume().map(|_| None),
-            CallableIdentifier::Method("RESUMEONLY") => {
-                self.state.borrow_mut().resume_only().map(|_| None)
+            CallableIdentifier::Method("PAUSE") => {
+                self.state.borrow_mut().pause().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("RESUMESEQONLY") => {
-                self.state.borrow_mut().resume_seq_only().map(|_| None)
+            CallableIdentifier::Method("REMOVE") => {
+                self.state.borrow_mut().remove().map(|_| CnvValue::Null)
             }
+            CallableIdentifier::Method("REMOVECLONES") => self
+                .state
+                .borrow_mut()
+                .remove_clones()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("RESUME") => {
+                self.state.borrow_mut().resume().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("RESUMEONLY") => self
+                .state
+                .borrow_mut()
+                .resume_only()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("RESUMESEQONLY") => self
+                .state
+                .borrow_mut()
+                .resume_seq_only()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("RUN") => self
                 .state
                 .borrow_mut()
@@ -323,42 +343,59 @@ impl CnvType for Scene {
                     arguments[1].to_str(),
                     arguments.iter().skip(2).map(|v| v.to_owned()).collect(),
                 )
-                .map(|_| None),
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("RUNCLONES") => {
-                self.state.borrow_mut().run_clones().map(|_| None)
+                self.state.borrow_mut().run_clones().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SETMAXHSPRIORITY") => {
-                self.state.borrow_mut().set_max_hs_priority().map(|_| None)
-            }
-            CallableIdentifier::Method("SETMINHSPRIORITY") => {
-                self.state.borrow_mut().set_min_hs_priority().map(|_| None)
-            }
-            CallableIdentifier::Method("SETMUSICFREQ") => {
-                self.state.borrow_mut().set_music_freq().map(|_| None)
-            }
-            CallableIdentifier::Method("SETMUSICPAN") => {
-                self.state.borrow_mut().set_music_pan().map(|_| None)
-            }
-            CallableIdentifier::Method("SETMUSICVOLUME") => {
-                self.state.borrow_mut().set_music_volume().map(|_| None)
-            }
-            CallableIdentifier::Method("STARTMUSIC") => {
-                self.state.borrow_mut().start_music(context).map(|_| None)
-            }
-            CallableIdentifier::Method("STOPMUSIC") => {
-                self.state.borrow_mut().stop_music(context).map(|_| None)
-            }
-            CallableIdentifier::Method("TOTIME") => {
-                self.state.borrow_mut().convert_to_time().map(|_| None)
-            }
+            CallableIdentifier::Method("SETMAXHSPRIORITY") => self
+                .state
+                .borrow_mut()
+                .set_max_hs_priority()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETMINHSPRIORITY") => self
+                .state
+                .borrow_mut()
+                .set_min_hs_priority()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETMUSICFREQ") => self
+                .state
+                .borrow_mut()
+                .set_music_freq()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETMUSICPAN") => self
+                .state
+                .borrow_mut()
+                .set_music_pan()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("SETMUSICVOLUME") => self
+                .state
+                .borrow_mut()
+                .set_music_volume()
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("STARTMUSIC") => self
+                .state
+                .borrow_mut()
+                .start_music(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("STOPMUSIC") => self
+                .state
+                .borrow_mut()
+                .stop_music(context)
+                .map(|_| CnvValue::Null),
+            CallableIdentifier::Method("TOTIME") => self
+                .state
+                .borrow_mut()
+                .convert_to_time()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),

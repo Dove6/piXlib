@@ -71,27 +71,36 @@ impl CnvType for MultiArray {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> anyhow::Result<Option<CnvValue>> {
+    ) -> anyhow::Result<CnvValue> {
         match name {
-            CallableIdentifier::Method("COUNT") => self.state.borrow_mut().count().map(|_| None),
-            CallableIdentifier::Method("LOAD") => self.state.borrow_mut().load().map(|_| None),
+            CallableIdentifier::Method("COUNT") => {
+                self.state.borrow_mut().count().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("LOAD") => {
+                self.state.borrow_mut().load().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Method("GET") => self.state.borrow().get(),
             CallableIdentifier::Method("GETSIZE") => self
                 .state
                 .borrow()
                 .get_size()
-                .map(|v| Some(CnvValue::Integer(v as i32))),
+                .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("SAFEGET") => self.state.borrow().safe_get(),
-            CallableIdentifier::Method("SAVE") => self.state.borrow_mut().save().map(|_| None),
-            CallableIdentifier::Method("SET") => self.state.borrow_mut().set().map(|_| None),
+            CallableIdentifier::Method("SAVE") => {
+                self.state.borrow_mut().save().map(|_| CnvValue::Null)
+            }
+            CallableIdentifier::Method("SET") => {
+                self.state.borrow_mut().set().map(|_| CnvValue::Null)
+            }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
                     .get(event_name, arguments.first().map(|v| v.to_str()).as_deref())
                 {
-                    code.run(context)?;
+                    code.run(context).map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
                 }
-                Ok(None)
             }
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
@@ -129,7 +138,7 @@ impl MultiArrayState {
         todo!()
     }
 
-    pub fn get(&self) -> anyhow::Result<Option<CnvValue>> {
+    pub fn get(&self) -> anyhow::Result<CnvValue> {
         // GET
         todo!()
     }
@@ -139,7 +148,7 @@ impl MultiArrayState {
         todo!()
     }
 
-    pub fn safe_get(&self) -> anyhow::Result<Option<CnvValue>> {
+    pub fn safe_get(&self) -> anyhow::Result<CnvValue> {
         // SAFEGET
         todo!()
     }
