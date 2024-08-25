@@ -214,16 +214,25 @@ impl Animation {
 
     pub fn get_frame_position(&self) -> anyhow::Result<(isize, isize)> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state
+            .borrow_mut()
+            .use_and_drop_mut(|s| s.load_if_needed(context.clone()))?;
         self.state.borrow().get_frame_position(context)
     }
 
     pub fn get_frame_size(&self) -> anyhow::Result<(usize, usize)> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state
+            .borrow_mut()
+            .use_and_drop_mut(|s| s.load_if_needed(context.clone()))?;
         self.state.borrow().get_frame_size(context)
     }
 
     pub fn get_center_frame_position(&self) -> anyhow::Result<(isize, isize)> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state
+            .borrow_mut()
+            .use_and_drop_mut(|s| s.load_if_needed(context.clone()))?;
         self.state.borrow().get_center_frame_position(context)
     }
 
@@ -245,6 +254,9 @@ impl Animation {
     ) -> anyhow::Result<Option<(FrameDefinition, SpriteDefinition, SpriteData)>> {
         // eprintln!("[ANIMO: {}] is_visible: {}", self.parent.name, self.is_visible);
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state
+            .borrow_mut()
+            .use_and_drop_mut(|s| s.load_if_needed(context.clone()))?;
         let state = self.state.borrow();
         if !state.is_visible {
             return Ok(None);
@@ -294,6 +306,16 @@ impl Animation {
     pub fn stop(&self, emit_on_finished: bool) -> anyhow::Result<()> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow_mut().stop(context, emit_on_finished)
+    }
+
+    pub fn pause(&self) -> anyhow::Result<()> {
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow_mut().pause(context)
+    }
+
+    pub fn resume(&self) -> anyhow::Result<()> {
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow_mut().resume(context)
     }
 }
 
@@ -1261,10 +1283,7 @@ impl AnimationState {
 
     pub fn play(&mut self, context: RunnerContext, sequence_name: &str) -> anyhow::Result<()> {
         // PLAY (STRING)
-        if let AnimationFileData::NotLoaded(ref filename) = *self.file_data {
-            let filename = filename.clone();
-            self.load(context.clone(), &filename)?;
-        };
+        self.load_if_needed(context.clone())?;
         let AnimationFileData::Loaded(ref loaded_data) = *self.file_data.clone() else {
             return Err(
                 RunnerError::NoAnimationDataLoaded(context.current_object.name.clone()).into(),
@@ -1460,10 +1479,7 @@ impl AnimationState {
 
     pub fn stop(&mut self, context: RunnerContext, emit_on_finished: bool) -> anyhow::Result<()> {
         // STOP ([BOOL])
-        if let AnimationFileData::NotLoaded(ref filename) = *self.file_data {
-            let filename = filename.clone();
-            self.load(context.clone(), &filename)?;
-        };
+        self.load_if_needed(context.clone())?;
         let AnimationFileData::Loaded(ref loaded_data) = *self.file_data.clone() else {
             return Err(
                 RunnerError::NoAnimationDataLoaded(context.current_object.name.clone()).into(),
@@ -1748,6 +1764,14 @@ impl AnimationState {
                     object_name: context.current_object.name.clone(),
                 }))
             });
+        Ok(())
+    }
+
+    fn load_if_needed(&mut self, context: RunnerContext) -> anyhow::Result<()> {
+        if let AnimationFileData::NotLoaded(ref filename) = *self.file_data {
+            let filename = filename.clone();
+            self.load(context, &filename)?;
+        };
         Ok(())
     }
 }

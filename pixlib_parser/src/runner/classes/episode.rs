@@ -22,7 +22,9 @@ pub struct EpisodeProperties {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct EpisodeState {}
+pub struct EpisodeState {
+    previous_scene_name: Option<String>,
+}
 
 #[derive(Debug, Clone)]
 pub struct EpisodeEventHandlers {}
@@ -55,7 +57,9 @@ impl Episode {
     pub fn from_initial_properties(parent: Arc<CnvObject>, props: EpisodeProperties) -> Self {
         let mut episode = Self {
             parent,
-            state: RefCell::new(EpisodeState {}),
+            state: RefCell::new(EpisodeState {
+                ..Default::default()
+            }),
             event_handlers: EpisodeEventHandlers {},
             author: props.author.unwrap_or_default(),
             creation_time: props.creation_time,
@@ -104,7 +108,9 @@ impl CnvType for Episode {
     ) -> anyhow::Result<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
-            CallableIdentifier::Method("BACK") => self.state.borrow_mut().back().map(|_| None),
+            CallableIdentifier::Method("BACK") => {
+                self.state.borrow_mut().back(context).map(|_| None)
+            }
             CallableIdentifier::Method("GETCURRENTSCENE") => {
                 self.state.borrow().get_current_scene().map(|_| None)
             }
@@ -179,9 +185,16 @@ impl CnvType for Episode {
 }
 
 impl EpisodeState {
-    pub fn back(&mut self) -> anyhow::Result<()> {
+    pub fn back(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // BACK
-        todo!()
+        let current_scene_name = context.runner.get_current_scene().map(|s| s.name.clone());
+        let goto_name = self
+            .previous_scene_name
+            .take()
+            .or(current_scene_name.clone())
+            .unwrap();
+        self.previous_scene_name = current_scene_name;
+        context.runner.change_scene(&goto_name)
     }
 
     pub fn get_current_scene(&self) -> anyhow::Result<()> {
@@ -196,6 +209,7 @@ impl EpisodeState {
 
     pub fn go_to(&mut self, context: RunnerContext, scene_name: &str) -> anyhow::Result<()> {
         // GOTO
+        self.previous_scene_name = context.runner.get_current_scene().map(|s| s.name.clone());
         context.runner.change_scene(scene_name)
     }
 

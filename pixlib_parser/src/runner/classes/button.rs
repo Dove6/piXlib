@@ -523,7 +523,7 @@ impl ButtonState {
     fn set_interaction(
         &mut self,
         context: RunnerContext,
-        interaction: Interaction,
+        mut interaction: Interaction,
     ) -> anyhow::Result<()> {
         // println!(
         //     "{}.set_interaction({:?})",
@@ -537,6 +537,12 @@ impl ButtonState {
         };
         let prev_interaction = self.current_interaction;
         self.current_interaction = interaction;
+        if interaction == Interaction::Pressing && self.graphics_on_click.is_none() {
+            interaction = Interaction::Hovering;
+        }
+        if interaction == Interaction::Hovering && self.graphics_on_hover.is_none() {
+            interaction = Interaction::None;
+        }
         if let Some(normal_obj) = self
             .graphics_normal
             .as_ref()
@@ -550,9 +556,10 @@ impl ButtonState {
                 }
             } else if let CnvContent::Animation(ref normal_animation) = &normal_obj.content {
                     if interaction == Interaction::None {
-                        normal_animation.play("PLAY")
+                        normal_animation.show()?;
+                        normal_animation.resume()
                     } else {
-                        normal_animation.stop(false)?;
+                        normal_animation.pause()?;
                         normal_animation.hide()
                     }
             } else {
@@ -591,9 +598,10 @@ impl ButtonState {
                 }
             } else if let CnvContent::Animation(ref on_hover_animation) = &on_hover_obj.content {
                     if interaction == Interaction::Hovering {
-                        on_hover_animation.play("PLAY")
+                        on_hover_animation.show()?;
+                        on_hover_animation.resume()
                     } else {
-                        on_hover_animation.stop(false)?;
+                        on_hover_animation.pause()?;
                         on_hover_animation.hide()
                     }
             } else {
@@ -632,9 +640,10 @@ impl ButtonState {
                 }
             } else if let CnvContent::Animation(ref on_click_animation) = &on_click_obj.content {
                     if interaction == Interaction::Pressing {
-                        on_click_animation.play("PLAY")
+                        on_click_animation.show()?;
+                        on_click_animation.resume()
                     } else {
-                        on_click_animation.stop(false)?;
+                        on_click_animation.pause()?;
                         on_click_animation.hide()
                     }
             } else {

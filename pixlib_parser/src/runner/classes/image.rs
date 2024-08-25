@@ -150,16 +150,26 @@ impl Image {
     // custom
 
     pub fn get_position(&self) -> anyhow::Result<(isize, isize)> {
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state
+            .borrow_mut()
+            .use_and_drop_mut(|s| s.load_if_needed(context))?;
         self.state.borrow().get_position()
     }
 
     pub fn get_size(&self) -> anyhow::Result<(usize, usize)> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state
+            .borrow_mut()
+            .use_and_drop_mut(|s| s.load_if_needed(context.clone()))?;
         self.state.borrow().get_size(context)
     }
 
     pub fn get_center_position(&self) -> anyhow::Result<(isize, isize)> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state
+            .borrow_mut()
+            .use_and_drop_mut(|s| s.load_if_needed(context.clone()))?;
         self.state.borrow().get_center_position(context)
     }
 
@@ -172,6 +182,10 @@ impl Image {
     }
 
     pub fn get_image_to_show(&self) -> anyhow::Result<Option<(ImageDefinition, ImageData)>> {
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state
+            .borrow_mut()
+            .use_and_drop_mut(|s| s.load_if_needed(context))?;
         let state = self.state.borrow();
         if !state.is_visible {
             return Ok(None);
@@ -512,10 +526,7 @@ impl Initable for Image {
     fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         let mut state = self.state.borrow_mut();
         if self.should_preload {
-            if let ImageFileData::NotLoaded(filename) = &state.file_data {
-                let filename = filename.clone();
-                state.load(context.clone(), &filename)?;
-            };
+            state.load_if_needed(context.clone())?;
         }
         context
             .runner
@@ -875,5 +886,13 @@ impl ImageState {
             position.0 + (size.0 / 2) as isize,
             position.1 + (size.1 / 2) as isize,
         ))
+    }
+
+    pub fn load_if_needed(&mut self, context: RunnerContext) -> anyhow::Result<()> {
+        if let ImageFileData::NotLoaded(filename) = &self.file_data {
+            let filename = filename.clone();
+            self.load(context, &filename)?;
+        };
+        Ok(())
     }
 }

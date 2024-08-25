@@ -121,7 +121,9 @@ impl CnvType for Array {
             CallableIdentifier::Method("FILL") => self.state.borrow_mut().fill().map(|_| None),
             CallableIdentifier::Method("FIND") => self.state.borrow().find().map(|_| None),
             CallableIdentifier::Method("FINDALL") => self.state.borrow().find_all().map(|_| None),
-            CallableIdentifier::Method("GET") => self.state.borrow().get().map(|_| None),
+            CallableIdentifier::Method("GET") => {
+                self.state.borrow().get(arguments[0].to_int() as usize)
+            }
             CallableIdentifier::Method("GETMARKERPOS") => {
                 self.state.borrow().get_marker_pos().map(|_| None)
             }
@@ -347,9 +349,9 @@ impl ArrayState {
         todo!()
     }
 
-    pub fn get(&self) -> anyhow::Result<Option<CnvValue>> {
+    pub fn get(&self, index: usize) -> anyhow::Result<Option<CnvValue>> {
         // GET
-        todo!()
+        Ok(self.values.get(index).cloned())
     }
 
     pub fn get_marker_pos(&self) -> anyhow::Result<usize> {
