@@ -38,8 +38,8 @@ impl Display for CallableIdentifierOwned {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("CallableIdentifierOwned::")?;
         match self {
-            CallableIdentifierOwned::Method(name) => f.write_fmt(format_args!("::Method({name})")),
-            CallableIdentifierOwned::Event(name) => f.write_fmt(format_args!("::Event({name})")),
+            CallableIdentifierOwned::Method(name) => f.write_fmt(format_args!("Method({name})")),
+            CallableIdentifierOwned::Event(name) => f.write_fmt(format_args!("Event({name})")),
         }
     }
 }

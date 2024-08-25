@@ -71,8 +71,10 @@ impl Condition {
             right: props.operand2,
         }
     }
+}
 
-    pub fn check(&self) -> anyhow::Result<bool> {
+impl GeneralCondition for Condition {
+    fn check(&self) -> anyhow::Result<bool> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow().check(context)
     }

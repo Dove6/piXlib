@@ -283,16 +283,13 @@ impl BehaviorState {
         // RUNC
         if let Some(condition) = condition_name {
             let condition_object = context.runner.get_object(condition).unwrap();
-            if let CnvContent::Condition(ref condition) = &condition_object.content {
-                if !condition.check()? {
-                    return Ok(CnvValue::Null);
-                }
-            } else if let CnvContent::ComplexCondition(ref condition) = &condition_object.content {
-                if !condition.check()? {
-                    return Ok(CnvValue::Null);
-                }
-            } else {
-                return Err(RunnerError::ExpectedConditionObject.into());
+            let condition: &dyn GeneralCondition = match &condition_object.content {
+                CnvContent::Condition(c) => c,
+                CnvContent::ComplexCondition(c) => c,
+                _ => return Err(RunnerError::ExpectedConditionObject.into()),
+            };
+            if !condition.check()? {
+                return Ok(CnvValue::Null);
             }
         }
         self.run(context, code, arguments)

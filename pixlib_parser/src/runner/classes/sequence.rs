@@ -37,7 +37,6 @@ struct SequenceState {
 
     // deduced from methods
     pub is_paused: bool,
-    pub is_visible: bool,
     pub music_frequency: usize,
     pub music_volume: f32,
     pub music_pan: f32,
@@ -96,7 +95,6 @@ impl Sequence {
         let sequence = Self {
             parent,
             state: RefCell::new(SequenceState {
-                is_visible: true,
                 music_volume: 1f32,
                 ..Default::default()
             }),
@@ -356,7 +354,13 @@ impl SequenceState {
 
     pub fn hide(&mut self) -> anyhow::Result<()> {
         // HIDE
-        todo!()
+        for animation_obj in self.animation_mapping.values() {
+            let CnvContent::Animation(animation) = &animation_obj.content else {
+                unreachable!()
+            };
+            animation.hide()?;
+        }
+        Ok(())
     }
 
     pub fn is_playing(&self) -> anyhow::Result<bool> {
@@ -412,8 +416,7 @@ impl SequenceState {
 
     pub fn show(&mut self) -> anyhow::Result<()> {
         // SHOW
-        self.is_visible = true;
-        todo!() // make visible
+        todo!()
     }
 
     pub fn stop(&mut self, context: RunnerContext, emit_on_finished: bool) -> anyhow::Result<()> {

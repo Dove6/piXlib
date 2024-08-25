@@ -68,8 +68,10 @@ impl ComplexCondition {
             right: props.operand2,
         }
     }
+}
 
-    pub fn check(&self) -> anyhow::Result<bool> {
+impl GeneralCondition for ComplexCondition {
+    fn check(&self) -> anyhow::Result<bool> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow().check(context)
     }
@@ -171,18 +173,21 @@ impl ComplexConditionState {
     }
 
     pub fn check(&self, context: RunnerContext) -> anyhow::Result<bool> {
-        // TODO: allow for complexconditions built on other complexconditions
         let CnvContent::ComplexCondition(ref complex_condition) = &context.current_object.content
         else {
             panic!();
         };
         let left_object = context.runner.get_object(&complex_condition.left).unwrap();
-        let CnvContent::Condition(ref left) = &left_object.content else {
-            panic!();
+        let left: &dyn GeneralCondition = match &left_object.content {
+            CnvContent::Condition(c) => c,
+            CnvContent::ComplexCondition(c) => c,
+            _ => return Err(RunnerError::ExpectedConditionObject.into()),
         };
         let right_object = context.runner.get_object(&complex_condition.right).unwrap();
-        let CnvContent::Condition(ref right) = &right_object.content else {
-            panic!();
+        let right: &dyn GeneralCondition = match &right_object.content {
+            CnvContent::Condition(c) => c,
+            CnvContent::ComplexCondition(c) => c,
+            _ => return Err(RunnerError::ExpectedConditionObject.into()),
         };
         let result = match complex_condition.operator {
             ComplexConditionOperator::And => {

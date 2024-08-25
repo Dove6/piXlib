@@ -110,6 +110,15 @@ impl CnvTypeFactory {
     }
 }
 
+pub trait GeneralCondition {
+    fn check(&self) -> anyhow::Result<bool>;
+}
+
+pub trait GeneralGraphics {
+    fn show(&self) -> anyhow::Result<()>;
+    fn hide(&self) -> anyhow::Result<()>;
+}
+
 pub type EpisodeName = String;
 pub type SceneName = String;
 pub type ConditionName = String;

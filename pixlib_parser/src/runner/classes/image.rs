@@ -204,12 +204,14 @@ impl Image {
         let image = &loaded_data.image;
         Ok(Some((image.0.clone(), image.1.clone())))
     }
+}
 
-    pub fn hide(&self) -> anyhow::Result<()> {
+impl GeneralGraphics for Image {
+    fn hide(&self) -> anyhow::Result<()> {
         self.state.borrow_mut().hide()
     }
 
-    pub fn show(&self) -> anyhow::Result<()> {
+    fn show(&self) -> anyhow::Result<()> {
         self.state.borrow_mut().show()
     }
 }

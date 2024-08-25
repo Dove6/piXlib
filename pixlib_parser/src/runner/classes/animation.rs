@@ -298,14 +298,6 @@ impl Animation {
         Ok(Some((frame.clone(), sprite.0.clone(), sprite.1.clone())))
     }
 
-    pub fn hide(&self) -> anyhow::Result<()> {
-        self.state.borrow_mut().hide()
-    }
-
-    pub fn show(&self) -> anyhow::Result<()> {
-        self.state.borrow_mut().show()
-    }
-
     pub fn play(&self, sequence_name: &str) -> anyhow::Result<()> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow_mut().play(context, sequence_name)
@@ -340,6 +332,16 @@ impl Animation {
 
     pub fn is_playing(&self) -> anyhow::Result<bool> {
         Ok(self.state.borrow().is_playing)
+    }
+}
+
+impl GeneralGraphics for Animation {
+    fn hide(&self) -> anyhow::Result<()> {
+        self.state.borrow_mut().hide()
+    }
+
+    fn show(&self) -> anyhow::Result<()> {
+        self.state.borrow_mut().show()
     }
 }
 
@@ -1172,7 +1174,7 @@ impl AnimationState {
 
     pub fn is_playing(&self) -> anyhow::Result<bool> {
         // ISPLAYING BOOL
-        Ok(self.is_playing)
+        Ok(self.is_playing && !self.is_paused)
     }
 
     pub fn is_visible(&self) -> anyhow::Result<bool> {

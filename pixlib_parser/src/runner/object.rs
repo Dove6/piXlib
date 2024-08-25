@@ -181,12 +181,15 @@ impl CnvObject {
         } else {
             arguments.to_owned()
         };
-        // println!(
-        //     "Calling method: {:?} of: {:?} with arguments: {:?}",
-        //     identifier, self.name, arguments
-        // );
-        self.content.call_method(identifier, &arguments, context)
-        // println!("Result is {:?}", result);
+
+        self.content
+            .call_method(identifier.clone(), &arguments, context)
+        // .inspect(|v| {
+        //     println!(
+        //         "Called method: {:?} of: {:?} with arguments: {:?} and result: {:?}",
+        //         identifier, self.name, arguments, v
+        //     )
+        // })
     }
 
     pub fn init(self: &Arc<Self>, context: Option<RunnerContext>) -> anyhow::Result<()> {

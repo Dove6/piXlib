@@ -507,6 +507,9 @@ impl ButtonState {
 
     pub fn enable(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // ENABLE
+        if self.is_enabled {
+            return Ok(());
+        }
         self.is_enabled = true;
         self.set_interaction(context, Interaction::None)
     }
@@ -640,22 +643,15 @@ impl ButtonState {
             .as_ref()
             .and_then(|name| context.runner.get_object(name))
         {
-            if let CnvContent::Image(ref normal_image) = &normal_obj.content {
-                if interaction == Interaction::None {
-                    normal_image.show()
-                } else {
-                    normal_image.hide()
-                }
-            } else if let CnvContent::Animation(ref normal_animation) = &normal_obj.content {
-                    if interaction == Interaction::None {
-                        normal_animation.show()?;
-                        normal_animation.resume()
-                    } else {
-                        normal_animation.pause()?;
-                        normal_animation.hide()
-                    }
+            let normal_graphics: &dyn GeneralGraphics = match &normal_obj.content {
+                CnvContent::Animation(a) => a,
+                CnvContent::Image(i) => i,
+                _ => return Err(RunnerError::ExpectedGraphicsObject.into()),
+            };
+            if interaction == Interaction::None {
+                normal_graphics.show()
             } else {
-                Err(RunnerError::ExpectedGraphicsObject.into())
+                normal_graphics.hide()
             }?
         } /*else {
             println!(
@@ -682,22 +678,15 @@ impl ButtonState {
             .as_ref()
             .and_then(|name| context.runner.get_object(name))
         {
-            if let CnvContent::Image(ref on_hover_image) = &on_hover_obj.content {
-                if interaction == Interaction::Hovering {
-                    on_hover_image.show()
-                } else {
-                    on_hover_image.hide()
-                }
-            } else if let CnvContent::Animation(ref on_hover_animation) = &on_hover_obj.content {
-                    if interaction == Interaction::Hovering {
-                        on_hover_animation.show()?;
-                        on_hover_animation.resume()
-                    } else {
-                        on_hover_animation.pause()?;
-                        on_hover_animation.hide()
-                    }
+            let on_hover_graphics: &dyn GeneralGraphics = match &on_hover_obj.content {
+                CnvContent::Animation(a) => a,
+                CnvContent::Image(i) => i,
+                _ => return Err(RunnerError::ExpectedGraphicsObject.into()),
+            };
+            if interaction == Interaction::Hovering {
+                on_hover_graphics.show()
             } else {
-                Err(RunnerError::ExpectedGraphicsObject.into())
+                on_hover_graphics.hide()
             }?
         } /*else {
             println!(
@@ -724,22 +713,15 @@ impl ButtonState {
             .as_ref()
             .and_then(|name| context.runner.get_object(name))
         {
-            if let CnvContent::Image(ref on_click_image) = &on_click_obj.content {
-                if interaction == Interaction::Pressing {
-                    on_click_image.show()
-                } else {
-                    on_click_image.hide()
-                }
-            } else if let CnvContent::Animation(ref on_click_animation) = &on_click_obj.content {
-                    if interaction == Interaction::Pressing {
-                        on_click_animation.show()?;
-                        on_click_animation.resume()
-                    } else {
-                        on_click_animation.pause()?;
-                        on_click_animation.hide()
-                    }
+            let on_click_graphics: &dyn GeneralGraphics = match &on_click_obj.content {
+                CnvContent::Animation(a) => a,
+                CnvContent::Image(i) => i,
+                _ => return Err(RunnerError::ExpectedGraphicsObject.into()),
+            };
+            if interaction == Interaction::Pressing {
+                on_click_graphics.show()
             } else {
-                Err(RunnerError::ExpectedGraphicsObject.into())
+                on_click_graphics.hide()
             }?
         } /*else {
             println!(
