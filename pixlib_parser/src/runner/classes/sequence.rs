@@ -196,7 +196,7 @@ impl CnvType for Sequence {
                 .borrow_mut()
                 .stop(
                     context,
-                    arguments.first().map(|v| v.to_bool()).unwrap_or(true),
+                    arguments.first().map(|v| v.to_bool()).unwrap_or_default(), // TODO: check
                 )
                 .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {

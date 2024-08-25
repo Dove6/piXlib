@@ -693,7 +693,7 @@ impl CnvType for Animation {
                 .stop(
                     context,
                     if arguments.is_empty() {
-                        true
+                        true // TODO: check
                     } else {
                         arguments[0].to_bool()
                     },
