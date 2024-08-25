@@ -228,6 +228,14 @@ impl Animation {
         self.state.borrow().get_frame_size(context)
     }
 
+    pub fn get_frame_rect(&self) -> anyhow::Result<Rect> {
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state
+            .borrow_mut()
+            .use_and_drop_mut(|s| s.load_if_needed(context.clone()))?;
+        self.state.borrow().get_frame_rect(context)
+    }
+
     pub fn get_center_frame_position(&self) -> anyhow::Result<(isize, isize)> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state
@@ -1546,6 +1554,21 @@ impl AnimationState {
     pub fn get_frame_size(&self, context: RunnerContext) -> anyhow::Result<(usize, usize)> {
         let (_, _, sprite) = self.get_sprite_data(context)?;
         Ok((sprite.0.size_px.0 as usize, sprite.0.size_px.1 as usize))
+    }
+
+    pub fn get_frame_rect(&self, context: RunnerContext) -> anyhow::Result<Rect> {
+        let (_, frame, sprite) = self.get_sprite_data(context)?;
+        let position = (
+            self.position.0 + frame.offset_px.0 as isize + sprite.0.offset_px.0 as isize,
+            self.position.1 + frame.offset_px.1 as isize + sprite.0.offset_px.1 as isize,
+        );
+        let size = (sprite.0.size_px.0 as isize, sprite.0.size_px.1 as isize);
+        Ok(Rect {
+            top_left_x: position.0,
+            top_left_y: position.1,
+            bottom_right_x: position.0 + size.0,
+            bottom_right_y: position.1 + size.1,
+        })
     }
 
     pub fn get_center_frame_position(

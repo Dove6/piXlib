@@ -1,7 +1,7 @@
 use std::sync::RwLock;
 
 use bevy::{
-    app::{App, Plugin, Update},
+    app::{App, AppExit, Plugin, Update},
     prelude::{Event, EventWriter, Events, NonSend, ResMut},
 };
 
@@ -79,8 +79,12 @@ pub struct PixlibApplicationEvent(pub ApplicationEvent);
 fn redistribute_application_events(
     runner: NonSend<ScriptRunner>,
     mut writer: EventWriter<PixlibApplicationEvent>,
+    mut exit_writer: EventWriter<AppExit>,
 ) {
     for evt in runner.events_out.app.borrow_mut().drain(..) {
+        if matches!(&evt, ApplicationEvent::ApplicationExited) {
+            exit_writer.send(AppExit);
+        }
         writer.send(PixlibApplicationEvent(evt));
     }
 }

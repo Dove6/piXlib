@@ -3,7 +3,7 @@ use std::{any::Any, cell::RefCell};
 use super::super::content::EventHandler;
 use super::super::initable::Initable;
 use super::super::parsers::{
-    discard_if_empty, parse_bool, parse_event_handler, parse_i32, parse_rect, Rect,
+    discard_if_empty, parse_bool, parse_event_handler, parse_i32, parse_rect, ReferenceRect,
 };
 
 use crate::{common::DroppableRefMut, parser::ast::ParsedScript, runner::InternalEvent};
@@ -21,7 +21,7 @@ pub struct TextProperties {
     pub monitor_collision: Option<bool>,       // MONITORCOLLISION
     pub monitor_collision_alpha: Option<bool>, // MONITORCOLLISIONALPHA
     pub priority: Option<i32>,                 // PRIORITY
-    pub rect: Option<Rect>,                    // RECT
+    pub rect: Option<ReferenceRect>,           // RECT
     pub text: Option<String>,                  // TEXT
     pub to_canvas: Option<bool>,               // TOCANVAS
     pub visible: Option<bool>,                 // VISIBLE
@@ -41,7 +41,7 @@ struct TextState {
     pub is_justified_horizontally: bool,
     pub does_monitor_collision: bool,
     pub priority: isize,
-    pub rect: Option<Rect>,
+    pub rect: Option<ReferenceRect>,
     pub text: String,
     pub is_visible: bool,
     pub is_justified_vertically: bool,

@@ -3,7 +3,7 @@ use std::{any::Any, cell::RefCell};
 use super::super::content::EventHandler;
 use super::super::initable::Initable;
 use super::super::parsers::{
-    discard_if_empty, parse_bool, parse_event_handler, parse_i32, parse_rect, Rect,
+    discard_if_empty, parse_bool, parse_event_handler, parse_i32, parse_rect, ReferenceRect,
 };
 
 use crate::{common::DroppableRefMut, parser::ast::ParsedScript, runner::InternalEvent};
@@ -23,7 +23,7 @@ pub struct ButtonProperties {
     pub gfx_on_move: Option<ImageName>,  // GFXONMOVE
     pub gfx_standard: Option<ImageName>, // GFXSTANDARD
     pub priority: Option<i32>,           // PRIORITY
-    pub rect: Option<Rect>,              // RECT
+    pub rect: Option<ReferenceRect>,     // RECT
     pub snd_on_click: Option<SoundName>, // SNDONCLICK
     pub snd_on_move: Option<SoundName>,  // SNDONMOVE
     pub snd_standard: Option<SoundName>, // SNDSTANDARD
@@ -61,7 +61,7 @@ pub struct ButtonState {
     pub graphics_on_hover: Option<String>,
     pub graphics_on_click: Option<String>,
     pub priority: isize,
-    pub rect: Option<Rect>,
+    pub rect: Option<ReferenceRect>,
 
     pub current_interaction: Interaction,
 }
@@ -156,8 +156,17 @@ impl Button {
 
     // custom
 
-    pub fn is_displaying(&self, object_name: &str) -> anyhow::Result<bool> {
-        self.state.borrow().is_displaying(object_name)
+    pub fn is_enabled(&self) -> anyhow::Result<bool> {
+        Ok(self.state.borrow().is_enabled)
+    }
+
+    pub fn get_rect(&self) -> anyhow::Result<Option<Rect>> {
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow().get_rect(context)
+    }
+
+    pub fn get_priority(&self) -> anyhow::Result<isize> {
+        self.state.borrow().get_priority()
     }
 
     pub fn set_normal(&self) -> anyhow::Result<()> {
@@ -244,35 +253,53 @@ impl CnvType for Button {
                 .borrow_mut()
                 .enable_dragging()
                 .map(|_| CnvValue::Null),
-            CallableIdentifier::Method("GETONCLICK") => self.state.borrow().get_on_click(),
-            CallableIdentifier::Method("GETONMOVE") => self.state.borrow().get_on_move(),
+            CallableIdentifier::Method("GETONCLICK") => self
+                .state
+                .borrow()
+                .get_on_click()
+                .map(|v| v.map(CnvValue::String).unwrap_or_default()),
+            CallableIdentifier::Method("GETONMOVE") => self
+                .state
+                .borrow()
+                .get_on_move()
+                .map(|v| v.map(CnvValue::String).unwrap_or_default()),
             CallableIdentifier::Method("GETPRIORITY") => self
                 .state
                 .borrow()
                 .get_priority()
                 .map(|v| CnvValue::Integer(v as i32)),
-            CallableIdentifier::Method("GETSTD") => self.state.borrow().get_std(),
+            CallableIdentifier::Method("GETSTD") => self
+                .state
+                .borrow()
+                .get_std()
+                .map(|v| v.map(CnvValue::String).unwrap_or_default()),
             CallableIdentifier::Method("SETONCLICK") => self
                 .state
                 .borrow_mut()
-                .set_on_click()
+                .set_on_click(&arguments[0].to_string())
                 .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETONMOVE") => self
                 .state
                 .borrow_mut()
-                .set_on_move()
+                .set_on_move(&arguments[0].to_string())
                 .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETPRIORITY") => self
                 .state
                 .borrow_mut()
-                .set_priority()
+                .set_priority(arguments[0].to_int() as isize)
                 .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETRECT") => {
-                self.state.borrow_mut().set_rect().map(|_| CnvValue::Null)
+                let rect = parse_rect(arguments[0].to_str())?;
+                self.state
+                    .borrow_mut()
+                    .set_rect(rect)
+                    .map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SETSTD") => {
-                self.state.borrow_mut().set_std().map(|_| CnvValue::Null)
-            }
+            CallableIdentifier::Method("SETSTD") => self
+                .state
+                .borrow_mut()
+                .set_std(&arguments[0].to_string())
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SYN") => {
                 self.state.borrow_mut().syn().map(|_| CnvValue::Null)
             }
@@ -489,49 +516,54 @@ impl ButtonState {
         todo!()
     }
 
-    pub fn get_on_click(&self) -> anyhow::Result<CnvValue> {
+    pub fn get_on_click(&self) -> anyhow::Result<Option<String>> {
         // GETONCLICK
-        todo!()
+        Ok(self.graphics_on_click.clone())
     }
 
-    pub fn get_on_move(&self) -> anyhow::Result<CnvValue> {
+    pub fn get_on_move(&self) -> anyhow::Result<Option<String>> {
         // GETONMOVE
-        todo!()
+        Ok(self.graphics_on_hover.clone())
     }
 
     pub fn get_priority(&self) -> anyhow::Result<isize> {
         // GETPRIORITY
-        todo!()
+        Ok(self.priority)
     }
 
-    pub fn get_std(&self) -> anyhow::Result<CnvValue> {
+    pub fn get_std(&self) -> anyhow::Result<Option<String>> {
         // GETSTD
-        todo!()
+        Ok(self.graphics_normal.clone())
     }
 
-    pub fn set_on_click(&mut self) -> anyhow::Result<()> {
+    pub fn set_on_click(&mut self, object_name: &str) -> anyhow::Result<()> {
         // SETONCLICK
-        todo!()
+        self.graphics_on_click = Some(object_name.to_owned());
+        Ok(())
     }
 
-    pub fn set_on_move(&mut self) -> anyhow::Result<()> {
+    pub fn set_on_move(&mut self, object_name: &str) -> anyhow::Result<()> {
         // SETONMOVE
-        todo!()
+        self.graphics_on_hover = Some(object_name.to_owned());
+        Ok(())
     }
 
-    pub fn set_priority(&mut self) -> anyhow::Result<()> {
+    pub fn set_priority(&mut self, priority: isize) -> anyhow::Result<()> {
         // SETPRIORITY
-        todo!()
+        self.priority = priority;
+        Ok(())
     }
 
-    pub fn set_rect(&mut self) -> anyhow::Result<()> {
+    pub fn set_rect(&mut self, rect: ReferenceRect) -> anyhow::Result<()> {
         // SETRECT
-        todo!()
+        self.rect = Some(rect);
+        Ok(())
     }
 
-    pub fn set_std(&mut self) -> anyhow::Result<()> {
+    pub fn set_std(&mut self, object_name: &str) -> anyhow::Result<()> {
         // SETSTD
-        todo!()
+        self.graphics_normal = Some(object_name.to_owned());
+        Ok(())
     }
 
     pub fn syn(&mut self) -> anyhow::Result<()> {
@@ -540,6 +572,45 @@ impl ButtonState {
     }
 
     // custom
+
+    pub fn get_rect(&self, context: RunnerContext) -> anyhow::Result<Option<Rect>> {
+        if let Some(reference_rect) = &self.rect {
+            match reference_rect {
+                ReferenceRect::Literal(rect) => Ok(Some(*rect)),
+                ReferenceRect::Reference(reference) => {
+                    let object = context.runner.get_object(reference).ok_or(
+                        RunnerError::ObjectNotFound {
+                            name: reference.clone(),
+                        },
+                    )?;
+                    if let CnvContent::Animation(animation) = &object.content {
+                        animation.get_frame_rect().map(Some)
+                    } else if let CnvContent::Image(image) = &object.content {
+                        image.get_rect().map(Some)
+                    } else {
+                        Err(RunnerError::ExpectedGraphicsObject.into())
+                    }
+                }
+            }
+        } else if let Some(graphics_normal) = &self.graphics_normal {
+            let object =
+                context
+                    .runner
+                    .get_object(graphics_normal)
+                    .ok_or(RunnerError::ObjectNotFound {
+                        name: graphics_normal.clone(),
+                    })?;
+            if let CnvContent::Animation(animation) = &object.content {
+                animation.get_frame_rect().map(Some)
+            } else if let CnvContent::Image(image) = &object.content {
+                image.get_rect().map(Some)
+            } else {
+                Err(RunnerError::ExpectedGraphicsObject.into())
+            }
+        } else {
+            Ok(None)
+        }
+    }
 
     fn set_interaction(
         &mut self,
@@ -768,23 +839,5 @@ impl ButtonState {
             return Ok(());
         }
         self.try_set_interaction(context, Interaction::Hovering)
-    }
-
-    pub fn is_displaying(&self, object_name: &str) -> anyhow::Result<bool> {
-        Ok(match self.current_interaction {
-            Interaction::Hidden => false,
-            Interaction::None => self
-                .graphics_normal
-                .as_ref()
-                .is_some_and(|n| n == object_name),
-            Interaction::Hovering => self
-                .graphics_on_hover
-                .as_ref()
-                .is_some_and(|n| n == object_name),
-            Interaction::Pressing => self
-                .graphics_on_click
-                .as_ref()
-                .is_some_and(|n| n == object_name),
-        })
     }
 }

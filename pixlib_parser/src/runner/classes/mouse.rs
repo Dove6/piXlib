@@ -7,7 +7,7 @@ use std::{
 
 use super::super::content::EventHandler;
 use super::super::initable::Initable;
-use super::super::parsers::{discard_if_empty, parse_event_handler, parse_i32, Rect};
+use super::super::parsers::{discard_if_empty, parse_event_handler, parse_i32, ReferenceRect};
 
 use crate::{
     common::DroppableRefMut,
@@ -42,7 +42,7 @@ struct MouseState {
     is_enabled: bool,
     are_events_enabled: bool, // TODO: use this
     is_visible: bool,
-    clip_rect: Option<Rect>,
+    clip_rect: Option<ReferenceRect>,
 
     position: (isize, isize),
     last_left_click_position: (isize, isize),

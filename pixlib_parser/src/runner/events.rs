@@ -75,6 +75,12 @@ pub enum ObjectEvent {
 #[derive(Debug, Clone)]
 pub enum ApplicationEvent {
     ApplicationExited,
+    CursorLocked,
+    CursorFreed,
+    CursorHidden,
+    CursorShown,
+    CursorSetToPointer,
+    CursorSetToDefault,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

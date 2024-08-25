@@ -22,13 +22,15 @@ use crate::{
     scanner::CnvScanner,
 };
 
+use super::Rect;
+
 #[derive(Debug, Clone)]
-pub enum Rect {
-    Literal((i32, i32, i32, i32)),
+pub enum ReferenceRect {
+    Literal(Rect),
     Reference(String),
 }
 
-impl Default for Rect {
+impl Default for ReferenceRect {
     fn default() -> Self {
         Self::Literal(Default::default())
     }
@@ -226,15 +228,15 @@ pub fn parse_event_handler(s: String) -> Result<Arc<ParsedScript>, TypeParsingEr
     }
 }
 
-pub fn parse_rect(s: String) -> Result<Rect, TypeParsingError> {
+pub fn parse_rect(s: String) -> Result<ReferenceRect, TypeParsingError> {
     if s.contains(',') {
         s.split(',')
             .map(|s| s.parse().unwrap())
             .collect_tuple()
-            .map(Rect::Literal)
+            .map(|t: (isize, isize, isize, isize)| ReferenceRect::Literal(t.into()))
             .ok_or(TypeParsingError::InvalidRectLiteral(s))
     } else {
-        Ok(Rect::Reference(s))
+        Ok(ReferenceRect::Reference(s))
     }
 }
 
