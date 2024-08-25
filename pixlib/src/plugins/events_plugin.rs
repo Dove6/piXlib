@@ -6,7 +6,7 @@ use bevy::{
 };
 
 use pixlib_parser::runner::{
-    ApplicationEvent, FileEvent, GraphicsEvent, ObjectEvent, ScriptEvent, SoundEvent,
+    ApplicationEvent, CursorEvent, FileEvent, GraphicsEvent, ObjectEvent, ScriptEvent, SoundEvent,
 };
 
 use super::scripts_plugin::ScriptRunner;
@@ -22,6 +22,7 @@ impl Plugin for EventsPlugin {
             .add_event::<PixlibApplicationEvent>()
             .init_resource::<Events<PixlibSoundEvent>>()
             .add_event::<PixlibGraphicsEvent>()
+            .add_event::<PixlibCursorEvent>()
             .add_systems(
                 Update,
                 (
@@ -32,6 +33,7 @@ impl Plugin for EventsPlugin {
                     redistribute_sound_events,
                     cleanup_processed_sound_events,
                     redistribute_graphics_events,
+                    redistribute_cursor_events,
                 ),
             );
     }
@@ -140,5 +142,17 @@ fn redistribute_graphics_events(
 ) {
     for evt in runner.events_out.graphics.borrow_mut().drain(..) {
         writer.send(PixlibGraphicsEvent(evt));
+    }
+}
+
+#[derive(Event, Debug, Clone)]
+pub struct PixlibCursorEvent(pub CursorEvent);
+
+fn redistribute_cursor_events(
+    runner: NonSend<ScriptRunner>,
+    mut writer: EventWriter<PixlibCursorEvent>,
+) {
+    for evt in runner.events_out.cursor.borrow_mut().drain(..) {
+        writer.send(PixlibCursorEvent(evt));
     }
 }

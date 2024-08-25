@@ -20,8 +20,9 @@ pub use common::{CallableIdentifier, CallableIdentifierOwned};
 use containers::{ObjectContainer, ScriptContainer};
 pub use content::CnvContent;
 pub use events::{
-    ApplicationEvent, FileEvent, GraphicsEvent, InternalEvent, KeyboardEvent, KeyboardKey,
-    MouseEvent, MultimediaEvents, ObjectEvent, ScriptEvent, SoundEvent, SoundSource, TimerEvent,
+    ApplicationEvent, CursorEvent, FileEvent, GraphicsEvent, InternalEvent, KeyboardEvent,
+    KeyboardKey, MouseEvent, MultimediaEvents, ObjectEvent, ScriptEvent, SoundEvent, SoundSource,
+    TimerEvent,
 };
 pub use filesystem::{FileSystem, GamePaths};
 use itertools::Itertools;
@@ -598,15 +599,15 @@ impl CnvRunner {
         if found_button_index.is_some() && !self.cursor_state.borrow().is_pointer {
             self.cursor_state.borrow_mut().is_pointer = true;
             self.events_out
-                .app
+                .cursor
                 .borrow_mut()
-                .use_and_drop_mut(|events| events.push_back(ApplicationEvent::CursorSetToPointer));
+                .use_and_drop_mut(|events| events.push_back(CursorEvent::CursorSetToPointer));
         } else if found_button_index.is_none() && self.cursor_state.borrow().is_pointer {
             self.cursor_state.borrow_mut().is_pointer = false;
             self.events_out
-                .app
+                .cursor
                 .borrow_mut()
-                .use_and_drop_mut(|events| events.push_back(ApplicationEvent::CursorSetToDefault));
+                .use_and_drop_mut(|events| events.push_back(CursorEvent::CursorSetToDefault));
         }
         let mut mouse_objects = Vec::new();
         self.find_objects(

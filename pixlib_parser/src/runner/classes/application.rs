@@ -130,9 +130,11 @@ impl CnvType for Application {
             CallableIdentifier::Method("EXISTSENV") => {
                 self.state.borrow().exists_env().map(CnvValue::Bool)
             }
-            CallableIdentifier::Method("EXIT") => {
-                self.state.borrow_mut().exit().map(|_| CnvValue::Null)
-            }
+            CallableIdentifier::Method("EXIT") => self
+                .state
+                .borrow_mut()
+                .exit(context)
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("GETLANGUAGE") => {
                 self.state.borrow().get_language().map(CnvValue::String)
             }
@@ -255,9 +257,15 @@ impl ApplicationState {
         todo!()
     }
 
-    pub fn exit(&mut self) -> anyhow::Result<()> {
+    pub fn exit(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // EXIT
-        todo!()
+        context
+            .runner
+            .events_out
+            .app
+            .borrow_mut()
+            .use_and_drop_mut(|events| events.push_back(ApplicationEvent::ApplicationExited));
+        Ok(())
     }
 
     pub fn get_language(&self) -> anyhow::Result<String> {

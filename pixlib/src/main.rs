@@ -21,7 +21,7 @@ use bevy_kira_audio::AudioPlugin;
 use filesystems::{InsertedDisk, InsertedDiskResource};
 use pixlib_parser::{common::IssueManager, runner::ObjectBuilderError};
 use plugins::{
-    app_plugin::AppPlugin, events_plugin::EventsPlugin, graphics_plugin::GraphicsPlugin,
+    cursor_plugin::CursorPlugin, events_plugin::EventsPlugin, graphics_plugin::GraphicsPlugin,
     inputs_plugin::InputsPlugin, scripts_plugin::ScriptsPlugin, sounds_plugin::SoundsPlugin,
     ui_plugin::UiPlugin,
 };
@@ -81,7 +81,7 @@ fn main() {
                 window_resolution: WINDOW_SIZE,
             },
             SoundsPlugin,
-            AppPlugin,
+            CursorPlugin,
         ))
         .add_plugins(UiPlugin)
         .run();

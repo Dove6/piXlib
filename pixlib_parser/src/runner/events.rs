@@ -53,6 +53,7 @@ pub struct OutgoingEvents {
     pub app: RefCell<VecDeque<ApplicationEvent>>,
     pub sound: RefCell<VecDeque<SoundEvent>>,
     pub graphics: RefCell<VecDeque<GraphicsEvent>>,
+    pub cursor: RefCell<VecDeque<CursorEvent>>,
 }
 
 #[derive(Debug, Clone)]
@@ -75,12 +76,6 @@ pub enum ObjectEvent {
 #[derive(Debug, Clone)]
 pub enum ApplicationEvent {
     ApplicationExited,
-    CursorLocked,
-    CursorFreed,
-    CursorHidden,
-    CursorShown,
-    CursorSetToPointer,
-    CursorSetToDefault,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -144,4 +139,14 @@ pub enum GraphicsEvent {
     GraphicsLoaded,
     GraphicsFlipped,
     FrameChanged,
+}
+
+#[derive(Debug, Clone)]
+pub enum CursorEvent {
+    CursorLocked,
+    CursorFreed,
+    CursorHidden,
+    CursorShown,
+    CursorSetToPointer,
+    CursorSetToDefault,
 }

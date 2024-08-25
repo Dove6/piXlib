@@ -1,4 +1,4 @@
-pub mod app_plugin;
+pub mod cursor_plugin;
 pub mod events_plugin;
 pub mod graphics_plugin;
 pub mod inputs_plugin;
