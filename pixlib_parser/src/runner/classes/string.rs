@@ -98,7 +98,7 @@ impl StringVar {
         }
     }
 
-    pub fn get(&self) -> RunnerResult<String> {
+    pub fn get(&self) -> anyhow::Result<String> {
         self.state.borrow().get(None, None)
     }
 }
@@ -121,7 +121,7 @@ impl CnvType for StringVar {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         // eprintln!(
         //     "Calling method {:?} with arguments [{}]",
         //     name,
@@ -248,7 +248,8 @@ impl CnvType for StringVar {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -330,7 +331,7 @@ impl CnvType for StringVar {
 }
 
 impl Initable for StringVar {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         context
             .runner
             .internal_events
@@ -347,24 +348,29 @@ impl Initable for StringVar {
 }
 
 impl StringVarState {
-    pub fn add(&mut self, context: RunnerContext, suffix: &str) -> RunnerResult<String> {
+    pub fn add(&mut self, context: RunnerContext, suffix: &str) -> anyhow::Result<String> {
         // ADD
         self.change_value(context, self.value.clone() + suffix);
         Ok(self.value.clone())
     }
 
-    pub fn clear(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn clear(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // CLEAR
         self.change_value(context, "".to_owned());
         Ok(())
     }
 
-    pub fn copy_file(&mut self, _context: RunnerContext) -> RunnerResult<bool> {
+    pub fn copy_file(&mut self, _context: RunnerContext) -> anyhow::Result<bool> {
         // COPYFILE
         todo!()
     }
 
-    pub fn cut(&mut self, context: RunnerContext, index: usize, length: usize) -> RunnerResult<()> {
+    pub fn cut(
+        &mut self,
+        context: RunnerContext,
+        index: usize,
+        length: usize,
+    ) -> anyhow::Result<()> {
         // CUT
         let value = if length > 0 {
             self.value[index..(index + length)].to_owned()
@@ -376,7 +382,7 @@ impl StringVarState {
         Ok(())
     }
 
-    pub fn find(&self, needle: &str, start_index: Option<usize>) -> RunnerResult<Option<usize>> {
+    pub fn find(&self, needle: &str, start_index: Option<usize>) -> anyhow::Result<Option<usize>> {
         // FIND
         Ok(self
             .value
@@ -391,7 +397,7 @@ impl StringVarState {
             .map(|m| m.0))
     }
 
-    pub fn get(&self, index: Option<usize>, length: Option<usize>) -> RunnerResult<String> {
+    pub fn get(&self, index: Option<usize>, length: Option<usize>) -> anyhow::Result<String> {
         // GET
         let index = index.unwrap_or_default();
         let length = length.unwrap_or(self.value.len() - index);
@@ -404,7 +410,7 @@ impl StringVarState {
         index: usize,
         value: &str,
         times: usize,
-    ) -> RunnerResult<()> {
+    ) -> anyhow::Result<()> {
         // INSERTAT
         if times == 0 || value.is_empty() {
             return Ok(());
@@ -416,7 +422,7 @@ impl StringVarState {
         todo!()
     }
 
-    pub fn is_upper_letter(&self, index: usize) -> RunnerResult<bool> {
+    pub fn is_upper_letter(&self, index: usize) -> anyhow::Result<bool> {
         // ISUPPERLETTER
         Ok(self
             .value
@@ -427,25 +433,25 @@ impl StringVarState {
             .unwrap_or_default())
     }
 
-    pub fn length(&self) -> RunnerResult<usize> {
+    pub fn length(&self) -> anyhow::Result<usize> {
         // LENGTH
         Ok(self.value.len())
     }
 
-    pub fn lower(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn lower(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // LOWER
         self.change_value(context, self.value.to_ascii_lowercase());
         Ok(())
     }
 
-    pub fn not(&mut self, context: RunnerContext) -> RunnerResult<String> {
+    pub fn not(&mut self, context: RunnerContext) -> anyhow::Result<String> {
         // NOT
         self.value = String::from_utf8(self.value.bytes().rev().collect()).unwrap(); // doesn't emit onchanged
         self.change_value(context, self.value.clone());
         Ok(self.value.clone())
     }
 
-    pub fn random(&mut self, _context: RunnerContext) -> RunnerResult<i32> {
+    pub fn random(&mut self, _context: RunnerContext) -> anyhow::Result<i32> {
         // RANDOM
         todo!()
     }
@@ -455,7 +461,7 @@ impl StringVarState {
         context: RunnerContext,
         search: &str,
         replace: &str,
-    ) -> RunnerResult<()> {
+    ) -> anyhow::Result<()> {
         // REPLACE
         std::mem::drop(self.value.replace(search, replace)); // doesn't emit onchanged
         self.change_value(context, self.value.clone()); // but emits onbrutalchanged even when not changed
@@ -467,20 +473,20 @@ impl StringVarState {
         context: RunnerContext,
         index: usize,
         replace: &str,
-    ) -> RunnerResult<()> {
+    ) -> anyhow::Result<()> {
         // REPLACEAT
         std::mem::drop(self.value.replace(&self.value[index..].to_owned(), replace)); // doesn't emit onchanged
         self.change_value(context, self.value.clone()); // but emits onbrutalchanged even when not changed
         Ok(())
     }
 
-    pub fn reset_ini(&mut self, _context: RunnerContext) -> RunnerResult<()> {
+    pub fn reset_ini(&mut self, _context: RunnerContext) -> anyhow::Result<()> {
         // RESETINI
         eprintln!("Skipping STRING^RESETINI() call");
         Ok(())
     }
 
-    pub fn set(&mut self, context: RunnerContext, value: &str) -> RunnerResult<()> {
+    pub fn set(&mut self, context: RunnerContext, value: &str) -> anyhow::Result<()> {
         // SET
         self.change_value(context, value.to_owned());
         Ok(())
@@ -490,13 +496,18 @@ impl StringVarState {
         &mut self,
         _context: RunnerContext,
         default_value: &str,
-    ) -> RunnerResult<()> {
+    ) -> anyhow::Result<()> {
         // SETDEFAULT
         self.default_value = default_value.to_owned();
         Ok(())
     }
 
-    pub fn sub(&mut self, context: RunnerContext, index: usize, length: usize) -> RunnerResult<()> {
+    pub fn sub(
+        &mut self,
+        context: RunnerContext,
+        index: usize,
+        length: usize,
+    ) -> anyhow::Result<()> {
         // SUB
         self.value.drain(index..(index + length)); // doesn't emit onchanged
         self.change_value(context, self.value.clone()); // but emits onbrutalchanged even when not changed
@@ -508,7 +519,7 @@ impl StringVarState {
         context: RunnerContext,
         first: &str,
         second: &str,
-    ) -> RunnerResult<()> {
+    ) -> anyhow::Result<()> {
         // SWITCH
         self.change_value(
             context,
@@ -521,7 +532,7 @@ impl StringVarState {
         Ok(())
     }
 
-    pub fn upper(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn upper(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // UPPER
         self.change_value(context, self.value.to_ascii_uppercase());
         Ok(())

@@ -18,7 +18,7 @@ use super::{
     classes::{CnvTypeFactory, DummyCnvType},
     initable::Initable,
     parsers::{discard_if_empty, ProgramParsingError, TypeParsingError},
-    CallableIdentifier, CnvContent, RunnerResult,
+    CallableIdentifier, CnvContent,
 };
 
 #[derive(Debug, Clone)]
@@ -158,7 +158,7 @@ impl CnvObject {
         identifier: CallableIdentifier,
         arguments: &[CnvValue],
         context: Option<RunnerContext>,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         let context = context
             .map(|c| c.with_current_object(self.clone()))
             .unwrap_or(RunnerContext::new_minimal(&self.parent.runner, self));
@@ -178,7 +178,7 @@ impl CnvObject {
         // println!("Result is {:?}", result);
     }
 
-    pub fn init(self: &Arc<Self>, context: Option<RunnerContext>) -> RunnerResult<()> {
+    pub fn init(self: &Arc<Self>, context: Option<RunnerContext>) -> anyhow::Result<()> {
         let as_initable: Option<&dyn Initable> = (&self.content).into();
         let Some(initable) = as_initable else {
             *self.initialized.borrow_mut() = true;

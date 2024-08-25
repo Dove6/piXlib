@@ -89,7 +89,7 @@ impl CnvType for Struct {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("GETFIELD") => self
                 .state
@@ -114,7 +114,8 @@ impl CnvType for Struct {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -161,7 +162,7 @@ impl CnvType for Struct {
 }
 
 impl Initable for Struct {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         context
             .runner
             .internal_events
@@ -178,17 +179,17 @@ impl Initable for Struct {
 }
 
 impl StructState {
-    pub fn get_field(&self, _name: &str) -> RunnerResult<CnvValue> {
+    pub fn get_field(&self, _name: &str) -> anyhow::Result<CnvValue> {
         // GETFIELD
         todo!()
     }
 
-    pub fn set(&mut self) -> RunnerResult<()> {
+    pub fn set(&mut self) -> anyhow::Result<()> {
         // SET
         todo!()
     }
 
-    pub fn set_field(&mut self, _name: &str, _value: CnvValue) -> RunnerResult<()> {
+    pub fn set_field(&mut self, _name: &str, _value: CnvValue) -> anyhow::Result<()> {
         // SETFIELD
         todo!()
     }

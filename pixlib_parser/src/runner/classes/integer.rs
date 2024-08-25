@@ -98,7 +98,7 @@ impl IntegerVar {
         }
     }
 
-    pub fn get(&self) -> RunnerResult<i32> {
+    pub fn get(&self) -> anyhow::Result<i32> {
         self.state.borrow().get(RunnerContext::new_minimal(
             &self.parent.parent.runner,
             &self.parent,
@@ -124,7 +124,7 @@ impl CnvType for IntegerVar {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("ABS") => self
                 .state
@@ -232,7 +232,8 @@ impl CnvType for IntegerVar {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -322,7 +323,7 @@ impl CnvType for IntegerVar {
 }
 
 impl Initable for IntegerVar {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         context
             .runner
             .internal_events
@@ -339,89 +340,89 @@ impl Initable for IntegerVar {
 }
 
 impl IntegerVarState {
-    pub fn abs(&mut self, context: RunnerContext) -> RunnerResult<i32> {
+    pub fn abs(&mut self, context: RunnerContext) -> anyhow::Result<i32> {
         // ABS
         self.change_value(context, self.value.abs());
         Ok(self.value)
     }
 
-    pub fn add(&mut self, context: RunnerContext, operand: i32) -> RunnerResult<i32> {
+    pub fn add(&mut self, context: RunnerContext, operand: i32) -> anyhow::Result<i32> {
         // ADD
         self.change_value(context, self.value + operand);
         Ok(self.value)
     }
 
-    pub fn and(&mut self, context: RunnerContext, operand: i32) -> RunnerResult<i32> {
+    pub fn and(&mut self, context: RunnerContext, operand: i32) -> anyhow::Result<i32> {
         // AND
         self.change_value(context, self.value & operand);
         Ok(self.value)
     }
 
-    pub fn clamp(&mut self, context: RunnerContext, min: i32, max: i32) -> RunnerResult<i32> {
+    pub fn clamp(&mut self, context: RunnerContext, min: i32, max: i32) -> anyhow::Result<i32> {
         // CLAMP
         self.change_value(context, self.value.clamp(min, max));
         Ok(self.value)
     }
 
-    pub fn clear(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn clear(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // CLEAR
         self.change_value(context, 0);
         Ok(())
     }
 
-    pub fn copy_file(&mut self, _context: RunnerContext) -> RunnerResult<()> {
+    pub fn copy_file(&mut self, _context: RunnerContext) -> anyhow::Result<()> {
         // COPYFILE
         todo!()
     }
 
-    pub fn dec(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn dec(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // DEC
         self.change_value(context, self.value - 1);
         Ok(())
     }
 
-    pub fn div(&mut self, context: RunnerContext, divisor: i32) -> RunnerResult<()> {
+    pub fn div(&mut self, context: RunnerContext, divisor: i32) -> anyhow::Result<()> {
         // DIV
         self.change_value(context, self.value / divisor);
         Ok(())
     }
 
-    pub fn get(&self, _context: RunnerContext) -> RunnerResult<i32> {
+    pub fn get(&self, _context: RunnerContext) -> anyhow::Result<i32> {
         // GET
         Ok(self.value)
     }
 
-    pub fn inc(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn inc(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // INC
         self.change_value(context, self.value + 1);
         Ok(())
     }
 
-    pub fn modulus(&mut self, context: RunnerContext, divisor: i32) -> RunnerResult<()> {
+    pub fn modulus(&mut self, context: RunnerContext, divisor: i32) -> anyhow::Result<()> {
         // MOD
         self.change_value(context, self.value % divisor);
         Ok(())
     }
 
-    pub fn mul(&mut self, context: RunnerContext, operand: i32) -> RunnerResult<()> {
+    pub fn mul(&mut self, context: RunnerContext, operand: i32) -> anyhow::Result<()> {
         // MUL
         self.change_value(context, self.value * operand);
         Ok(())
     }
 
-    pub fn not(&mut self, context: RunnerContext) -> RunnerResult<i32> {
+    pub fn not(&mut self, context: RunnerContext) -> anyhow::Result<i32> {
         // NOT
         self.change_value(context, !self.value);
         Ok(self.value)
     }
 
-    pub fn or(&mut self, context: RunnerContext, operand: i32) -> RunnerResult<i32> {
+    pub fn or(&mut self, context: RunnerContext, operand: i32) -> anyhow::Result<i32> {
         // OR
         self.change_value(context, self.value | operand);
         Ok(self.value)
     }
 
-    pub fn power(&mut self, context: RunnerContext, exponent: i32) -> RunnerResult<i32> {
+    pub fn power(&mut self, context: RunnerContext, exponent: i32) -> anyhow::Result<i32> {
         // POWER
         self.change_value(
             context,
@@ -434,42 +435,51 @@ impl IntegerVarState {
         Ok(self.value)
     }
 
-    pub fn random(&mut self, _context: RunnerContext) -> RunnerResult<()> {
+    pub fn random(&mut self, _context: RunnerContext) -> anyhow::Result<()> {
         // RANDOM
         todo!()
     }
 
-    pub fn reset_ini(&mut self, _context: RunnerContext) -> RunnerResult<()> {
+    pub fn reset_ini(&mut self, _context: RunnerContext) -> anyhow::Result<()> {
         // RESETINI
         eprintln!("Skipping INTEGER^RESETINI() call");
         Ok(())
     }
 
-    pub fn set(&mut self, context: RunnerContext, value: i32) -> RunnerResult<()> {
+    pub fn set(&mut self, context: RunnerContext, value: i32) -> anyhow::Result<()> {
         // SET
         self.change_value(context, value);
         Ok(())
     }
 
-    pub fn set_default(&mut self, _context: RunnerContext, default_value: i32) -> RunnerResult<()> {
+    pub fn set_default(
+        &mut self,
+        _context: RunnerContext,
+        default_value: i32,
+    ) -> anyhow::Result<()> {
         // SETDEFAULT
         self.default_value = default_value;
         Ok(())
     }
 
-    pub fn sub(&mut self, context: RunnerContext, subtrahend: i32) -> RunnerResult<i32> {
+    pub fn sub(&mut self, context: RunnerContext, subtrahend: i32) -> anyhow::Result<i32> {
         // SUB
         self.change_value(context, self.value - subtrahend);
         Ok(self.value)
     }
 
-    pub fn switch(&mut self, context: RunnerContext, first: i32, second: i32) -> RunnerResult<()> {
+    pub fn switch(
+        &mut self,
+        context: RunnerContext,
+        first: i32,
+        second: i32,
+    ) -> anyhow::Result<()> {
         // SWITCH
         self.change_value(context, if self.value == first { second } else { first });
         Ok(())
     }
 
-    pub fn xor(&mut self, context: RunnerContext, operand: i32) -> RunnerResult<i32> {
+    pub fn xor(&mut self, context: RunnerContext, operand: i32) -> anyhow::Result<i32> {
         // XOR
         self.change_value(context, self.value ^ operand);
         Ok(self.value)

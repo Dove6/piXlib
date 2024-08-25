@@ -96,7 +96,7 @@ impl CnvType for Font {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("GETHEIGHT") => self
                 .state
@@ -127,7 +127,8 @@ impl CnvType for Font {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -178,7 +179,7 @@ impl CnvType for Font {
 }
 
 impl Initable for Font {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         context
             .runner
             .internal_events
@@ -195,27 +196,27 @@ impl Initable for Font {
 }
 
 impl FontState {
-    pub fn get_height(&self) -> RunnerResult<usize> {
+    pub fn get_height(&self) -> anyhow::Result<usize> {
         // GETHEIGHT
         todo!()
     }
 
-    pub fn set_color(&mut self) -> RunnerResult<()> {
+    pub fn set_color(&mut self) -> anyhow::Result<()> {
         // SETCOLOR
         todo!()
     }
 
-    pub fn set_family(&mut self) -> RunnerResult<()> {
+    pub fn set_family(&mut self) -> anyhow::Result<()> {
         // SETFAMILY
         todo!()
     }
 
-    pub fn set_size(&mut self) -> RunnerResult<()> {
+    pub fn set_size(&mut self) -> anyhow::Result<()> {
         // SETSIZE
         todo!()
     }
 
-    pub fn set_style(&mut self) -> RunnerResult<()> {
+    pub fn set_style(&mut self) -> anyhow::Result<()> {
         // SETSTYLE
         todo!()
     }

@@ -103,7 +103,7 @@ impl DoubleVar {
         }
     }
 
-    pub fn get(&self) -> RunnerResult<f64> {
+    pub fn get(&self) -> anyhow::Result<f64> {
         self.state.borrow().get()
     }
 }
@@ -126,7 +126,7 @@ impl CnvType for DoubleVar {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("ADD") => self
                 .state
@@ -189,7 +189,8 @@ impl CnvType for DoubleVar {
                     return Err(RunnerError::TooFewArguments {
                         expected_min: 1,
                         actual: 0,
-                    });
+                    }
+                    .into());
                 }
                 self.state
                     .borrow_mut()
@@ -201,7 +202,8 @@ impl CnvType for DoubleVar {
                     return Err(RunnerError::TooFewArguments {
                         expected_min: 1,
                         actual: 0,
-                    });
+                    }
+                    .into());
                 }
                 self.state
                     .borrow_mut()
@@ -281,7 +283,8 @@ impl CnvType for DoubleVar {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -371,7 +374,7 @@ impl CnvType for DoubleVar {
 }
 
 impl Initable for DoubleVar {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         context
             .runner
             .internal_events
@@ -391,13 +394,13 @@ const RADIANS_TO_DEGREES: f64 = 180f64 / f64::consts::PI;
 const DEGREES_TO_RADIANS: f64 = f64::consts::PI / 180f64;
 
 impl DoubleVarState {
-    pub fn add(&mut self, context: RunnerContext, operand: f64) -> RunnerResult<f64> {
+    pub fn add(&mut self, context: RunnerContext, operand: f64) -> anyhow::Result<f64> {
         // ADD
         self.change_value(context, self.value + operand);
         Ok(self.value)
     }
 
-    pub fn arc_tan(&mut self, context: RunnerContext, tangent: f64) -> RunnerResult<f64> {
+    pub fn arc_tan(&mut self, context: RunnerContext, tangent: f64) -> anyhow::Result<f64> {
         // ARCTAN
         self.change_value(context, tangent.atan() * RADIANS_TO_DEGREES);
         Ok(self.value)
@@ -409,7 +412,7 @@ impl DoubleVarState {
         y: f64,
         x: f64,
         summand: Option<i32>,
-    ) -> RunnerResult<f64> {
+    ) -> anyhow::Result<f64> {
         // ARCTANEX
         let mut value = (libm::atan2(y, x) + f64::consts::PI) * RADIANS_TO_DEGREES;
         if let Some(summand) = summand {
@@ -419,59 +422,59 @@ impl DoubleVarState {
         Ok(self.value)
     }
 
-    pub fn clamp(&mut self, context: RunnerContext, min: f64, max: f64) -> RunnerResult<f64> {
+    pub fn clamp(&mut self, context: RunnerContext, min: f64, max: f64) -> anyhow::Result<f64> {
         // CLAMP
         self.change_value(context, self.value.clamp(min, max));
         Ok(self.value)
     }
 
-    pub fn clear(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn clear(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // CLEAR
         self.change_value(context, 0f64);
         Ok(())
     }
 
-    pub fn copy_file(&mut self, _context: RunnerContext) -> RunnerResult<bool> {
+    pub fn copy_file(&mut self, _context: RunnerContext) -> anyhow::Result<bool> {
         // COPYFILE
         todo!()
     }
 
-    pub fn cosinus(&mut self, context: RunnerContext, angle_degrees: f64) -> RunnerResult<f64> {
+    pub fn cosinus(&mut self, context: RunnerContext, angle_degrees: f64) -> anyhow::Result<f64> {
         // COSINUS
         self.change_value(context, (angle_degrees * DEGREES_TO_RADIANS).cos());
         Ok(self.value)
     }
 
-    pub fn dec(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn dec(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // DEC
         self.change_value(context, self.value - 1f64);
         Ok(())
     }
 
-    pub fn div(&mut self, context: RunnerContext, divisor: f64) -> RunnerResult<()> {
+    pub fn div(&mut self, context: RunnerContext, divisor: f64) -> anyhow::Result<()> {
         // DIV
         self.change_value(context, self.value / divisor);
         Ok(())
     }
 
-    pub fn get(&self) -> RunnerResult<f64> {
+    pub fn get(&self) -> anyhow::Result<f64> {
         // GET
         Ok(self.value)
     }
 
-    pub fn inc(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn inc(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // INC
         self.change_value(context, self.value + 1f64);
         Ok(())
     }
 
-    pub fn length(&mut self, context: RunnerContext, x: f64, y: f64) -> RunnerResult<f64> {
+    pub fn length(&mut self, context: RunnerContext, x: f64, y: f64) -> anyhow::Result<f64> {
         // LENGTH
         self.change_value(context, (x.powi(2) + y.powi(2)).sqrt());
         Ok(self.value)
     }
 
-    pub fn log(&mut self, context: RunnerContext, operand: f64) -> RunnerResult<f64> {
+    pub fn log(&mut self, context: RunnerContext, operand: f64) -> anyhow::Result<f64> {
         // LOG
         self.change_value(context, operand.ln());
         Ok(self.value)
@@ -481,7 +484,7 @@ impl DoubleVarState {
         &mut self,
         context: RunnerContext,
         arguments: impl Iterator<Item = f64>,
-    ) -> RunnerResult<f64> {
+    ) -> anyhow::Result<f64> {
         // MAXA
         self.change_value(context, arguments.reduce(f64::max).unwrap());
         Ok(self.value)
@@ -491,59 +494,63 @@ impl DoubleVarState {
         &mut self,
         context: RunnerContext,
         arguments: impl Iterator<Item = f64>,
-    ) -> RunnerResult<f64> {
+    ) -> anyhow::Result<f64> {
         // MINA
         self.change_value(context, arguments.reduce(f64::min).unwrap());
         Ok(self.value)
     }
 
-    pub fn modulus(&mut self, context: RunnerContext, divisor: i32) -> RunnerResult<()> {
+    pub fn modulus(&mut self, context: RunnerContext, divisor: i32) -> anyhow::Result<()> {
         // MOD
         self.change_value(context, (self.value as i32 % divisor) as f64);
         Ok(())
     }
 
-    pub fn mul(&mut self, context: RunnerContext, operand: f64) -> RunnerResult<()> {
+    pub fn mul(&mut self, context: RunnerContext, operand: f64) -> anyhow::Result<()> {
         // MUL
         self.change_value(context, self.value * operand);
         Ok(())
     }
 
-    pub fn power(&mut self, context: RunnerContext, exponent: f64) -> RunnerResult<f64> {
+    pub fn power(&mut self, context: RunnerContext, exponent: f64) -> anyhow::Result<f64> {
         // POWER
         self.change_value(context, self.value.powf(exponent));
         Ok(self.value)
     }
 
-    pub fn random(&mut self, _context: RunnerContext) -> RunnerResult<i32> {
+    pub fn random(&mut self, _context: RunnerContext) -> anyhow::Result<i32> {
         // RANDOM
         todo!()
     }
 
-    pub fn reset_ini(&mut self, _context: RunnerContext) -> RunnerResult<()> {
+    pub fn reset_ini(&mut self, _context: RunnerContext) -> anyhow::Result<()> {
         // RESETINI
         todo!()
     }
 
-    pub fn round(&mut self, context: RunnerContext) -> RunnerResult<i32> {
+    pub fn round(&mut self, context: RunnerContext) -> anyhow::Result<i32> {
         // ROUND
         self.change_value(context, self.value.round());
         Ok(self.value as i32)
     }
 
-    pub fn set(&mut self, context: RunnerContext, value: f64) -> RunnerResult<()> {
+    pub fn set(&mut self, context: RunnerContext, value: f64) -> anyhow::Result<()> {
         // SET
         self.change_value(context, value);
         Ok(())
     }
 
-    pub fn set_default(&mut self, _context: RunnerContext, default_value: f64) -> RunnerResult<()> {
+    pub fn set_default(
+        &mut self,
+        _context: RunnerContext,
+        default_value: f64,
+    ) -> anyhow::Result<()> {
         // SETDEFAULT
         self.default_value = default_value;
         Ok(())
     }
 
-    pub fn sgn(&self) -> RunnerResult<i32> {
+    pub fn sgn(&self) -> anyhow::Result<i32> {
         // SGN
         Ok(if self.value == 0.0 || self.value.is_nan() {
             0
@@ -554,25 +561,30 @@ impl DoubleVarState {
         })
     }
 
-    pub fn sinus(&mut self, context: RunnerContext, angle_degrees: f64) -> RunnerResult<f64> {
+    pub fn sinus(&mut self, context: RunnerContext, angle_degrees: f64) -> anyhow::Result<f64> {
         // SINUS
         self.change_value(context, (angle_degrees * DEGREES_TO_RADIANS).sin());
         Ok(self.value)
     }
 
-    pub fn sqrt(&mut self, context: RunnerContext) -> RunnerResult<f64> {
+    pub fn sqrt(&mut self, context: RunnerContext) -> anyhow::Result<f64> {
         // SQRT
         self.change_value(context, self.value.sqrt());
         Ok(self.value)
     }
 
-    pub fn sub(&mut self, context: RunnerContext, subtrahend: f64) -> RunnerResult<f64> {
+    pub fn sub(&mut self, context: RunnerContext, subtrahend: f64) -> anyhow::Result<f64> {
         // SUB
         self.change_value(context, self.value - subtrahend);
         Ok(self.value)
     }
 
-    pub fn switch(&mut self, context: RunnerContext, first: f64, second: f64) -> RunnerResult<()> {
+    pub fn switch(
+        &mut self,
+        context: RunnerContext,
+        first: f64,
+        second: f64,
+    ) -> anyhow::Result<()> {
         // SWITCH
         self.change_value(context, if self.value == first { second } else { first });
         Ok(())

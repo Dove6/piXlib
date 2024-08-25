@@ -72,7 +72,7 @@ impl Condition {
         }
     }
 
-    pub fn check(&self) -> RunnerResult<bool> {
+    pub fn check(&self) -> anyhow::Result<bool> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow().check(context)
     }
@@ -96,7 +96,7 @@ impl CnvType for Condition {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         // eprintln!(
         //     "Calling method {:?} of condition {}",
         //     name, self.parent.name
@@ -123,7 +123,8 @@ impl CnvType for Condition {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -173,11 +174,11 @@ impl CnvType for Condition {
 }
 
 impl ConditionState {
-    pub fn break_run(&self) -> RunnerResult<()> {
+    pub fn break_run(&self) -> anyhow::Result<()> {
         todo!()
     }
 
-    pub fn check(&self, context: RunnerContext) -> RunnerResult<bool> {
+    pub fn check(&self, context: RunnerContext) -> anyhow::Result<bool> {
         let CnvContent::Condition(ref condition) = &context.current_object.content else {
             panic!();
         };
@@ -243,7 +244,7 @@ impl ConditionState {
         result
     }
 
-    pub fn one_break(&self) -> RunnerResult<()> {
+    pub fn one_break(&self) -> anyhow::Result<()> {
         todo!()
     }
 }

@@ -115,7 +115,7 @@ impl CnvType for Application {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("DISABLEMUSIC") => {
                 self.state.borrow_mut().disable_music().map(|_| None)
@@ -173,7 +173,8 @@ impl CnvType for Application {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -222,82 +223,82 @@ impl CnvType for Application {
 }
 
 impl ApplicationState {
-    pub fn disable_music(&mut self) -> RunnerResult<()> {
+    pub fn disable_music(&mut self) -> anyhow::Result<()> {
         // DISABLEMUSIC
         todo!()
     }
 
-    pub fn enable_music(&mut self) -> RunnerResult<()> {
+    pub fn enable_music(&mut self) -> anyhow::Result<()> {
         // ENABLEMUSIC
         todo!()
     }
 
-    pub fn exists_env(&self) -> RunnerResult<bool> {
+    pub fn exists_env(&self) -> anyhow::Result<bool> {
         // EXISTSENV
         todo!()
     }
 
-    pub fn exit(&mut self) -> RunnerResult<()> {
+    pub fn exit(&mut self) -> anyhow::Result<()> {
         // EXIT
         todo!()
     }
 
-    pub fn get_language(&self) -> RunnerResult<String> {
+    pub fn get_language(&self) -> anyhow::Result<String> {
         // GETLANGUAGE
         todo!()
     }
 
-    pub fn get_player(&self) -> RunnerResult<String> {
+    pub fn get_player(&self) -> anyhow::Result<String> {
         // GETPLAYER
         todo!()
     }
 
-    pub fn goto(&mut self) -> RunnerResult<()> {
+    pub fn goto(&mut self) -> anyhow::Result<()> {
         // GOTO
         todo!()
     }
 
-    pub fn print(&mut self) -> RunnerResult<()> {
+    pub fn print(&mut self) -> anyhow::Result<()> {
         // PRINT
         todo!()
     }
 
-    pub fn reload(&mut self) -> RunnerResult<()> {
+    pub fn reload(&mut self) -> anyhow::Result<()> {
         // RELOAD
         todo!()
     }
 
-    pub fn restart(&mut self) -> RunnerResult<()> {
+    pub fn restart(&mut self) -> anyhow::Result<()> {
         // RESTART
         todo!()
     }
 
-    pub fn run(&mut self) -> RunnerResult<()> {
+    pub fn run(&mut self) -> anyhow::Result<()> {
         // RUN
         todo!()
     }
 
-    pub fn run_env(&mut self) -> RunnerResult<()> {
+    pub fn run_env(&mut self) -> anyhow::Result<()> {
         // RUNENV
         todo!()
     }
 
-    pub fn set_language(&mut self) -> RunnerResult<()> {
+    pub fn set_language(&mut self) -> anyhow::Result<()> {
         // SETLANGUAGE
         todo!()
     }
 
-    pub fn start_dragging_window(&mut self) -> RunnerResult<()> {
+    pub fn start_dragging_window(&mut self) -> anyhow::Result<()> {
         // STARTDRAGGINGWINDOW
         todo!()
     }
 
-    pub fn stop_dragging_window(&mut self) -> RunnerResult<()> {
+    pub fn stop_dragging_window(&mut self) -> anyhow::Result<()> {
         // STOPDRAGGINGWINDOW
         todo!()
     }
 
-    pub fn store_binary(&mut self) -> RunnerResult<()> {
+    pub fn store_binary(&mut self) -> anyhow::Result<()> {
         // STOREBINARY
         todo!()
     }

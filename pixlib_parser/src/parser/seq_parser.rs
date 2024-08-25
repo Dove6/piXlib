@@ -1,8 +1,15 @@
+use thiserror::Error;
+
 use crate::{
     common::{Bounds, IssueManager, Position, RemoveSearchable, Spanned},
-    runner::{RunnerError, RunnerResult},
+    runner::RunnerError,
 };
-use std::{collections::HashMap, iter::Peekable, sync::Arc};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Write},
+    iter::Peekable,
+    sync::Arc,
+};
 
 use super::declarative_parser::{ParserError, ParserFatal, ParserIssue};
 
@@ -14,19 +21,56 @@ pub struct SeqBuilder {
     pub root_name: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum SeqParserError {
+    #[error("Sequence {0} not found in SEQ file")]
     ObjectNotFound(String),
-    LeftoverSequences(Vec<String>),
+    #[error("Leftover sequences: {0}")]
+    LeftoverSequences(DisplayableVec<String>),
+    #[error("Name missing for sequence {0}")]
     MissingNameDeclaration(String),
+    #[error("Type missing for sequence {0}")]
     MissingTypeDeclaration(String),
+    #[error("Mode missing for sequence {0}")]
     MissingModeDeclaration(String),
+    #[error("Parameter name missing for SEQEVENT of sequence {0}")]
     MissingParameterName(String),
+    #[error("Invalid parameter index {index} for sequence {name}")]
     InvalidParameterIndex { name: String, index: String },
+    #[error("Invalid type {type_name} for sequence {name}")]
     InvalidSequenceType { name: String, type_name: String },
+    #[error("Invalid mode {mode} for sequence {name}")]
     InvalidSequenceMode { name: String, mode: String },
+    #[error("Invalid boolean value {value} for sequence {name}")]
     InvalidBooleanValue { name: String, value: String },
-    LeftoverDeclarations(Vec<SeqDeclaration>),
+    #[error("Leftover declarations for sequence {name}: {declarations}")]
+    LeftoverDeclarations {
+        name: String,
+        declarations: DisplayableVec<SeqDeclaration>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct DisplayableVec<T>(pub Vec<T>);
+
+impl<T> DisplayableVec<T> {
+    pub fn new(content: Vec<T>) -> Self {
+        Self(content)
+    }
+}
+
+impl<T: Display> Display for DisplayableVec<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char('[')?;
+        if !self.0.is_empty() {
+            f.write_str(&self.0[0].to_string())?;
+            for element in self.0.iter().skip(1) {
+                f.write_str(", ")?;
+                f.write_str(&element.to_string())?;
+            }
+        }
+        f.write_char(']')
+    }
 }
 
 impl From<SeqParserError> for RunnerError {
@@ -40,7 +84,10 @@ impl SeqBuilder {
         Self { root_name }
     }
 
-    pub fn build<I: Iterator<Item = ParserOutput>>(self, input: I) -> RunnerResult<Arc<SeqEntry>> {
+    pub fn build<I: Iterator<Item = ParserOutput>>(
+        self,
+        input: I,
+    ) -> anyhow::Result<Arc<SeqEntry>> {
         let mut cache: HashMap<String, Vec<SeqDeclaration>> = HashMap::new();
         for next in input {
             let (_, declaration, _) = next.map_err(RunnerError::ParserError)?;
@@ -58,7 +105,10 @@ impl SeqBuilder {
         }
         let result = Self::build_entry(self.root_name, &mut cache)?;
         if !cache.is_empty() {
-            Err(SeqParserError::LeftoverSequences(cache.into_keys().collect()).into())
+            Err(
+                SeqParserError::LeftoverSequences(DisplayableVec(cache.into_keys().collect()))
+                    .into(),
+            )
         } else {
             Ok(result)
         }
@@ -67,7 +117,7 @@ impl SeqBuilder {
     fn build_entry(
         name: String,
         cache: &mut HashMap<String, Vec<SeqDeclaration>>,
-    ) -> RunnerResult<Arc<SeqEntry>> {
+    ) -> anyhow::Result<Arc<SeqEntry>> {
         let Some(mut dec_list) = cache.remove(&name) else {
             return Err(SeqParserError::ObjectNotFound(name).into());
         };
@@ -97,7 +147,7 @@ impl SeqBuilder {
     fn build_simple_type(
         name: String,
         mut dec_list: Vec<SeqDeclaration>,
-    ) -> RunnerResult<Arc<SeqEntry>> {
+    ) -> anyhow::Result<Arc<SeqEntry>> {
         let Some(SeqDeclaration::PropertyAssignment {
             value: filename, ..
         }) = dec_list.remove_found(|d| matches!(d, SeqDeclaration::PropertyAssignment { property, .. } if property.eq_ignore_ascii_case("FILENAME"))) else {
@@ -109,7 +159,11 @@ impl SeqBuilder {
             return Err(SeqParserError::MissingTypeDeclaration(name).into());
         };
         if !dec_list.is_empty() {
-            Err(SeqParserError::LeftoverDeclarations(dec_list).into())
+            Err(SeqParserError::LeftoverDeclarations {
+                name,
+                declarations: DisplayableVec(dec_list),
+            }
+            .into())
         } else {
             Ok(Arc::new(SeqEntry {
                 name,
@@ -124,7 +178,7 @@ impl SeqBuilder {
     fn build_speaking_type(
         name: String,
         mut dec_list: Vec<SeqDeclaration>,
-    ) -> RunnerResult<Arc<SeqEntry>> {
+    ) -> anyhow::Result<Arc<SeqEntry>> {
         let Some(SeqDeclaration::PropertyAssignment {
             value: animation_filename, ..
         }) = dec_list.remove_found(|d| matches!(d, SeqDeclaration::PropertyAssignment { property, .. } if property.eq_ignore_ascii_case("ANIMOFN"))) else {
@@ -173,7 +227,11 @@ impl SeqBuilder {
             }
         };
         if !dec_list.is_empty() {
-            Err(SeqParserError::LeftoverDeclarations(dec_list).into())
+            Err(SeqParserError::LeftoverDeclarations {
+                name,
+                declarations: DisplayableVec(dec_list),
+            }
+            .into())
         } else {
             Ok(Arc::new(SeqEntry {
                 name,
@@ -192,7 +250,7 @@ impl SeqBuilder {
         name: String,
         mut dec_list: Vec<SeqDeclaration>,
         cache: &mut HashMap<String, Vec<SeqDeclaration>>,
-    ) -> RunnerResult<Arc<SeqEntry>> {
+    ) -> anyhow::Result<Arc<SeqEntry>> {
         let Some(SeqDeclaration::PropertyAssignment {
             value: mode, .. // TODO: check if property key is empty
         }) = dec_list.remove_found(|d| matches!(d, SeqDeclaration::PropertyAssignment { property, .. } if property.eq_ignore_ascii_case("MODE"))) else {
@@ -225,7 +283,11 @@ impl SeqBuilder {
             children.push(Self::build_entry(child.trim().to_uppercase(), cache)?);
         }
         if !dec_list.is_empty() {
-            Err(SeqParserError::LeftoverDeclarations(dec_list).into())
+            Err(SeqParserError::LeftoverDeclarations {
+                name,
+                declarations: DisplayableVec(dec_list),
+            }
+            .into())
         } else {
             Ok(Arc::new(SeqEntry {
                 name,
@@ -258,6 +320,17 @@ pub enum SeqDeclaration {
         parent: String,
         child: String,
     },
+}
+
+impl Display for SeqDeclaration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SeqDeclaration::")?;
+        match self {
+            SeqDeclaration::SequenceInitialization(name) => f.write_fmt(format_args!("SequenceInitialization({name})")),
+            SeqDeclaration::PropertyAssignment { name, property, property_key, value } => f.write_fmt(format_args!("PropertyAssignment {{ name: {name}, property: {property}, property_key: {}, value: {value} }}", property_key.as_ref().map(|v| format!("Some({v})")).unwrap_or("None".to_owned()))),
+            SeqDeclaration::NestingRequest { parent, child } => f.write_fmt(format_args!("NestingRequest {{ parent: {parent}, child: {child} }}")),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

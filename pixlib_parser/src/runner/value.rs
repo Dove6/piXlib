@@ -6,7 +6,7 @@ use std::{
 
 use crate::runner::{content::CnvContent, CnvObject};
 
-use super::{RunnerContext, RunnerResult};
+use super::RunnerContext;
 
 #[derive(Debug, Clone)]
 pub enum CnvValue {
@@ -97,7 +97,7 @@ impl CnvValue {
     }
 }
 
-fn get_reference_value(r: &Arc<CnvObject>) -> RunnerResult<Option<CnvValue>> {
+fn get_reference_value(r: &Arc<CnvObject>) -> anyhow::Result<Option<CnvValue>> {
     let context = RunnerContext::new_minimal(&r.parent.runner, r);
     match &r.content {
         CnvContent::Expression(e) => Some(e.calculate()).transpose(),

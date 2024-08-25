@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Display, sync::Arc};
 
 use pixlib_formats::file_formats::ann::LoopingSettings;
 
@@ -28,6 +28,16 @@ impl<'a> From<&'a CallableIdentifierOwned> for CallableIdentifier<'a> {
         match value {
             CallableIdentifierOwned::Method(m) => CallableIdentifier::Method(m.as_ref()),
             CallableIdentifierOwned::Event(e) => CallableIdentifier::Event(e.as_ref()),
+        }
+    }
+}
+
+impl Display for CallableIdentifierOwned {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("CallableIdentifierOwned::")?;
+        match self {
+            CallableIdentifierOwned::Method(name) => f.write_fmt(format_args!("::Method({name})")),
+            CallableIdentifierOwned::Event(name) => f.write_fmt(format_args!("::Event({name})")),
         }
     }
 }

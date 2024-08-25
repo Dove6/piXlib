@@ -3,14 +3,14 @@ use crate::{
     runner::{CallableIdentifier, RunnerError},
 };
 
-use super::super::{CnvStatement, CnvValue, RunnerContext, RunnerResult};
+use super::super::{CnvStatement, CnvValue, RunnerContext};
 
 pub trait CnvExpression {
-    fn calculate(&self, context: RunnerContext) -> RunnerResult<Option<CnvValue>>;
+    fn calculate(&self, context: RunnerContext) -> anyhow::Result<Option<CnvValue>>;
 }
 
 impl CnvExpression for IgnorableExpression {
-    fn calculate(&self, context: RunnerContext) -> RunnerResult<Option<CnvValue>> {
+    fn calculate(&self, context: RunnerContext) -> anyhow::Result<Option<CnvValue>> {
         // println!("IgnorableExpression::calculate: {:?}", self);
         if self.ignored {
             return Ok(None);
@@ -20,7 +20,7 @@ impl CnvExpression for IgnorableExpression {
 }
 
 impl CnvExpression for Expression {
-    fn calculate(&self, context: RunnerContext) -> RunnerResult<Option<CnvValue>> {
+    fn calculate(&self, context: RunnerContext) -> anyhow::Result<Option<CnvValue>> {
         // println!("Expression::calculate: {:?} with context: {}", self, context);
         let result = match self {
             Expression::LiteralBool(b) => Ok(Some(CnvValue::Bool(*b))),
@@ -72,7 +72,7 @@ impl CnvExpression for Expression {
 }
 
 impl CnvExpression for Invocation {
-    fn calculate(&self, context: RunnerContext) -> RunnerResult<Option<CnvValue>> {
+    fn calculate(&self, context: RunnerContext) -> anyhow::Result<Option<CnvValue>> {
         // println!("Invocation::calculate: {:?} with context {}", self, context);
         if self.parent.is_none() {
             Ok(None) // TODO: match &self.name
@@ -87,7 +87,7 @@ impl CnvExpression for Invocation {
                 .arguments
                 .iter()
                 .map(|e| e.calculate(context.clone()))
-                .collect::<RunnerResult<Vec<_>>>()?;
+                .collect::<anyhow::Result<Vec<_>>>()?;
             let arguments: Vec<_> = arguments.into_iter().map(|e| e.unwrap()).collect();
             // println!("Calling method: {:?} of: {:?}", self.name, self.parent);
             let name = parent.to_str();

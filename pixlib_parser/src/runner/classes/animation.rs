@@ -198,51 +198,51 @@ impl Animation {
         animation
     }
 
-    pub fn is_visible(&self) -> RunnerResult<bool> {
+    pub fn is_visible(&self) -> anyhow::Result<bool> {
         self.state.borrow().is_visible()
     }
 
-    pub fn get_priority(&self) -> RunnerResult<isize> {
+    pub fn get_priority(&self) -> anyhow::Result<isize> {
         self.state.borrow().get_priority()
     }
 
     // custom
 
-    pub fn get_base_position(&self) -> RunnerResult<(isize, isize)> {
+    pub fn get_base_position(&self) -> anyhow::Result<(isize, isize)> {
         self.state.borrow().get_base_position()
     }
 
-    pub fn get_frame_position(&self) -> RunnerResult<(isize, isize)> {
+    pub fn get_frame_position(&self) -> anyhow::Result<(isize, isize)> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow().get_frame_position(context)
     }
 
-    pub fn get_frame_size(&self) -> RunnerResult<(usize, usize)> {
+    pub fn get_frame_size(&self) -> anyhow::Result<(usize, usize)> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow().get_frame_size(context)
     }
 
-    pub fn get_center_frame_position(&self) -> RunnerResult<(isize, isize)> {
+    pub fn get_center_frame_position(&self) -> anyhow::Result<(isize, isize)> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow().get_center_frame_position(context)
     }
 
-    pub fn does_monitor_collision(&self) -> RunnerResult<bool> {
+    pub fn does_monitor_collision(&self) -> anyhow::Result<bool> {
         Ok(self.state.borrow().does_monitor_collision)
     }
 
-    pub fn does_monitor_collision_pixel_perfect(&self) -> RunnerResult<bool> {
+    pub fn does_monitor_collision_pixel_perfect(&self) -> anyhow::Result<bool> {
         Ok(self.state.borrow().does_monitor_collision && self.should_collisions_respect_alpha)
     }
 
-    pub fn step(&self, seconds: f64) -> RunnerResult<()> {
+    pub fn step(&self, seconds: f64) -> anyhow::Result<()> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow_mut().step(context, seconds)
     }
 
     pub fn get_frame_to_show(
         &self,
-    ) -> RunnerResult<Option<(FrameDefinition, SpriteDefinition, SpriteData)>> {
+    ) -> anyhow::Result<Option<(FrameDefinition, SpriteDefinition, SpriteData)>> {
         // eprintln!("[ANIMO: {}] is_visible: {}", self.parent.name, self.is_visible);
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         let state = self.state.borrow();
@@ -264,32 +264,34 @@ impl Animation {
                 object_name: context.current_object.name.clone(),
                 sequence_name: sequence.name.clone(),
                 index: state.current_frame.frame_idx,
-            });
+            }
+            .into());
         };
         let Some(sprite) = loaded_data.sprites.get(frame.sprite_idx) else {
             return Err(RunnerError::SpriteIndexNotFound {
                 object_name: context.current_object.name.clone(),
                 index: frame.sprite_idx,
-            });
+            }
+            .into());
         };
         // eprintln!("[ANIMO: {}] [current frame] position: {:?} + {:?}, hash: {:?}", self.parent.name, sprite.0.offset_px, frame.offset_px, sprite.1.hash);
         Ok(Some((frame.clone(), sprite.0.clone(), sprite.1.clone())))
     }
 
-    pub fn hide(&self) -> RunnerResult<()> {
+    pub fn hide(&self) -> anyhow::Result<()> {
         self.state.borrow_mut().hide()
     }
 
-    pub fn show(&self) -> RunnerResult<()> {
+    pub fn show(&self) -> anyhow::Result<()> {
         self.state.borrow_mut().show()
     }
 
-    pub fn play(&self, sequence_name: &str) -> RunnerResult<()> {
+    pub fn play(&self, sequence_name: &str) -> anyhow::Result<()> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow_mut().play(context, sequence_name)
     }
 
-    pub fn stop(&self, emit_on_finished: bool) -> RunnerResult<()> {
+    pub fn stop(&self, emit_on_finished: bool) -> anyhow::Result<()> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow_mut().stop(context, emit_on_finished)
     }
@@ -313,7 +315,7 @@ impl CnvType for Animation {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("CLEARCLIPPING") => {
@@ -585,13 +587,15 @@ impl CnvType for Animation {
                         return Err(RunnerError::TooFewArguments {
                             expected_min: 1,
                             actual: 0,
-                        })
+                        }
+                        .into())
                     }
                     arg_count => {
                         return Err(RunnerError::TooManyArguments {
                             expected_max: 2,
                             actual: arg_count,
-                        })
+                        }
+                        .into())
                     }
                 };
                 // if frame_no < 0 {
@@ -664,7 +668,8 @@ impl CnvType for Animation {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -861,7 +866,7 @@ impl CnvType for Animation {
 }
 
 impl Initable for Animation {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         let mut state = self.state.borrow_mut();
         if self.should_preload {
             if let AnimationFileData::NotLoaded(ref filename) = *state.file_data {
@@ -950,7 +955,7 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn get_sequence_name(&self, context: RunnerContext) -> RunnerResult<String> {
+    pub fn get_sequence_name(&self, context: RunnerContext) -> anyhow::Result<String> {
         // GETEVENTNAME
         let sequence = self.get_sequence_data(context)?;
         Ok(sequence.name.clone())
@@ -976,7 +981,7 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn get_frame_index(&self) -> RunnerResult<usize> {
+    pub fn get_frame_index(&self) -> anyhow::Result<usize> {
         // GETFRAMENO INTEGER
         Ok(self.current_frame.frame_idx)
     }
@@ -1021,17 +1026,17 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn get_frame_position_x(&self, context: RunnerContext) -> RunnerResult<isize> {
+    pub fn get_frame_position_x(&self, context: RunnerContext) -> anyhow::Result<isize> {
         // GETPOSITIONX
         self.get_frame_position(context).map(|p| p.0)
     }
 
-    pub fn get_frame_position_y(&self, context: RunnerContext) -> RunnerResult<isize> {
+    pub fn get_frame_position_y(&self, context: RunnerContext) -> anyhow::Result<isize> {
         // GETPOSITIONY
         self.get_frame_position(context).map(|p| p.1)
     }
 
-    pub fn get_priority(&self) -> RunnerResult<isize> {
+    pub fn get_priority(&self) -> anyhow::Result<isize> {
         // GETPRIORITY
         Ok(self.priority)
     }
@@ -1041,7 +1046,7 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn hide(&mut self) -> RunnerResult<()> {
+    pub fn hide(&mut self) -> anyhow::Result<()> {
         // HIDE
         self.is_visible = false;
         Ok(())
@@ -1067,14 +1072,14 @@ impl AnimationState {
         context: RunnerContext,
         other: Arc<CnvObject>,
         min_iou_percent: usize,
-    ) -> RunnerResult<bool> {
+    ) -> anyhow::Result<bool> {
         // ISNEAR
         let current_position = self.get_frame_position(context.clone())?;
         let current_size = self.get_frame_size(context.clone())?;
         let (other_position, other_size) = match &other.content {
             CnvContent::Animation(a) => (a.get_frame_position()?, a.get_frame_size()?),
             CnvContent::Image(i) => (i.get_position()?, i.get_size()?),
-            _ => return Err(RunnerError::ExpectedGraphicsObject),
+            _ => return Err(RunnerError::ExpectedGraphicsObject.into()),
         };
         let current_area = current_size.0 * current_size.1;
         let other_area = other_size.0 * other_size.1;
@@ -1119,17 +1124,17 @@ impl AnimationState {
         Ok(intersection_area * 100 / union_area > min_iou_percent)
     }
 
-    pub fn is_playing(&self) -> RunnerResult<bool> {
+    pub fn is_playing(&self) -> anyhow::Result<bool> {
         // ISPLAYING BOOL
         Ok(self.is_playing)
     }
 
-    pub fn is_visible(&self) -> RunnerResult<bool> {
+    pub fn is_visible(&self) -> anyhow::Result<bool> {
         // ISVISIBLE
         Ok(self.is_visible)
     }
 
-    pub fn load(&mut self, context: RunnerContext, filename: &str) -> RunnerResult<()> {
+    pub fn load(&mut self, context: RunnerContext, filename: &str) -> anyhow::Result<()> {
         // LOAD
         let script = context.current_object.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
@@ -1210,7 +1215,7 @@ impl AnimationState {
         self.does_monitor_collision = true;
     }
 
-    pub fn move_by(&mut self, x: isize, y: isize) -> RunnerResult<()> {
+    pub fn move_by(&mut self, x: isize, y: isize) -> anyhow::Result<()> {
         // MOVE
         self.position = (self.position.0 + x, self.position.1 + y);
         Ok(())
@@ -1226,7 +1231,7 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn pause(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn pause(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // PAUSE
         self.is_paused = true;
         let current_sequence_name = match *self.file_data {
@@ -1254,14 +1259,16 @@ impl AnimationState {
         Ok(())
     }
 
-    pub fn play(&mut self, context: RunnerContext, sequence_name: &str) -> RunnerResult<()> {
+    pub fn play(&mut self, context: RunnerContext, sequence_name: &str) -> anyhow::Result<()> {
         // PLAY (STRING)
         if let AnimationFileData::NotLoaded(ref filename) = *self.file_data {
             let filename = filename.clone();
             self.load(context.clone(), &filename)?;
         };
         let AnimationFileData::Loaded(ref loaded_data) = *self.file_data.clone() else {
-            return Err(RunnerError::NoDataLoaded);
+            return Err(
+                RunnerError::NoAnimationDataLoaded(context.current_object.name.clone()).into(),
+            );
         };
         let (sequence_idx, sequence) = loaded_data
             .sequences
@@ -1331,7 +1338,7 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn resume(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn resume(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // RESUME
         self.is_paused = false;
         let current_sequence_name = match *self.file_data {
@@ -1389,7 +1396,11 @@ impl AnimationState {
         self.fps = fps;
     }
 
-    pub fn set_frame(&mut self, sequence_name: Option<&str>, frame_no: usize) -> RunnerResult<()> {
+    pub fn set_frame(
+        &mut self,
+        sequence_name: Option<&str>,
+        frame_no: usize,
+    ) -> anyhow::Result<()> {
         // SETFRAME ([STRING], INTEGER)
         if let Some(_sequence_name) = sequence_name {
             todo!()
@@ -1419,13 +1430,13 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn set_position(&mut self, x: isize, y: isize) -> RunnerResult<()> {
+    pub fn set_position(&mut self, x: isize, y: isize) -> anyhow::Result<()> {
         // SETPOSITION
         self.position = (x, y);
         Ok(())
     }
 
-    pub fn set_priority(&mut self, priority: isize) -> RunnerResult<()> {
+    pub fn set_priority(&mut self, priority: isize) -> anyhow::Result<()> {
         // SETPRIORITY
         self.priority = priority;
         Ok(())
@@ -1441,20 +1452,22 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn show(&mut self) -> RunnerResult<()> {
+    pub fn show(&mut self) -> anyhow::Result<()> {
         // SHOW
         self.is_visible = true;
         Ok(())
     }
 
-    pub fn stop(&mut self, context: RunnerContext, emit_on_finished: bool) -> RunnerResult<()> {
+    pub fn stop(&mut self, context: RunnerContext, emit_on_finished: bool) -> anyhow::Result<()> {
         // STOP ([BOOL])
         if let AnimationFileData::NotLoaded(ref filename) = *self.file_data {
             let filename = filename.clone();
             self.load(context.clone(), &filename)?;
         };
         let AnimationFileData::Loaded(ref loaded_data) = *self.file_data.clone() else {
-            return Err(RunnerError::NoDataLoaded);
+            return Err(
+                RunnerError::NoAnimationDataLoaded(context.current_object.name.clone()).into(),
+            );
         };
         if !self.is_playing {
             return Ok(());
@@ -1497,11 +1510,11 @@ impl AnimationState {
         1f64 / (self.fps as f64)
     }
 
-    pub fn get_base_position(&self) -> RunnerResult<(isize, isize)> {
+    pub fn get_base_position(&self) -> anyhow::Result<(isize, isize)> {
         Ok(self.position)
     }
 
-    pub fn get_frame_position(&self, context: RunnerContext) -> RunnerResult<(isize, isize)> {
+    pub fn get_frame_position(&self, context: RunnerContext) -> anyhow::Result<(isize, isize)> {
         let (_, frame, sprite) = self.get_sprite_data(context)?;
         Ok((
             self.position.0 + frame.offset_px.0 as isize + sprite.0.offset_px.0 as isize,
@@ -1509,7 +1522,7 @@ impl AnimationState {
         ))
     }
 
-    pub fn get_frame_size(&self, context: RunnerContext) -> RunnerResult<(usize, usize)> {
+    pub fn get_frame_size(&self, context: RunnerContext) -> anyhow::Result<(usize, usize)> {
         let (_, _, sprite) = self.get_sprite_data(context)?;
         Ok((sprite.0.size_px.0 as usize, sprite.0.size_px.1 as usize))
     }
@@ -1517,7 +1530,7 @@ impl AnimationState {
     pub fn get_center_frame_position(
         &self,
         context: RunnerContext,
-    ) -> RunnerResult<(isize, isize)> {
+    ) -> anyhow::Result<(isize, isize)> {
         let (_, frame, sprite) = self.get_sprite_data(context)?;
         Ok((
             self.position.0
@@ -1531,15 +1544,18 @@ impl AnimationState {
         ))
     }
 
-    fn get_sequence_data(&self, context: RunnerContext) -> RunnerResult<&SequenceDefinition> {
+    fn get_sequence_data(&self, context: RunnerContext) -> anyhow::Result<&SequenceDefinition> {
         let AnimationFileData::Loaded(ref loaded_file) = *self.file_data else {
-            return Err(RunnerError::NoDataLoaded);
+            return Err(
+                RunnerError::NoAnimationDataLoaded(context.current_object.name.clone()).into(),
+            );
         };
         let Some(sequence) = loaded_file.sequences.get(self.current_frame.sequence_idx) else {
             return Err(RunnerError::SequenceIndexNotFound {
                 object_name: context.current_object.name.clone(),
                 index: self.current_frame.sequence_idx,
-            });
+            }
+            .into());
         };
         Ok(sequence)
     }
@@ -1547,14 +1563,15 @@ impl AnimationState {
     fn get_frame_data(
         &self,
         context: RunnerContext,
-    ) -> RunnerResult<(&SequenceDefinition, &FrameDefinition)> {
+    ) -> anyhow::Result<(&SequenceDefinition, &FrameDefinition)> {
         let sequence = self.get_sequence_data(context.clone())?;
         let Some(frame) = sequence.frames.get(self.current_frame.frame_idx) else {
             return Err(RunnerError::FrameIndexNotFound {
                 object_name: context.current_object.name.clone(),
                 sequence_name: sequence.name.clone(),
                 index: self.current_frame.frame_idx,
-            });
+            }
+            .into());
         };
         Ok((sequence, frame))
     }
@@ -1562,25 +1579,28 @@ impl AnimationState {
     fn get_sprite_data(
         &self,
         context: RunnerContext,
-    ) -> RunnerResult<(
+    ) -> anyhow::Result<(
         &SequenceDefinition,
         &FrameDefinition,
         &(SpriteDefinition, SpriteData),
     )> {
         let AnimationFileData::Loaded(ref loaded_file) = *self.file_data else {
-            return Err(RunnerError::NoDataLoaded);
+            return Err(
+                RunnerError::NoAnimationDataLoaded(context.current_object.name.clone()).into(),
+            );
         };
         let (sequence, frame) = self.get_frame_data(context.clone())?;
         let Some(sprite) = loaded_file.sprites.get(frame.sprite_idx) else {
             return Err(RunnerError::SpriteIndexNotFound {
                 object_name: context.current_object.name.clone(),
                 index: frame.sprite_idx,
-            });
+            }
+            .into());
         };
         Ok((sequence, frame, sprite))
     }
 
-    pub fn step(&mut self, context: RunnerContext, seconds: f64) -> RunnerResult<()> {
+    pub fn step(&mut self, context: RunnerContext, seconds: f64) -> anyhow::Result<()> {
         let file_data = self.file_data.clone();
         let AnimationFileData::Loaded(ref loaded_data) = *file_data else {
             return Ok(());
@@ -1670,7 +1690,7 @@ impl AnimationState {
         Ok(())
     }
 
-    fn load_sfx(&mut self, context: RunnerContext, path: &ScenePath) -> RunnerResult<()> {
+    fn load_sfx(&mut self, context: RunnerContext, path: &ScenePath) -> anyhow::Result<()> {
         let script = context.current_object.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
@@ -1705,7 +1725,7 @@ impl AnimationState {
         Ok(())
     }
 
-    fn play_sfx(&mut self, context: RunnerContext, path: &str) -> RunnerResult<()> {
+    fn play_sfx(&mut self, context: RunnerContext, path: &str) -> anyhow::Result<()> {
         if !matches!(self.current_sfx, SoundFileData::Loaded(ref loaded) if loaded.filename.as_deref() == Some(path))
         {
             self.load_sfx(

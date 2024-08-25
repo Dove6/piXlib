@@ -66,7 +66,7 @@ impl CnvType for CnvLoader {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("LOAD") => self.state.borrow_mut().load().map(|_| None),
             CallableIdentifier::Method("RELEASE") => {
@@ -84,7 +84,8 @@ impl CnvType for CnvLoader {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -101,12 +102,12 @@ impl CnvType for CnvLoader {
 }
 
 impl CnvLoaderState {
-    pub fn load(&mut self) -> RunnerResult<()> {
+    pub fn load(&mut self) -> anyhow::Result<()> {
         // LOAD
         todo!()
     }
 
-    pub fn release(&mut self) -> RunnerResult<()> {
+    pub fn release(&mut self) -> anyhow::Result<()> {
         // RELEASE
         todo!()
     }

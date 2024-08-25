@@ -69,7 +69,7 @@ impl ComplexCondition {
         }
     }
 
-    pub fn check(&self) -> RunnerResult<bool> {
+    pub fn check(&self) -> anyhow::Result<bool> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow().check(context)
     }
@@ -93,7 +93,7 @@ impl CnvType for ComplexCondition {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("BREAK") => self.state.borrow().break_run().map(|_| None),
             CallableIdentifier::Method("CHECK") => self
@@ -116,7 +116,8 @@ impl CnvType for ComplexCondition {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -163,12 +164,12 @@ impl CnvType for ComplexCondition {
 }
 
 impl ComplexConditionState {
-    pub fn break_run(&self) -> RunnerResult<()> {
+    pub fn break_run(&self) -> anyhow::Result<()> {
         // BREAK
         todo!()
     }
 
-    pub fn check(&self, context: RunnerContext) -> RunnerResult<bool> {
+    pub fn check(&self, context: RunnerContext) -> anyhow::Result<bool> {
         // TODO: allow for complexconditions built on other complexconditions
         let CnvContent::ComplexCondition(ref complex_condition) = &context.current_object.content
         else {
@@ -230,7 +231,7 @@ impl ComplexConditionState {
         result
     }
 
-    pub fn one_break(&self) -> RunnerResult<()> {
+    pub fn one_break(&self) -> anyhow::Result<()> {
         // ONE_BREAK
         todo!()
     }

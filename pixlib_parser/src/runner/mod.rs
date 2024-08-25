@@ -73,76 +73,78 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum RunnerError {
-    TooManyArguments {
-        expected_max: usize,
-        actual: usize,
-    },
-    TooFewArguments {
-        expected_min: usize,
-        actual: usize,
-    },
-    ExpectedUnsignedInteger {
-        actual: i32,
-    },
-    MissingLeftOperand {
-        object_name: String,
-    },
-    MissingRightOperand {
-        object_name: String,
-    },
-    MissingOperator {
-        object_name: String,
-    },
-    ObjectNotFound {
-        name: String,
-    },
+    #[error("Too many arguments (expected at most {expected_max}, got {actual})")]
+    TooManyArguments { expected_max: usize, actual: usize },
+    #[error("Too few arguments (expected at least {expected_min}, got {actual})")]
+    TooFewArguments { expected_min: usize, actual: usize },
+    #[error("Integer {actual} cannot be cast to unsigned")]
+    ExpectedUnsignedInteger { actual: i32 },
+    #[error("Left operand missing for object {object_name}")]
+    MissingLeftOperand { object_name: String },
+    #[error("Right operand missing for object {object_name}")]
+    MissingRightOperand { object_name: String },
+    #[error("Operator missing for object {object_name}")]
+    MissingOperator { object_name: String },
+    #[error("Object {name} not found")]
+    ObjectNotFound { name: String },
+    #[error("Expected graphics object")]
     ExpectedGraphicsObject,
+    #[error("Expected sound object")]
     ExpectedSoundObject,
+    #[error("Expected condition object")]
     ExpectedConditionObject,
-    NoDataLoaded,
+    #[error("No animation data loaded for object {0}")]
+    NoAnimationDataLoaded(String),
+    #[error("No sound data loaded for object {0}")]
+    NoSoundDataLoaded(String),
+    #[error("No image data loaded for object {0}")]
+    NoImageDataLoaded(String),
+    #[error("Sequence {sequence_name} not found in object {object_name}")]
     SequenceNameNotFound {
         object_name: String,
         sequence_name: String,
     },
-    SequenceIndexNotFound {
-        object_name: String,
-        index: usize,
-    },
+    #[error("Sequence #{index} not found in object {object_name}")]
+    SequenceIndexNotFound { object_name: String, index: usize },
+    #[error("Frame #{index} not found in sequence {sequence_name} of object {object_name}")]
     FrameIndexNotFound {
         object_name: String,
         sequence_name: String,
         index: usize,
     },
-    SpriteIndexNotFound {
-        object_name: String,
-        index: usize,
-    },
+    #[error("Sprite #{index} not found in object {object_name}")]
+    SpriteIndexNotFound { object_name: String, index: usize },
+    #[error("Method or event handler missing on object {object_name} for callable {callable}")]
     InvalidCallable {
         object_name: String,
         callable: CallableIdentifierOwned,
     },
+    #[error("Missing filename to load")]
     MissingFilenameToLoad,
 
-    ScriptNotFound {
-        path: String,
-    },
+    #[error("Script {path} not found")]
+    ScriptNotFound { path: String },
+    #[error("Root script is loaded already")]
     RootScriptAlreadyLoaded,
+    #[error("Application script is loaded already")]
     ApplicationScriptAlreadyLoaded,
+    #[error("Episode script is loaded already")]
     EpisodeScriptAlreadyLoaded,
+    #[error("Scene script is loaded already")]
     SceneScriptAlreadyLoaded,
-    OrphanedContent,
 
+    #[error("Parser error: {0}")]
     ParserError(ParserFatal),
+    #[error("SEQ parser error: {0}")]
     SeqParserError(SeqParserError),
 
-    IoError {
-        source: std::io::Error,
-    },
-    ObjectBuilderError {
-        source: ObjectBuilderError,
-    },
+    #[error("IO error: {source}")]
+    IoError { source: std::io::Error },
+    #[error("Object builder error: {source}")]
+    ObjectBuilderError { source: ObjectBuilderError },
+    #[error("Other error")]
     Other,
 }
 
@@ -351,7 +353,7 @@ impl CnvRunner {
         game_paths: Arc<GamePaths>,
         window_resolution: (usize, usize),
         issue_manager: IssueManager<RunnerIssue>,
-    ) -> RunnerResult<Arc<Self>> {
+    ) -> anyhow::Result<Arc<Self>> {
         let runner = Arc::new(Self {
             scripts: RefCell::new(ScriptContainer::default()),
             filesystem,
@@ -381,7 +383,7 @@ impl CnvRunner {
         runner
             .global_objects
             .borrow_mut()
-            .use_and_drop_mut::<RunnerResult<()>>(|objects| {
+            .use_and_drop_mut::<anyhow::Result<()>>(|objects| {
                 let mut range = 0usize..;
                 objects
                     .push_object({
@@ -432,7 +434,7 @@ impl CnvRunner {
         Ok(runner)
     }
 
-    pub fn step(self: &Arc<CnvRunner>) -> RunnerResult<()> {
+    pub fn step(self: &Arc<CnvRunner>) -> anyhow::Result<()> {
         let mut to_init = Vec::new();
         self.find_objects(|o| !*o.initialized.borrow(), &mut to_init);
         for object in to_init {
@@ -441,7 +443,7 @@ impl CnvRunner {
         self.events_in
             .timer
             .borrow_mut()
-            .use_and_drop_mut::<RunnerResult<()>>(|events| {
+            .use_and_drop_mut::<anyhow::Result<()>>(|events| {
                 while let Some(evt) = events.pop_front() {
                     match evt {
                         TimerEvent::Elapsed { seconds } => {
@@ -475,7 +477,7 @@ impl CnvRunner {
         self.events_in
             .mouse
             .borrow_mut()
-            .use_and_drop_mut::<RunnerResult<()>>(|events| {
+            .use_and_drop_mut::<anyhow::Result<()>>(|events| {
                 while let Some(evt) = events.pop_front() {
                     // eprintln!("Handling incoming mouse event: {:?}", evt);
                     Mouse::handle_incoming_event(evt)?;
@@ -485,7 +487,7 @@ impl CnvRunner {
         self.events_in
             .multimedia
             .borrow_mut()
-            .use_and_drop_mut::<RunnerResult<()>>(|events| {
+            .use_and_drop_mut::<anyhow::Result<()>>(|events| {
                 while let Some(evt) = events.pop_front() {
                     match &evt {
                         MultimediaEvents::SoundFinishedPlaying(source) => {
@@ -755,7 +757,7 @@ impl CnvRunner {
         &self,
         buttons: &[Arc<CnvObject>],
         mouse_position: (isize, isize),
-    ) -> RunnerResult<Option<usize>> {
+    ) -> anyhow::Result<Option<usize>> {
         let mut result_index = None;
         for graphics in self.visible_graphics.borrow().iter() {
             if result_index.is_some() {
@@ -784,7 +786,7 @@ impl CnvRunner {
         contents: impl Iterator<Item = declarative_parser::ParserInput>,
         parent_object: Option<Arc<CnvObject>>,
         source_kind: ScriptSource,
-    ) -> RunnerResult<()> {
+    ) -> anyhow::Result<()> {
         let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
         parser_issue_manager.set_handler(Box::new(IssuePrinter));
         let mut issue_manager: IssueManager<ObjectBuilderError> = Default::default();
@@ -836,7 +838,7 @@ impl CnvRunner {
             }
         }
         if let Some(Err(err)) = dec_parser.next_if(|result| result.is_err()) {
-            return Err(RunnerError::ParserError(err));
+            return Err(RunnerError::ParserError(err).into());
         }
         script
             .objects
@@ -883,7 +885,7 @@ impl CnvRunner {
         self.scripts.borrow_mut().remove_all_scripts();
     }
 
-    pub fn unload_script(&self, path: &ScenePath) -> RunnerResult<()> {
+    pub fn unload_script(&self, path: &ScenePath) -> anyhow::Result<()> {
         self.scripts.borrow_mut().remove_script(path)
     }
 
@@ -932,9 +934,9 @@ impl CnvRunner {
 
     pub fn filter_map_objects<T>(
         &self,
-        f: impl Fn(ObjectIndex, &Arc<CnvObject>) -> RunnerResult<Option<T>>,
+        f: impl Fn(ObjectIndex, &Arc<CnvObject>) -> anyhow::Result<Option<T>>,
         buffer: &mut Vec<T>,
-    ) -> RunnerResult<()> {
+    ) -> anyhow::Result<()> {
         buffer.clear();
         for object in self.global_objects.borrow().iter() {
             if let Some(result) = f(ObjectIndex::default(), object)? {
@@ -957,7 +959,7 @@ impl CnvRunner {
         Ok(())
     }
 
-    pub fn change_scene(self: &Arc<Self>, scene_name: &str) -> RunnerResult<()> {
+    pub fn change_scene(self: &Arc<Self>, scene_name: &str) -> anyhow::Result<()> {
         self.internal_events
             .borrow_mut()
             .use_and_drop_mut(|events| events.clear());
@@ -965,7 +967,8 @@ impl CnvRunner {
         let Some(scene_object) = self.get_object(scene_name) else {
             return Err(RunnerError::ObjectNotFound {
                 name: scene_name.to_owned(),
-            });
+            }
+            .into());
         };
         let CnvContent::Scene(ref scene) = &scene_object.content else {
             panic!();

@@ -1,13 +1,13 @@
 use crate::parser::ast::{ParsedScript, Statement};
 
-use super::super::{CnvExpression, RunnerContext, RunnerResult};
+use super::super::{CnvExpression, RunnerContext};
 
 pub trait CnvStatement {
-    fn run(&self, context: RunnerContext) -> RunnerResult<()>;
+    fn run(&self, context: RunnerContext) -> anyhow::Result<()>;
 }
 
 impl CnvStatement for Statement {
-    fn run(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn run(&self, context: RunnerContext) -> anyhow::Result<()> {
         // println!("Statement::run: {:?}", self);
         match self {
             Statement::ExpressionStatement(expression) => {
@@ -19,7 +19,7 @@ impl CnvStatement for Statement {
 }
 
 impl CnvStatement for ParsedScript {
-    fn run(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn run(&self, context: RunnerContext) -> anyhow::Result<()> {
         // println!("ParsedScript::run: {:?}", self);
         self.calculate(context)?;
         Ok(())

@@ -101,7 +101,7 @@ impl CnvType for Episode {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("BACK") => self.state.borrow_mut().back().map(|_| None),
@@ -133,7 +133,8 @@ impl CnvType for Episode {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -178,37 +179,37 @@ impl CnvType for Episode {
 }
 
 impl EpisodeState {
-    pub fn back(&mut self) -> RunnerResult<()> {
+    pub fn back(&mut self) -> anyhow::Result<()> {
         // BACK
         todo!()
     }
 
-    pub fn get_current_scene(&self) -> RunnerResult<()> {
+    pub fn get_current_scene(&self) -> anyhow::Result<()> {
         // GETCURRENTSCENE
         todo!()
     }
 
-    pub fn get_latest_scene(&self) -> RunnerResult<()> {
+    pub fn get_latest_scene(&self) -> anyhow::Result<()> {
         // GETLATESTSCENE
         todo!()
     }
 
-    pub fn go_to(&mut self, context: RunnerContext, scene_name: &str) -> RunnerResult<()> {
+    pub fn go_to(&mut self, context: RunnerContext, scene_name: &str) -> anyhow::Result<()> {
         // GOTO
         context.runner.change_scene(scene_name)
     }
 
-    pub fn next(&mut self) -> RunnerResult<()> {
+    pub fn next(&mut self) -> anyhow::Result<()> {
         // NEXT
         todo!()
     }
 
-    pub fn prev(&mut self) -> RunnerResult<()> {
+    pub fn prev(&mut self) -> anyhow::Result<()> {
         // PREV
         todo!()
     }
 
-    pub fn restart(&mut self) -> RunnerResult<()> {
+    pub fn restart(&mut self) -> anyhow::Result<()> {
         // RESTART
         todo!()
     }

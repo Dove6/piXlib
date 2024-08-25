@@ -113,7 +113,7 @@ impl CnvType for CanvasObserver {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("ADD") => self.state.borrow_mut().add().map(|_| None),
@@ -163,7 +163,8 @@ impl CnvType for CanvasObserver {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -234,7 +235,7 @@ impl CnvType for CanvasObserver {
 }
 
 impl Initable for CanvasObserver {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         context
             .runner
             .internal_events
@@ -251,67 +252,67 @@ impl Initable for CanvasObserver {
 }
 
 impl CanvasObserverState {
-    pub fn add(&mut self) -> RunnerResult<()> {
+    pub fn add(&mut self) -> anyhow::Result<()> {
         // ADD
         todo!()
     }
 
-    pub fn enable_notify(&mut self) -> RunnerResult<()> {
+    pub fn enable_notify(&mut self) -> anyhow::Result<()> {
         // ENABLENOTIFY
         todo!()
     }
 
-    pub fn get_bpp(&self) -> RunnerResult<usize> {
+    pub fn get_bpp(&self) -> anyhow::Result<usize> {
         // GETBPP
         Ok(32)
     }
 
-    pub fn get_graphics_at(&self) -> RunnerResult<Option<String>> {
+    pub fn get_graphics_at(&self) -> anyhow::Result<Option<String>> {
         // GETGRAPHICSAT
         todo!()
     }
 
-    pub fn get_graphics_at2(&self) -> RunnerResult<Option<String>> {
+    pub fn get_graphics_at2(&self) -> anyhow::Result<Option<String>> {
         // GETGRAPHICSAT2
         todo!()
     }
 
-    pub fn move_bkg(&mut self) -> RunnerResult<()> {
+    pub fn move_bkg(&mut self) -> anyhow::Result<()> {
         // MOVEBKG
         todo!()
     }
 
-    pub fn paste(&mut self) -> RunnerResult<()> {
+    pub fn paste(&mut self) -> anyhow::Result<()> {
         // PASTE
         todo!()
     }
 
-    pub fn redraw(&mut self) -> RunnerResult<()> {
+    pub fn redraw(&mut self) -> anyhow::Result<()> {
         // REDRAW
         todo!()
     }
 
-    pub fn refresh(&mut self) -> RunnerResult<()> {
+    pub fn refresh(&mut self) -> anyhow::Result<()> {
         // REFRESH
         todo!()
     }
 
-    pub fn remove(&mut self) -> RunnerResult<()> {
+    pub fn remove(&mut self) -> anyhow::Result<()> {
         // REMOVE
         todo!()
     }
 
-    pub fn save(&mut self) -> RunnerResult<()> {
+    pub fn save(&mut self) -> anyhow::Result<()> {
         // SAVE
         todo!()
     }
 
-    pub fn set_background(&mut self) -> RunnerResult<()> {
+    pub fn set_background(&mut self) -> anyhow::Result<()> {
         // SETBACKGROUND
         todo!()
     }
 
-    pub fn set_bkg_pos(&mut self) -> RunnerResult<()> {
+    pub fn set_bkg_pos(&mut self) -> anyhow::Result<()> {
         // SETBKGPOS
         todo!()
     }

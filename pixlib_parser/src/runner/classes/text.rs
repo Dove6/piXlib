@@ -131,7 +131,7 @@ impl CnvType for Text {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("CLEARCLIPPING") => {
                 self.state.borrow_mut().clear_clipping().map(|_| None)
@@ -247,7 +247,8 @@ impl CnvType for Text {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -352,7 +353,7 @@ impl CnvType for Text {
 }
 
 impl Initable for Text {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         context
             .runner
             .internal_events
@@ -369,152 +370,152 @@ impl Initable for Text {
 }
 
 impl TextState {
-    pub fn clear_clipping(&mut self) -> RunnerResult<()> {
+    pub fn clear_clipping(&mut self) -> anyhow::Result<()> {
         // CLEARCLIPPING
         todo!()
     }
 
-    pub fn draw_onto(&mut self) -> RunnerResult<()> {
+    pub fn draw_onto(&mut self) -> anyhow::Result<()> {
         // DRAWONTO
         todo!()
     }
 
-    pub fn get_height(&self) -> RunnerResult<usize> {
+    pub fn get_height(&self) -> anyhow::Result<usize> {
         // GETHEIGHT
         todo!()
     }
 
-    pub fn get_num_words(&self) -> RunnerResult<usize> {
+    pub fn get_num_words(&self) -> anyhow::Result<usize> {
         // GETNUMWORDS
         todo!()
     }
 
-    pub fn get_position_x(&self) -> RunnerResult<isize> {
+    pub fn get_position_x(&self) -> anyhow::Result<isize> {
         // GETPOSITIONX
         todo!()
     }
 
-    pub fn get_position_y(&self) -> RunnerResult<isize> {
+    pub fn get_position_y(&self) -> anyhow::Result<isize> {
         // GETPOSITIONY
         todo!()
     }
 
-    pub fn get_width(&self) -> RunnerResult<usize> {
+    pub fn get_width(&self) -> anyhow::Result<usize> {
         // GETWIDTH
         todo!()
     }
 
-    pub fn get_word_at(&self) -> RunnerResult<String> {
+    pub fn get_word_at(&self) -> anyhow::Result<String> {
         // GETWORDAT
         todo!()
     }
 
-    pub fn get_word_at_xy(&self) -> RunnerResult<String> {
+    pub fn get_word_at_xy(&self) -> anyhow::Result<String> {
         // GETWORDATXY
         todo!()
     }
 
-    pub fn get_word_pos_x(&self) -> RunnerResult<isize> {
+    pub fn get_word_pos_x(&self) -> anyhow::Result<isize> {
         // GETWORDPOSX
         todo!()
     }
 
-    pub fn get_word_pos_y(&self) -> RunnerResult<isize> {
+    pub fn get_word_pos_y(&self) -> anyhow::Result<isize> {
         // GETWORDPOSY
         todo!()
     }
 
-    pub fn get_word_width(&self) -> RunnerResult<usize> {
+    pub fn get_word_width(&self) -> anyhow::Result<usize> {
         // GETWORDWIDTH
         todo!()
     }
 
-    pub fn hide(&mut self) -> RunnerResult<()> {
+    pub fn hide(&mut self) -> anyhow::Result<()> {
         // HIDE
         todo!()
     }
 
-    pub fn invalidate(&mut self) -> RunnerResult<()> {
+    pub fn invalidate(&mut self) -> anyhow::Result<()> {
         // INVALIDATE
         todo!()
     }
 
-    pub fn is_near(&self) -> RunnerResult<bool> {
+    pub fn is_near(&self) -> anyhow::Result<bool> {
         // ISNEAR
         todo!()
     }
 
-    pub fn load(&mut self) -> RunnerResult<()> {
+    pub fn load(&mut self) -> anyhow::Result<()> {
         // LOAD
         todo!()
     }
 
-    pub fn move_by(&mut self) -> RunnerResult<()> {
+    pub fn move_by(&mut self) -> anyhow::Result<()> {
         // MOVE
         todo!()
     }
 
-    pub fn search(&mut self) -> RunnerResult<()> {
+    pub fn search(&mut self) -> anyhow::Result<()> {
         // SEARCH
         todo!()
     }
 
-    pub fn set_clipping(&mut self) -> RunnerResult<()> {
+    pub fn set_clipping(&mut self) -> anyhow::Result<()> {
         // SETCLIPPING
         todo!()
     }
 
-    pub fn set_color(&mut self) -> RunnerResult<()> {
+    pub fn set_color(&mut self) -> anyhow::Result<()> {
         // SETCOLOR
         todo!()
     }
 
-    pub fn set_font(&mut self) -> RunnerResult<()> {
+    pub fn set_font(&mut self) -> anyhow::Result<()> {
         // SETFONT
         todo!()
     }
 
-    pub fn set_justify(&mut self) -> RunnerResult<()> {
+    pub fn set_justify(&mut self) -> anyhow::Result<()> {
         // SETJUSTIFY
         todo!()
     }
 
-    pub fn set_opacity(&mut self) -> RunnerResult<()> {
+    pub fn set_opacity(&mut self) -> anyhow::Result<()> {
         // SETOPACITY
         todo!()
     }
 
-    pub fn set_position(&mut self) -> RunnerResult<()> {
+    pub fn set_position(&mut self) -> anyhow::Result<()> {
         // SETPOSITION
         todo!()
     }
 
-    pub fn set_priority(&mut self) -> RunnerResult<()> {
+    pub fn set_priority(&mut self) -> anyhow::Result<()> {
         // SETPRIORITY
         todo!()
     }
 
-    pub fn set_rect(&mut self) -> RunnerResult<()> {
+    pub fn set_rect(&mut self) -> anyhow::Result<()> {
         // SETRECT
         todo!()
     }
 
-    pub fn set_text(&mut self) -> RunnerResult<()> {
+    pub fn set_text(&mut self) -> anyhow::Result<()> {
         // SETTEXT
         todo!()
     }
 
-    pub fn set_text_double(&mut self) -> RunnerResult<()> {
+    pub fn set_text_double(&mut self) -> anyhow::Result<()> {
         // SETTEXTDOUBLE
         todo!()
     }
 
-    pub fn set_word_color(&mut self) -> RunnerResult<()> {
+    pub fn set_word_color(&mut self) -> anyhow::Result<()> {
         // SETWORDCOLOR
         todo!()
     }
 
-    pub fn show(&mut self) -> RunnerResult<()> {
+    pub fn show(&mut self) -> anyhow::Result<()> {
         // SHOW
         todo!()
     }

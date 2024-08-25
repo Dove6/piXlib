@@ -82,7 +82,7 @@ impl Behavior {
         &self,
         context: RunnerContext,
         arguments: Vec<CnvValue>,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         if let Some(code) = self.code.as_ref() {
             self.state.borrow().run(context, code.clone(), arguments)
         } else {
@@ -94,7 +94,7 @@ impl Behavior {
         &self,
         context: RunnerContext,
         arguments: Vec<CnvValue>,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         if let Some(code) = self.code.as_ref() {
             self.state
                 .borrow()
@@ -123,7 +123,7 @@ impl CnvType for Behavior {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         let context = context.with_current_object(self.parent.clone());
         match name {
@@ -171,7 +171,8 @@ impl CnvType for Behavior {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -218,7 +219,7 @@ impl CnvType for Behavior {
 }
 
 impl Initable for Behavior {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         context
             .runner
             .internal_events
@@ -242,7 +243,7 @@ impl Initable for Behavior {
 }
 
 impl BehaviorState {
-    pub fn break_run(&self) -> RunnerResult<()> {
+    pub fn break_run(&self) -> anyhow::Result<()> {
         // BREAK
         todo!()
     }
@@ -252,7 +253,7 @@ impl BehaviorState {
         context: RunnerContext,
         code: Arc<ParsedScript>,
         arguments: Vec<CnvValue>,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         // RUN
         // eprintln!(
         //     "Running behavior {} with arguments [{}]",
@@ -263,7 +264,7 @@ impl BehaviorState {
         code.calculate(context)
     }
 
-    pub fn disable(&mut self) -> RunnerResult<()> {
+    pub fn disable(&mut self) -> anyhow::Result<()> {
         // DISABLE
         self.is_enabled = false;
         Ok(())
@@ -275,7 +276,7 @@ impl BehaviorState {
         code: Arc<ParsedScript>,
         condition_name: Option<&str>,
         arguments: Vec<CnvValue>,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         // RUNC
         if let Some(condition) = condition_name {
             let condition_object = context.runner.get_object(condition).unwrap();
@@ -288,13 +289,13 @@ impl BehaviorState {
                     return Ok(None);
                 }
             } else {
-                return Err(RunnerError::ExpectedConditionObject);
+                return Err(RunnerError::ExpectedConditionObject.into());
             }
         }
         self.run(context, code, arguments)
     }
 
-    pub fn run_looped(&self) -> RunnerResult<()> {
+    pub fn run_looped(&self) -> anyhow::Result<()> {
         // RUNLOOPED
         todo!()
     }

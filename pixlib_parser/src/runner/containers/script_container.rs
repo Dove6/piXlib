@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use super::super::{path::ScenePath, CnvScript, RunnerError, RunnerResult, ScriptSource};
+use super::super::{path::ScenePath, CnvScript, RunnerError, ScriptSource};
 
 #[derive(Debug, Clone, Default)]
 pub struct ScriptContainer {
@@ -47,16 +47,17 @@ impl ScriptContainer {
         self.vec.len()
     }
 
-    pub fn remove_script(&mut self, path: &ScenePath) -> RunnerResult<()> {
+    pub fn remove_script(&mut self, path: &ScenePath) -> anyhow::Result<()> {
         let Some(index) = self.vec.iter().position(|s| s.path == *path) else {
             return Err(RunnerError::ScriptNotFound {
                 path: path.to_str(),
-            });
+            }
+            .into());
         };
         self.remove_script_at(index)
     }
 
-    pub fn remove_script_at(&mut self, index: usize) -> RunnerResult<()> {
+    pub fn remove_script_at(&mut self, index: usize) -> anyhow::Result<()> {
         let mut to_remove = VecDeque::new();
         to_remove.push_back(self.vec.remove(index));
         while let Some(script) = to_remove.pop_front() {
@@ -93,7 +94,7 @@ impl ScriptContainer {
         Ok(())
     }
 
-    pub fn remove_scene_script(&mut self) -> RunnerResult<Option<()>> {
+    pub fn remove_scene_script(&mut self) -> anyhow::Result<Option<()>> {
         let Some(ref current_scene) = self.scene_script else {
             return Ok(None);
         };
@@ -103,7 +104,7 @@ impl ScriptContainer {
         self.remove_script_at(index).map(|_| Some(()))
     }
 
-    pub fn remove_episode_script(&mut self) -> RunnerResult<Option<()>> {
+    pub fn remove_episode_script(&mut self) -> anyhow::Result<Option<()>> {
         let Some(ref current_episode) = self.episode_script else {
             return Ok(None);
         };
@@ -113,7 +114,7 @@ impl ScriptContainer {
         self.remove_script_at(index).map(|_| Some(()))
     }
 
-    pub fn remove_application_script(&mut self) -> RunnerResult<Option<()>> {
+    pub fn remove_application_script(&mut self) -> anyhow::Result<Option<()>> {
         let Some(ref current_application) = self.application_script else {
             return Ok(None);
         };
@@ -135,21 +136,21 @@ impl ScriptContainer {
         self.application_script = None;
     }
 
-    pub fn push_script(&mut self, script: Arc<CnvScript>) -> RunnerResult<()> {
+    pub fn push_script(&mut self, script: Arc<CnvScript>) -> anyhow::Result<()> {
         match script.source_kind {
             ScriptSource::Root if !self.vec.is_empty() => {
-                return Err(RunnerError::RootScriptAlreadyLoaded)
+                return Err(RunnerError::RootScriptAlreadyLoaded.into())
             }
             ScriptSource::Application if self.application_script.is_some() => {
-                return Err(RunnerError::ApplicationScriptAlreadyLoaded)
+                return Err(RunnerError::ApplicationScriptAlreadyLoaded.into())
             }
             ScriptSource::Application => self.application_script = Some(Arc::clone(&script)),
             ScriptSource::Episode if self.episode_script.is_some() => {
-                return Err(RunnerError::EpisodeScriptAlreadyLoaded)
+                return Err(RunnerError::EpisodeScriptAlreadyLoaded.into())
             }
             ScriptSource::Episode => self.episode_script = Some(Arc::clone(&script)),
             ScriptSource::Scene if self.scene_script.is_some() => {
-                return Err(RunnerError::SceneScriptAlreadyLoaded)
+                return Err(RunnerError::SceneScriptAlreadyLoaded.into())
             }
             ScriptSource::Scene => self.scene_script = Some(Arc::clone(&script)),
             _ => {}

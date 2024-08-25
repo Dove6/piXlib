@@ -5,7 +5,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 use super::{content::CnvContent, parsers::TypeParsingError, CallableIdentifier, CnvObject};
-use crate::runner::{CnvValue, RunnerContext, RunnerResult};
+use crate::runner::{CnvValue, RunnerContext};
 
 pub trait CnvType: std::fmt::Debug {
     fn get_type_id(&self) -> &'static str;
@@ -17,7 +17,7 @@ pub trait CnvType: std::fmt::Debug {
         identifier: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>>;
+    ) -> anyhow::Result<Option<CnvValue>>;
 
     fn new_content(
         parent: Arc<CnvObject>,
@@ -50,7 +50,7 @@ impl CnvType for DummyCnvType {
         name: CallableIdentifier,
         _arguments: &[CnvValue],
         _context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         todo!("{:?} {:?}", self.get_type_id(), name)
     }
 

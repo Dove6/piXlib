@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use super::super::{CnvObject, RunnerError, RunnerResult};
+use super::super::{CnvObject, RunnerError};
 
 #[derive(Debug, Clone, Default)]
 pub struct ObjectContainer {
@@ -34,16 +34,17 @@ impl ObjectContainer {
         self.vec.len()
     }
 
-    pub fn remove_object(&mut self, name: &str) -> RunnerResult<()> {
+    pub fn remove_object(&mut self, name: &str) -> anyhow::Result<()> {
         let Some(index) = self.vec.iter().position(|s| *s.name == *name) else {
             return Err(RunnerError::ObjectNotFound {
                 name: name.to_owned(),
-            });
+            }
+            .into());
         };
         self.remove_object_at(index)
     }
 
-    pub fn remove_object_at(&mut self, index: usize) -> RunnerResult<()> {
+    pub fn remove_object_at(&mut self, index: usize) -> anyhow::Result<()> {
         let removed_object = self.vec.remove(index);
         self.map.remove(&removed_object.name);
         Ok(())
@@ -54,7 +55,7 @@ impl ObjectContainer {
         self.map.clear();
     }
 
-    pub fn push_object(&mut self, object: Arc<CnvObject>) -> RunnerResult<()> {
+    pub fn push_object(&mut self, object: Arc<CnvObject>) -> anyhow::Result<()> {
         self.map.insert(object.name.clone(), object.clone());
         self.vec.push(object);
         Ok(())
@@ -63,7 +64,7 @@ impl ObjectContainer {
     pub fn push_objects<I: Iterator<Item = Arc<CnvObject>>>(
         &mut self,
         objects: I,
-    ) -> RunnerResult<()> {
+    ) -> anyhow::Result<()> {
         for object in objects {
             self.map.insert(object.name.clone(), object.clone());
             self.vec.push(object);

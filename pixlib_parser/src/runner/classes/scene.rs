@@ -159,14 +159,14 @@ impl Scene {
         !matches!(&self.state.borrow().music_data, SoundFileData::Empty)
     }
 
-    pub fn get_background_to_show(&self) -> RunnerResult<(ImageDefinition, ImageData)> {
+    pub fn get_background_to_show(&self) -> anyhow::Result<(ImageDefinition, ImageData)> {
         let mut state = self.state.borrow_mut();
         if let ImageFileData::NotLoaded(filename) = &state.background_data {
             let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
             let path = ScenePath::new(self.path.as_ref().unwrap(), filename);
             state.load_background(context, &path)?;
         } else if let ImageFileData::Empty = &state.background_data {
-            return Err(RunnerError::MissingFilenameToLoad);
+            return Err(RunnerError::MissingFilenameToLoad.into());
         }
         let ImageFileData::Loaded(loaded_background) = &state.background_data else {
             unreachable!();
@@ -175,7 +175,7 @@ impl Scene {
         Ok((image.0.clone(), image.1.clone()))
     }
 
-    pub fn get_music_volume_pan_freq(&self) -> RunnerResult<(f32, i32, usize)> {
+    pub fn get_music_volume_pan_freq(&self) -> anyhow::Result<(f32, i32, usize)> {
         Ok(self.state.borrow().use_and_drop(|state| {
             (
                 state.music_volume_permilles as f32 / 1000f32,
@@ -185,7 +185,7 @@ impl Scene {
         }))
     }
 
-    pub fn handle_music_finished(&self) -> RunnerResult<()> {
+    pub fn handle_music_finished(&self) -> anyhow::Result<()> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         if !self.state.borrow().use_and_drop(|s| s.is_music_playing) {
             return Ok(());
@@ -212,7 +212,7 @@ impl Scene {
         Ok(())
     }
 
-    pub fn handle_scene_loaded(&self) -> RunnerResult<()> {
+    pub fn handle_scene_loaded(&self) -> anyhow::Result<()> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state
             .borrow_mut()
@@ -257,7 +257,7 @@ impl CnvType for Scene {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("CREATEOBJECT") => {
                 self.state.borrow_mut().create_object().map(|_| None)
@@ -363,7 +363,8 @@ impl CnvType for Scene {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -469,7 +470,7 @@ impl CnvType for Scene {
 }
 
 impl Initable for Scene {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         let mut state = self.state.borrow_mut();
         if let ImageFileData::NotLoaded(filename) = &state.background_data {
             let path = ScenePath::new(self.path.as_ref().unwrap(), filename);
@@ -492,87 +493,87 @@ impl Initable for Scene {
 }
 
 impl SceneState {
-    pub fn create_object(&mut self) -> RunnerResult<()> {
+    pub fn create_object(&mut self) -> anyhow::Result<()> {
         // CREATEOBJECT
         todo!()
     }
 
-    pub fn get_dragged_name(&self) -> RunnerResult<String> {
+    pub fn get_dragged_name(&self) -> anyhow::Result<String> {
         // GETDRAGGEDNAME
         todo!()
     }
 
-    pub fn get_elements_no(&self) -> RunnerResult<usize> {
+    pub fn get_elements_no(&self) -> anyhow::Result<usize> {
         // GETELEMENTSNO
         todo!()
     }
 
-    pub fn get_max_hs_priority(&self) -> RunnerResult<isize> {
+    pub fn get_max_hs_priority(&self) -> anyhow::Result<isize> {
         // GETMAXHSPRIORITY
         todo!()
     }
 
-    pub fn get_min_hs_priority(&self) -> RunnerResult<isize> {
+    pub fn get_min_hs_priority(&self) -> anyhow::Result<isize> {
         // GETMINHSPRIORITY
         todo!()
     }
 
-    pub fn get_music_volume(&self) -> RunnerResult<usize> {
+    pub fn get_music_volume(&self) -> anyhow::Result<usize> {
         // GETMUSICVOLUME
         Ok(self.music_volume_permilles)
     }
 
-    pub fn get_objects(&self) -> RunnerResult<()> {
+    pub fn get_objects(&self) -> anyhow::Result<()> {
         // GETOBJECTS
         todo!()
     }
 
-    pub fn get_playing_animo(&self) -> RunnerResult<()> {
+    pub fn get_playing_animo(&self) -> anyhow::Result<()> {
         // GETPLAYINGANIMO
         todo!()
     }
 
-    pub fn get_playing_seq(&self) -> RunnerResult<()> {
+    pub fn get_playing_seq(&self) -> anyhow::Result<()> {
         // GETPLAYINGSEQ
         todo!()
     }
 
-    pub fn get_running_timer(&self) -> RunnerResult<()> {
+    pub fn get_running_timer(&self) -> anyhow::Result<()> {
         // GETRUNNINGTIMER
         todo!()
     }
 
-    pub fn is_paused(&self) -> RunnerResult<bool> {
+    pub fn is_paused(&self) -> anyhow::Result<bool> {
         // ISPAUSED
         todo!()
     }
 
-    pub fn pause(&mut self) -> RunnerResult<()> {
+    pub fn pause(&mut self) -> anyhow::Result<()> {
         // PAUSE
         todo!()
     }
 
-    pub fn remove(&mut self) -> RunnerResult<()> {
+    pub fn remove(&mut self) -> anyhow::Result<()> {
         // REMOVE
         todo!()
     }
 
-    pub fn remove_clones(&mut self) -> RunnerResult<()> {
+    pub fn remove_clones(&mut self) -> anyhow::Result<()> {
         // REMOVECLONES
         todo!()
     }
 
-    pub fn resume(&mut self) -> RunnerResult<()> {
+    pub fn resume(&mut self) -> anyhow::Result<()> {
         // RESUME
         todo!()
     }
 
-    pub fn resume_only(&mut self) -> RunnerResult<()> {
+    pub fn resume_only(&mut self) -> anyhow::Result<()> {
         // RESUMEONLY
         todo!()
     }
 
-    pub fn resume_seq_only(&mut self) -> RunnerResult<()> {
+    pub fn resume_seq_only(&mut self) -> anyhow::Result<()> {
         // RESUMESEQONLY
         todo!()
     }
@@ -583,10 +584,10 @@ impl SceneState {
         object_name: String,
         method_name: String,
         arguments: Vec<CnvValue>,
-    ) -> RunnerResult<()> {
+    ) -> anyhow::Result<()> {
         // RUN
         let Some(object) = context.runner.get_object(&object_name) else {
-            return Err(RunnerError::ObjectNotFound { name: object_name });
+            return Err(RunnerError::ObjectNotFound { name: object_name }.into());
         };
         context
             .runner
@@ -602,37 +603,37 @@ impl SceneState {
         Ok(())
     }
 
-    pub fn run_clones(&mut self) -> RunnerResult<()> {
+    pub fn run_clones(&mut self) -> anyhow::Result<()> {
         // RUNCLONES
         todo!()
     }
 
-    pub fn set_max_hs_priority(&mut self) -> RunnerResult<()> {
+    pub fn set_max_hs_priority(&mut self) -> anyhow::Result<()> {
         // SETMAXHSPRIORITY
         todo!()
     }
 
-    pub fn set_min_hs_priority(&mut self) -> RunnerResult<()> {
+    pub fn set_min_hs_priority(&mut self) -> anyhow::Result<()> {
         // SETMINHSPRIORITY
         todo!()
     }
 
-    pub fn set_music_freq(&mut self) -> RunnerResult<()> {
+    pub fn set_music_freq(&mut self) -> anyhow::Result<()> {
         // SETMUSICFREQ
         todo!()
     }
 
-    pub fn set_music_pan(&mut self) -> RunnerResult<()> {
+    pub fn set_music_pan(&mut self) -> anyhow::Result<()> {
         // SETMUSICPAN
         todo!()
     }
 
-    pub fn set_music_volume(&mut self) -> RunnerResult<()> {
+    pub fn set_music_volume(&mut self) -> anyhow::Result<()> {
         // SETMUSICVOLUME
         todo!()
     }
 
-    pub fn start_music(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn start_music(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // STARTMUSIC
         if self.is_music_playing {
             return Ok(());
@@ -655,7 +656,7 @@ impl SceneState {
         Ok(())
     }
 
-    pub fn stop_music(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn stop_music(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // STOPMUSIC
         if !self.is_music_playing {
             return Ok(());
@@ -678,7 +679,7 @@ impl SceneState {
         Ok(())
     }
 
-    pub fn convert_to_time(&mut self) -> RunnerResult<()> {
+    pub fn convert_to_time(&mut self) -> anyhow::Result<()> {
         // TOTIME
         todo!()
     }
@@ -689,7 +690,7 @@ impl SceneState {
         &mut self,
         context: RunnerContext,
         path: &ScenePath,
-    ) -> RunnerResult<()> {
+    ) -> anyhow::Result<()> {
         let script = context.current_object.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
@@ -718,7 +719,7 @@ impl SceneState {
         Ok(())
     }
 
-    pub fn load_music(&mut self, context: RunnerContext, path: &ScenePath) -> RunnerResult<()> {
+    pub fn load_music(&mut self, context: RunnerContext, path: &ScenePath) -> anyhow::Result<()> {
         let script = context.current_object.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
@@ -739,7 +740,7 @@ impl SceneState {
         Ok(())
     }
 
-    pub fn load_music_if_not_loaded(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn load_music_if_not_loaded(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         if let SoundFileData::NotLoaded(filename) = &self.music_data {
             let path = context.current_object.parent.path.with_file_path(filename);
             self.load_music(context.clone(), &path)

@@ -85,7 +85,7 @@ impl CnvType for Group {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("ADD") => {
                 let name = arguments[0].to_str();
@@ -196,7 +196,7 @@ impl CnvType for Group {
 }
 
 impl Initable for Group {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         context
             .runner
             .internal_events
@@ -213,63 +213,63 @@ impl Initable for Group {
 }
 
 impl GroupState {
-    pub fn add(&mut self, added_object: Arc<CnvObject>) -> RunnerResult<()> {
+    pub fn add(&mut self, added_object: Arc<CnvObject>) -> anyhow::Result<()> {
         // ADD
         self.objects.push(added_object);
         Ok(())
     }
 
-    pub fn add_clones(&mut self) -> RunnerResult<()> {
+    pub fn add_clones(&mut self) -> anyhow::Result<()> {
         // ADDCLONES
         todo!()
     }
 
-    pub fn clone_object(&mut self) -> RunnerResult<()> {
+    pub fn clone_object(&mut self) -> anyhow::Result<()> {
         // CLONE
         todo!()
     }
 
-    pub fn contains(&mut self) -> RunnerResult<()> {
+    pub fn contains(&mut self) -> anyhow::Result<()> {
         // CONTAINS
         todo!()
     }
 
-    pub fn get_clone_index(&self) -> RunnerResult<usize> {
+    pub fn get_clone_index(&self) -> anyhow::Result<usize> {
         // GETCLONEINDEX
         todo!()
     }
 
-    pub fn get_marker_pos(&self) -> RunnerResult<usize> {
+    pub fn get_marker_pos(&self) -> anyhow::Result<usize> {
         // GETMARKERPOS
         todo!()
     }
 
-    pub fn get_name(&self) -> RunnerResult<String> {
+    pub fn get_name(&self) -> anyhow::Result<String> {
         // GETNAME
         todo!()
     }
 
-    pub fn get_name_at_marker(&self) -> RunnerResult<String> {
+    pub fn get_name_at_marker(&self) -> anyhow::Result<String> {
         // GETNAMEATMARKER
         todo!()
     }
 
-    pub fn get_size(&self) -> RunnerResult<usize> {
+    pub fn get_size(&self) -> anyhow::Result<usize> {
         // GETSIZE
         todo!()
     }
 
-    pub fn next(&mut self) -> RunnerResult<()> {
+    pub fn next(&mut self) -> anyhow::Result<()> {
         // NEXT
         todo!()
     }
 
-    pub fn prev(&mut self) -> RunnerResult<()> {
+    pub fn prev(&mut self) -> anyhow::Result<()> {
         // PREV
         todo!()
     }
 
-    pub fn remove(&mut self, name: &str) -> RunnerResult<()> {
+    pub fn remove(&mut self, name: &str) -> anyhow::Result<()> {
         // REMOVE
         let index = self.objects.iter().position(|o| o.name == name).ok_or(
             RunnerError::ObjectNotFound {
@@ -280,18 +280,18 @@ impl GroupState {
         Ok(())
     }
 
-    pub fn remove_all(&mut self) -> RunnerResult<()> {
+    pub fn remove_all(&mut self) -> anyhow::Result<()> {
         // REMOVEALL
         self.objects.clear();
         Ok(())
     }
 
-    pub fn reset_marker(&mut self) -> RunnerResult<()> {
+    pub fn reset_marker(&mut self) -> anyhow::Result<()> {
         // RESETMARKER
         todo!()
     }
 
-    pub fn set_marker_pos(&mut self) -> RunnerResult<()> {
+    pub fn set_marker_pos(&mut self) -> anyhow::Result<()> {
         // SETMARKERPOS
         todo!()
     }
@@ -303,7 +303,7 @@ impl GroupState {
         context: RunnerContext,
         callable: CallableIdentifier,
         arguments: &[CnvValue],
-    ) -> RunnerResult<()> {
+    ) -> anyhow::Result<()> {
         let mut err_result = None;
         for object in self.objects.iter() {
             let result = object.call_method(callable.clone(), arguments, Some(context.clone()));

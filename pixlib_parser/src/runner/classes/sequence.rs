@@ -110,7 +110,7 @@ impl CnvType for Sequence {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("GETEVENTNAME") => self
@@ -153,7 +153,8 @@ impl CnvType for Sequence {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -202,7 +203,7 @@ impl CnvType for Sequence {
 }
 
 impl Initable for Sequence {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         context
             .runner
             .internal_events
@@ -219,62 +220,62 @@ impl Initable for Sequence {
 }
 
 impl SequenceState {
-    pub fn get_event_name(&self) -> RunnerResult<String> {
+    pub fn get_event_name(&self) -> anyhow::Result<String> {
         // GETEVENTNAME
         todo!()
     }
 
-    pub fn get_playing(&self) -> RunnerResult<String> {
+    pub fn get_playing(&self) -> anyhow::Result<String> {
         // GETPLAYING
         todo!()
     }
 
-    pub fn hide(&mut self) -> RunnerResult<()> {
+    pub fn hide(&mut self) -> anyhow::Result<()> {
         // HIDE
         todo!()
     }
 
-    pub fn is_playing(&self) -> RunnerResult<bool> {
+    pub fn is_playing(&self) -> anyhow::Result<bool> {
         // ISPLAYING
         todo!()
     }
 
-    pub fn pause(&mut self) -> RunnerResult<()> {
+    pub fn pause(&mut self) -> anyhow::Result<()> {
         // PAUSE
         todo!()
     }
 
-    pub fn play(&mut self) -> RunnerResult<()> {
+    pub fn play(&mut self) -> anyhow::Result<()> {
         // PLAY
         todo!()
     }
 
-    pub fn resume(&mut self) -> RunnerResult<()> {
+    pub fn resume(&mut self) -> anyhow::Result<()> {
         // RESUME
         todo!()
     }
 
-    pub fn set_freq(&mut self) -> RunnerResult<()> {
+    pub fn set_freq(&mut self) -> anyhow::Result<()> {
         // SETFREQ
         todo!()
     }
 
-    pub fn set_pan(&mut self) -> RunnerResult<()> {
+    pub fn set_pan(&mut self) -> anyhow::Result<()> {
         // SETPAN
         todo!()
     }
 
-    pub fn set_volume(&mut self) -> RunnerResult<()> {
+    pub fn set_volume(&mut self) -> anyhow::Result<()> {
         // SETVOLUME
         todo!()
     }
 
-    pub fn show(&mut self) -> RunnerResult<()> {
+    pub fn show(&mut self) -> anyhow::Result<()> {
         // SHOW
         todo!()
     }
 
-    pub fn stop(&mut self) -> RunnerResult<()> {
+    pub fn stop(&mut self) -> anyhow::Result<()> {
         // STOP
         todo!()
     }

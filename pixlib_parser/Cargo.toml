@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 pixlib_formats = { path = "../pixlib_formats" }
 lazy_static = "1.4"
+anyhow = "1.0"
 thiserror = "1.0"
 lalrpop-util = { version = "0.20", default-features = false, features = [
     "lexer",

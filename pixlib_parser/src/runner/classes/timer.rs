@@ -94,7 +94,7 @@ impl Timer {
 
     // custom
 
-    pub fn step(&self, seconds: f64) -> RunnerResult<()> {
+    pub fn step(&self, seconds: f64) -> anyhow::Result<()> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow_mut().step(context, seconds * 1000f64)
     }
@@ -118,7 +118,7 @@ impl CnvType for Timer {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("DISABLE") => {
@@ -155,7 +155,8 @@ impl CnvType for Timer {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -217,7 +218,7 @@ impl CnvType for Timer {
 }
 
 impl Initable for Timer {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         context
             .runner
             .internal_events
@@ -234,7 +235,7 @@ impl Initable for Timer {
 }
 
 impl TimerState {
-    pub fn disable(&mut self) -> RunnerResult<()> {
+    pub fn disable(&mut self) -> anyhow::Result<()> {
         // DISABLE
         self.is_enabled = false;
         self.current_ms = 0.0;
@@ -242,44 +243,44 @@ impl TimerState {
         Ok(())
     }
 
-    pub fn enable(&mut self) -> RunnerResult<()> {
+    pub fn enable(&mut self) -> anyhow::Result<()> {
         // ENABLE
         self.current_ms = self.interval_ms as f64;
         self.is_enabled = true;
         Ok(())
     }
 
-    pub fn get_ticks(&self) -> RunnerResult<usize> {
+    pub fn get_ticks(&self) -> anyhow::Result<usize> {
         // GETTICKS
         Ok(self.current_ticks)
     }
 
-    pub fn pause(&mut self) -> RunnerResult<()> {
+    pub fn pause(&mut self) -> anyhow::Result<()> {
         // PAUSE
         self.is_paused = true;
         Ok(())
     }
 
-    pub fn reset(&mut self) -> RunnerResult<()> {
+    pub fn reset(&mut self) -> anyhow::Result<()> {
         // RESET
         self.current_ms = self.interval_ms as f64;
         self.current_ticks = 0;
         Ok(())
     }
 
-    pub fn resume(&mut self) -> RunnerResult<()> {
+    pub fn resume(&mut self) -> anyhow::Result<()> {
         // RESUME
         self.is_paused = false;
         Ok(())
     }
 
-    pub fn set(&mut self, current_ms: f64) -> RunnerResult<()> {
+    pub fn set(&mut self, current_ms: f64) -> anyhow::Result<()> {
         // SET
         self.current_ms = current_ms;
         Ok(())
     }
 
-    pub fn set_elapse(&mut self, interval_ms: usize) -> RunnerResult<()> {
+    pub fn set_elapse(&mut self, interval_ms: usize) -> anyhow::Result<()> {
         // SETELAPSE
         self.interval_ms = interval_ms;
         Ok(())
@@ -287,7 +288,7 @@ impl TimerState {
 
     // custom
 
-    pub fn step(&mut self, context: RunnerContext, duration_ms: f64) -> RunnerResult<()> {
+    pub fn step(&mut self, context: RunnerContext, duration_ms: f64) -> anyhow::Result<()> {
         // eprintln!("Stepping timer {} by {} ms", timer.parent.name, duration_ms);
         let CnvContent::Timer(timer) = &context.current_object.content else {
             panic!();

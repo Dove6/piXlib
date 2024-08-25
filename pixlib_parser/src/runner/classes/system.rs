@@ -68,7 +68,7 @@ impl CnvType for System {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("COPYFILE") => {
                 self.state.borrow_mut().copy_file().map(|_| None)
@@ -196,7 +196,8 @@ impl CnvType for System {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -213,132 +214,132 @@ impl CnvType for System {
 }
 
 impl SystemState {
-    pub fn copy_file(&mut self) -> RunnerResult<()> {
+    pub fn copy_file(&mut self) -> anyhow::Result<()> {
         // COPYFILE
         todo!()
     }
 
-    pub fn create_dir(&mut self) -> RunnerResult<()> {
+    pub fn create_dir(&mut self) -> anyhow::Result<()> {
         // CREATEDIR
         todo!()
     }
 
-    pub fn delay(&mut self) -> RunnerResult<()> {
+    pub fn delay(&mut self) -> anyhow::Result<()> {
         // DELAY
         todo!()
     }
 
-    pub fn get_cmd_line_parameter(&self) -> RunnerResult<String> {
+    pub fn get_cmd_line_parameter(&self) -> anyhow::Result<String> {
         // GETCMDLINEPARAMETER
         todo!()
     }
 
-    pub fn get_command_line(&self) -> RunnerResult<String> {
+    pub fn get_command_line(&self) -> anyhow::Result<String> {
         // GETCOMMANDLINE
         todo!()
     }
 
-    pub fn get_date(&self) -> RunnerResult<String> {
+    pub fn get_date(&self) -> anyhow::Result<String> {
         // GETDATE
         Ok(Local::now().format("%y%m%d").to_string())
     }
 
-    pub fn get_date_string(&self) -> RunnerResult<String> {
+    pub fn get_date_string(&self) -> anyhow::Result<String> {
         // GETDATESTRING
         todo!()
     }
 
-    pub fn get_day(&self) -> RunnerResult<usize> {
+    pub fn get_day(&self) -> anyhow::Result<usize> {
         // GETDAY
         todo!()
     }
 
-    pub fn get_day_of_week(&self) -> RunnerResult<usize> {
+    pub fn get_day_of_week(&self) -> anyhow::Result<usize> {
         // GETDAYOFWEEK
         todo!()
     }
 
-    pub fn get_day_of_week_string(&self) -> RunnerResult<String> {
+    pub fn get_day_of_week_string(&self) -> anyhow::Result<String> {
         // GETDAYOFWEEKSTRING
         todo!()
     }
 
-    pub fn get_folder_location(&self) -> RunnerResult<String> {
+    pub fn get_folder_location(&self) -> anyhow::Result<String> {
         // GETFOLDERLOCATION
         todo!()
     }
 
-    pub fn get_hour(&self) -> RunnerResult<usize> {
+    pub fn get_hour(&self) -> anyhow::Result<usize> {
         // GETHOUR
         todo!()
     }
 
-    pub fn get_mhz(&self) -> RunnerResult<usize> {
+    pub fn get_mhz(&self) -> anyhow::Result<usize> {
         // GETMHZ
         todo!()
     }
 
-    pub fn get_minutes(&self) -> RunnerResult<usize> {
+    pub fn get_minutes(&self) -> anyhow::Result<usize> {
         // GETMINUTES
         todo!()
     }
 
-    pub fn get_month(&self) -> RunnerResult<usize> {
+    pub fn get_month(&self) -> anyhow::Result<usize> {
         // GETMONTH
         todo!()
     }
 
-    pub fn get_month_string(&self) -> RunnerResult<String> {
+    pub fn get_month_string(&self) -> anyhow::Result<String> {
         // GETMONTHSTRING
         todo!()
     }
 
-    pub fn get_seconds(&self) -> RunnerResult<usize> {
+    pub fn get_seconds(&self) -> anyhow::Result<usize> {
         // GETSECONDS
         todo!()
     }
 
-    pub fn get_system_time(&self) -> RunnerResult<String> {
+    pub fn get_system_time(&self) -> anyhow::Result<String> {
         // GETSYSTEMTIME
         todo!()
     }
 
-    pub fn get_time_string(&self) -> RunnerResult<String> {
+    pub fn get_time_string(&self) -> anyhow::Result<String> {
         // GETTIMESTRING
         todo!()
     }
 
-    pub fn get_user_name(&self) -> RunnerResult<String> {
+    pub fn get_user_name(&self) -> anyhow::Result<String> {
         // GETUSERNAME
         todo!()
     }
 
-    pub fn get_year(&self) -> RunnerResult<isize> {
+    pub fn get_year(&self) -> anyhow::Result<isize> {
         // GETYEAR
         todo!()
     }
 
-    pub fn install(&mut self) -> RunnerResult<()> {
+    pub fn install(&mut self) -> anyhow::Result<()> {
         // INSTALL
         todo!()
     }
 
-    pub fn is_cmd_line_parameter(&self) -> RunnerResult<bool> {
+    pub fn is_cmd_line_parameter(&self) -> anyhow::Result<bool> {
         // ISCMDLINEPARAMETER
         todo!()
     }
 
-    pub fn is_file_exist(&self) -> RunnerResult<bool> {
+    pub fn is_file_exist(&self) -> anyhow::Result<bool> {
         // ISFILEEXIST
         todo!()
     }
 
-    pub fn minimize(&mut self) -> RunnerResult<()> {
+    pub fn minimize(&mut self) -> anyhow::Result<()> {
         // MINIMIZE
         todo!()
     }
 
-    pub fn uninstall(&mut self) -> RunnerResult<()> {
+    pub fn uninstall(&mut self) -> anyhow::Result<()> {
         // UNINSTALL
         todo!()
     }

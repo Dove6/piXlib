@@ -103,7 +103,7 @@ impl CnvType for Keyboard {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("DISABLE") => {
                 self.state.borrow_mut().disable().map(|_| None)
@@ -136,7 +136,8 @@ impl CnvType for Keyboard {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -191,7 +192,7 @@ impl CnvType for Keyboard {
 }
 
 impl Initable for Keyboard {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         context
             .runner
             .internal_events
@@ -208,37 +209,37 @@ impl Initable for Keyboard {
 }
 
 impl KeyboardState {
-    pub fn disable(&mut self) -> RunnerResult<()> {
+    pub fn disable(&mut self) -> anyhow::Result<()> {
         // DISABLE
         todo!()
     }
 
-    pub fn enable(&mut self) -> RunnerResult<()> {
+    pub fn enable(&mut self) -> anyhow::Result<()> {
         // ENABLE
         todo!()
     }
 
-    pub fn get_latest_key(&mut self) -> RunnerResult<()> {
+    pub fn get_latest_key(&mut self) -> anyhow::Result<()> {
         // GETLATESTKEY
         todo!()
     }
 
-    pub fn get_latest_keys(&mut self) -> RunnerResult<()> {
+    pub fn get_latest_keys(&mut self) -> anyhow::Result<()> {
         // GETLATESTKEYS
         todo!()
     }
 
-    pub fn is_enabled(&mut self) -> RunnerResult<()> {
+    pub fn is_enabled(&mut self) -> anyhow::Result<()> {
         // ISENABLED
         todo!()
     }
 
-    pub fn is_key_down(&mut self) -> RunnerResult<()> {
+    pub fn is_key_down(&mut self) -> anyhow::Result<()> {
         // ISKEYDOWN
         todo!()
     }
 
-    pub fn set_auto_repeat(&mut self) -> RunnerResult<()> {
+    pub fn set_auto_repeat(&mut self) -> anyhow::Result<()> {
         // SETAUTOREPEAT
         todo!()
     }

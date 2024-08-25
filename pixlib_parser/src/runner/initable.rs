@@ -1,9 +1,9 @@
-use crate::runner::{RunnerContext, RunnerResult};
+use crate::runner::RunnerContext;
 
 use super::content::CnvContent;
 
 pub trait Initable {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()>;
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()>;
 }
 
 impl<'a> From<&'a CnvContent> for Option<&'a dyn Initable> {

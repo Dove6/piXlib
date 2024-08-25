@@ -110,7 +110,7 @@ impl Sound {
 
     // custom
 
-    pub fn get_sound_to_play(&self) -> RunnerResult<Option<SoundData>> {
+    pub fn get_sound_to_play(&self) -> anyhow::Result<Option<SoundData>> {
         let state = self.state.borrow();
         if !state.is_playing {
             return Ok(None);
@@ -121,7 +121,7 @@ impl Sound {
         Ok(Some(loaded_data.sound.clone()))
     }
 
-    pub fn handle_finished(&self) -> RunnerResult<()> {
+    pub fn handle_finished(&self) -> anyhow::Result<()> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow_mut().use_and_drop_mut(|s| {
             s.is_playing = false;
@@ -141,14 +141,14 @@ impl Sound {
         Ok(())
     }
 
-    pub fn play(&self) -> RunnerResult<()> {
+    pub fn play(&self) -> anyhow::Result<()> {
         self.state.borrow_mut().play(RunnerContext::new_minimal(
             &self.parent.parent.runner,
             &self.parent,
         ))
     }
 
-    pub fn stop(&self) -> RunnerResult<()> {
+    pub fn stop(&self) -> anyhow::Result<()> {
         self.state.borrow_mut().stop(RunnerContext::new_minimal(
             &self.parent.parent.runner,
             &self.parent,
@@ -174,7 +174,7 @@ impl CnvType for Sound {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("ISPLAYING") => self
@@ -218,7 +218,8 @@ impl CnvType for Sound {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -285,10 +286,10 @@ impl CnvType for Sound {
 }
 
 impl Initable for Sound {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         self.state
             .borrow_mut()
-            .use_and_drop_mut::<RunnerResult<()>>(|state| {
+            .use_and_drop_mut(|state| -> anyhow::Result<()> {
                 if self.should_preload {
                     if let SoundFileData::NotLoaded(filename) = &state.file_data {
                         let filename = filename.clone();
@@ -313,12 +314,12 @@ impl Initable for Sound {
 }
 
 impl SoundState {
-    pub fn is_playing(&self) -> RunnerResult<bool> {
+    pub fn is_playing(&self) -> anyhow::Result<bool> {
         // ISPLAYING
         todo!()
     }
 
-    pub fn load(&mut self, context: RunnerContext, filename: &str) -> RunnerResult<()> {
+    pub fn load(&mut self, context: RunnerContext, filename: &str) -> anyhow::Result<()> {
         // LOAD
         let script = context.current_object.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
@@ -357,7 +358,7 @@ impl SoundState {
         Ok(())
     }
 
-    pub fn pause(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn pause(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // PAUSE
         self.is_paused = true;
         context
@@ -385,14 +386,14 @@ impl SoundState {
         Ok(())
     }
 
-    pub fn play(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn play(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // PLAY
         if let SoundFileData::NotLoaded(filename) = &self.file_data {
             let filename = filename.clone();
             self.load(context.clone(), &filename)?;
         };
         if !matches!(&self.file_data, SoundFileData::Loaded(_)) {
-            return Err(RunnerError::NoDataLoaded);
+            return Err(RunnerError::NoSoundDataLoaded(context.current_object.name.clone()).into());
         };
         self.is_playing = true;
         context
@@ -420,7 +421,7 @@ impl SoundState {
         Ok(())
     }
 
-    pub fn resume(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn resume(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // RESUME
         self.is_paused = false;
         context
@@ -448,22 +449,22 @@ impl SoundState {
         Ok(())
     }
 
-    pub fn set_freq(&mut self) -> RunnerResult<()> {
+    pub fn set_freq(&mut self) -> anyhow::Result<()> {
         // SETFREQ
         todo!()
     }
 
-    pub fn set_pan(&mut self) -> RunnerResult<()> {
+    pub fn set_pan(&mut self) -> anyhow::Result<()> {
         // SETPAN
         todo!()
     }
 
-    pub fn set_volume(&mut self) -> RunnerResult<()> {
+    pub fn set_volume(&mut self) -> anyhow::Result<()> {
         // SETVOLUME
         todo!()
     }
 
-    pub fn stop(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn stop(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // STOP
         self.is_playing = false;
         self.is_paused = false;

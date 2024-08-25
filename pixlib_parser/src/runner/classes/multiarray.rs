@@ -71,7 +71,7 @@ impl CnvType for MultiArray {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("COUNT") => self.state.borrow_mut().count().map(|_| None),
             CallableIdentifier::Method("LOAD") => self.state.borrow_mut().load().map(|_| None),
@@ -96,7 +96,8 @@ impl CnvType for MultiArray {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -118,37 +119,37 @@ impl CnvType for MultiArray {
 }
 
 impl MultiArrayState {
-    pub fn count(&mut self) -> RunnerResult<()> {
+    pub fn count(&mut self) -> anyhow::Result<()> {
         // COUNT
         todo!()
     }
 
-    pub fn load(&mut self) -> RunnerResult<()> {
+    pub fn load(&mut self) -> anyhow::Result<()> {
         // LOAD
         todo!()
     }
 
-    pub fn get(&self) -> RunnerResult<Option<CnvValue>> {
+    pub fn get(&self) -> anyhow::Result<Option<CnvValue>> {
         // GET
         todo!()
     }
 
-    pub fn get_size(&self) -> RunnerResult<usize> {
+    pub fn get_size(&self) -> anyhow::Result<usize> {
         // GETSIZE
         todo!()
     }
 
-    pub fn safe_get(&self) -> RunnerResult<Option<CnvValue>> {
+    pub fn safe_get(&self) -> anyhow::Result<Option<CnvValue>> {
         // SAFEGET
         todo!()
     }
 
-    pub fn save(&mut self) -> RunnerResult<()> {
+    pub fn save(&mut self) -> anyhow::Result<()> {
         // SAVE
         todo!()
     }
 
-    pub fn set(&mut self) -> RunnerResult<()> {
+    pub fn set(&mut self) -> anyhow::Result<()> {
         // SET
         todo!()
     }

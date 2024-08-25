@@ -62,13 +62,14 @@ impl CnvType for Rand {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("GET") => match arguments.len() {
                 0 => Err(RunnerError::TooFewArguments {
                     expected_min: 1,
                     actual: 0,
-                }),
+                }
+                .into()),
                 1 => self.state.borrow().get(arguments[0].to_int() as usize, 0),
                 2 => self.state.borrow().get(
                     arguments[1].to_int() as usize,
@@ -77,7 +78,8 @@ impl CnvType for Rand {
                 arg_count => Err(RunnerError::TooManyArguments {
                     expected_max: 2,
                     actual: arg_count,
-                }),
+                }
+                .into()),
             }
             .map(|v| Some(CnvValue::Integer(v as i32))),
             CallableIdentifier::Method("GETPLENTY") => {
@@ -95,7 +97,8 @@ impl CnvType for Rand {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -111,13 +114,13 @@ impl CnvType for Rand {
 }
 
 impl RandState {
-    pub fn get(&self, max_exclusive: usize, offset: isize) -> RunnerResult<isize> {
+    pub fn get(&self, max_exclusive: usize, offset: isize) -> anyhow::Result<isize> {
         // GET
         let mut rng = thread_rng();
         Ok(rng.gen_range(0..max_exclusive) as isize + offset)
     }
 
-    pub fn get_plenty(&self) -> RunnerResult<()> {
+    pub fn get_plenty(&self) -> anyhow::Result<()> {
         // GETPLENTY
         todo!()
     }

@@ -156,11 +156,11 @@ impl Button {
 
     // custom
 
-    pub fn is_displaying(&self, object_name: &str) -> RunnerResult<bool> {
+    pub fn is_displaying(&self, object_name: &str) -> anyhow::Result<bool> {
         self.state.borrow().is_displaying(object_name)
     }
 
-    pub fn set_normal(&self) -> RunnerResult<()> {
+    pub fn set_normal(&self) -> anyhow::Result<()> {
         // println!("{}.set_normal()", self.parent.name);
         self.state.borrow_mut().try_set_interaction(
             RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
@@ -168,7 +168,7 @@ impl Button {
         )
     }
 
-    pub fn set_hovering(&self) -> RunnerResult<()> {
+    pub fn set_hovering(&self) -> anyhow::Result<()> {
         // println!("{}.set_hovering()", self.parent.name);
         self.state.borrow_mut().try_set_interaction(
             RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
@@ -176,7 +176,7 @@ impl Button {
         )
     }
 
-    pub fn set_pressing(&self) -> RunnerResult<()> {
+    pub fn set_pressing(&self) -> anyhow::Result<()> {
         // println!("{}.set_pressing()", self.parent.name);
         self.state.borrow_mut().try_set_interaction(
             RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
@@ -184,7 +184,7 @@ impl Button {
         )
     }
 
-    pub fn promote_to_hovering_or_keep_pressing(&self) -> RunnerResult<()> {
+    pub fn promote_to_hovering_or_keep_pressing(&self) -> anyhow::Result<()> {
         // println!("{}.keep_pressing()", self.parent.name);
         self.state
             .borrow_mut()
@@ -213,7 +213,7 @@ impl CnvType for Button {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("ACCENT") => self.state.borrow_mut().accent().map(|_| None),
@@ -268,7 +268,8 @@ impl CnvType for Button {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -408,10 +409,10 @@ impl CnvType for Button {
 }
 
 impl Initable for Button {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         self.state
             .borrow_mut()
-            .use_and_drop_mut::<RunnerResult<()>>(|state| {
+            .use_and_drop_mut(|state| -> anyhow::Result<()> {
                 state.set_interaction(context.clone(), Interaction::Hidden)?;
                 if state.is_enabled {
                     state.set_interaction(context.clone(), Interaction::None)?;
@@ -434,85 +435,85 @@ impl Initable for Button {
 }
 
 impl ButtonState {
-    pub fn accent(&mut self) -> RunnerResult<()> {
+    pub fn accent(&mut self) -> anyhow::Result<()> {
         // ACCENT
         todo!()
     }
 
-    pub fn disable(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn disable(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // DISABLE
         self.is_enabled = false;
         self.set_interaction(context, Interaction::Hidden)
     }
 
-    pub fn disable_but_visible(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn disable_but_visible(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // DISABLEBUTVISIBLE
         self.is_enabled = false;
         self.set_interaction(context, Interaction::None)
     }
 
-    pub fn disable_dragging(&mut self) -> RunnerResult<()> {
+    pub fn disable_dragging(&mut self) -> anyhow::Result<()> {
         // DISABLEDRAGGING
         todo!()
     }
 
-    pub fn enable(&mut self, context: RunnerContext) -> RunnerResult<()> {
+    pub fn enable(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         // ENABLE
         self.is_enabled = true;
         self.set_interaction(context, Interaction::None)
     }
 
-    pub fn enable_dragging(&mut self) -> RunnerResult<()> {
+    pub fn enable_dragging(&mut self) -> anyhow::Result<()> {
         // ENABLEDRAGGING
         todo!()
     }
 
-    pub fn get_on_click(&self) -> RunnerResult<Option<CnvValue>> {
+    pub fn get_on_click(&self) -> anyhow::Result<Option<CnvValue>> {
         // GETONCLICK
         todo!()
     }
 
-    pub fn get_on_move(&self) -> RunnerResult<Option<CnvValue>> {
+    pub fn get_on_move(&self) -> anyhow::Result<Option<CnvValue>> {
         // GETONMOVE
         todo!()
     }
 
-    pub fn get_priority(&self) -> RunnerResult<isize> {
+    pub fn get_priority(&self) -> anyhow::Result<isize> {
         // GETPRIORITY
         todo!()
     }
 
-    pub fn get_std(&self) -> RunnerResult<Option<CnvValue>> {
+    pub fn get_std(&self) -> anyhow::Result<Option<CnvValue>> {
         // GETSTD
         todo!()
     }
 
-    pub fn set_on_click(&mut self) -> RunnerResult<()> {
+    pub fn set_on_click(&mut self) -> anyhow::Result<()> {
         // SETONCLICK
         todo!()
     }
 
-    pub fn set_on_move(&mut self) -> RunnerResult<()> {
+    pub fn set_on_move(&mut self) -> anyhow::Result<()> {
         // SETONMOVE
         todo!()
     }
 
-    pub fn set_priority(&mut self) -> RunnerResult<()> {
+    pub fn set_priority(&mut self) -> anyhow::Result<()> {
         // SETPRIORITY
         todo!()
     }
 
-    pub fn set_rect(&mut self) -> RunnerResult<()> {
+    pub fn set_rect(&mut self) -> anyhow::Result<()> {
         // SETRECT
         todo!()
     }
 
-    pub fn set_std(&mut self) -> RunnerResult<()> {
+    pub fn set_std(&mut self) -> anyhow::Result<()> {
         // SETSTD
         todo!()
     }
 
-    pub fn syn(&mut self) -> RunnerResult<()> {
+    pub fn syn(&mut self) -> anyhow::Result<()> {
         // SYN
         todo!()
     }
@@ -523,7 +524,7 @@ impl ButtonState {
         &mut self,
         context: RunnerContext,
         interaction: Interaction,
-    ) -> RunnerResult<()> {
+    ) -> anyhow::Result<()> {
         // println!(
         //     "{}.set_interaction({:?})",
         //     context.current_object.name, interaction
@@ -555,7 +556,7 @@ impl ButtonState {
                         normal_animation.hide()
                     }
             } else {
-                Err(RunnerError::ExpectedGraphicsObject)
+                Err(RunnerError::ExpectedGraphicsObject.into())
             }?
         } /*else {
             println!(
@@ -569,7 +570,7 @@ impl ButtonState {
             .and_then(|name| context.runner.get_object(name))
         {
             let CnvContent::Sound(normal_sound) = &normal_sound_obj.content else {
-                return Err(RunnerError::ExpectedSoundObject);
+                return Err(RunnerError::ExpectedSoundObject.into());
             };
             if interaction == Interaction::None {
                 normal_sound.play()
@@ -596,7 +597,7 @@ impl ButtonState {
                         on_hover_animation.hide()
                     }
             } else {
-                Err(RunnerError::ExpectedGraphicsObject)
+                Err(RunnerError::ExpectedGraphicsObject.into())
             }?
         } /*else {
             println!(
@@ -610,7 +611,7 @@ impl ButtonState {
             .and_then(|name| context.runner.get_object(name))
         {
             let CnvContent::Sound(on_hover_sound) = &on_hover_sound_obj.content else {
-                return Err(RunnerError::ExpectedSoundObject);
+                return Err(RunnerError::ExpectedSoundObject.into());
             };
             if interaction == Interaction::Hovering {
                 on_hover_sound.play()
@@ -637,7 +638,7 @@ impl ButtonState {
                         on_click_animation.hide()
                     }
             } else {
-                Err(RunnerError::ExpectedGraphicsObject)
+                Err(RunnerError::ExpectedGraphicsObject.into())
             }?
         } /*else {
             println!(
@@ -651,7 +652,7 @@ impl ButtonState {
             .and_then(|name| context.runner.get_object(name))
         {
             let CnvContent::Sound(on_click_sound) = &on_click_sound_obj.content else {
-                return Err(RunnerError::ExpectedSoundObject);
+                return Err(RunnerError::ExpectedSoundObject.into());
             };
             if interaction == Interaction::Pressing {
                 on_click_sound.play()
@@ -716,7 +717,7 @@ impl ButtonState {
         &mut self,
         context: RunnerContext,
         interaction: Interaction,
-    ) -> RunnerResult<()> {
+    ) -> anyhow::Result<()> {
         if !self.is_enabled {
             return Ok(());
         }
@@ -729,7 +730,7 @@ impl ButtonState {
     pub fn promote_to_hovering_or_keep_pressing(
         &mut self,
         context: RunnerContext,
-    ) -> RunnerResult<()> {
+    ) -> anyhow::Result<()> {
         if matches!(
             self.current_interaction,
             Interaction::Pressing | Interaction::Hovering
@@ -739,7 +740,7 @@ impl ButtonState {
         self.try_set_interaction(context, Interaction::Hovering)
     }
 
-    pub fn is_displaying(&self, object_name: &str) -> RunnerResult<bool> {
+    pub fn is_displaying(&self, object_name: &str) -> anyhow::Result<bool> {
         Ok(match self.current_interaction {
             Interaction::Hidden => false,
             Interaction::None => self

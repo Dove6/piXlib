@@ -98,7 +98,7 @@ impl CnvType for Array {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Method("ADD") => self.state.borrow_mut().add().map(|_| None),
             CallableIdentifier::Method("ADDAT") => self.state.borrow_mut().add_at().map(|_| None),
@@ -206,7 +206,8 @@ impl CnvType for Array {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -254,7 +255,7 @@ impl CnvType for Array {
 }
 
 impl Initable for Array {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         context
             .runner
             .internal_events
@@ -271,272 +272,272 @@ impl Initable for Array {
 }
 
 impl ArrayState {
-    pub fn add(&mut self) -> RunnerResult<()> {
+    pub fn add(&mut self) -> anyhow::Result<()> {
         // ADD
         todo!()
     }
 
-    pub fn add_at(&mut self) -> RunnerResult<()> {
+    pub fn add_at(&mut self) -> anyhow::Result<()> {
         // ADDAT
         todo!()
     }
 
-    pub fn add_clones(&mut self) -> RunnerResult<()> {
+    pub fn add_clones(&mut self) -> anyhow::Result<()> {
         // ADDCLONES
         todo!()
     }
 
-    pub fn change_at(&mut self) -> RunnerResult<()> {
+    pub fn change_at(&mut self) -> anyhow::Result<()> {
         // CHANGEAT
         todo!()
     }
 
-    pub fn clamp_at(&mut self) -> RunnerResult<()> {
+    pub fn clamp_at(&mut self) -> anyhow::Result<()> {
         // CLAMPAT
         todo!()
     }
 
-    pub fn compare(&self) -> RunnerResult<()> {
+    pub fn compare(&self) -> anyhow::Result<()> {
         // COMPARE
         todo!()
     }
 
-    pub fn contains(&self) -> RunnerResult<bool> {
+    pub fn contains(&self) -> anyhow::Result<bool> {
         // CONTAINS
         todo!()
     }
 
-    pub fn copy_to(&mut self) -> RunnerResult<()> {
+    pub fn copy_to(&mut self) -> anyhow::Result<()> {
         // COPYTO
         todo!()
     }
 
-    pub fn dir(&mut self) -> RunnerResult<()> {
+    pub fn dir(&mut self) -> anyhow::Result<()> {
         // DIR
         todo!()
     }
 
-    pub fn div(&mut self) -> RunnerResult<()> {
+    pub fn div(&mut self) -> anyhow::Result<()> {
         // DIV
         todo!()
     }
 
-    pub fn div_a(&mut self) -> RunnerResult<()> {
+    pub fn div_a(&mut self) -> anyhow::Result<()> {
         // DIVA
         todo!()
     }
 
-    pub fn div_at(&mut self) -> RunnerResult<()> {
+    pub fn div_at(&mut self) -> anyhow::Result<()> {
         // DIVAT
         todo!()
     }
 
-    pub fn fill(&mut self) -> RunnerResult<()> {
+    pub fn fill(&mut self) -> anyhow::Result<()> {
         // FILL
         todo!()
     }
 
-    pub fn find(&self) -> RunnerResult<Option<CnvValue>> {
+    pub fn find(&self) -> anyhow::Result<Option<CnvValue>> {
         // FIND
         todo!()
     }
 
-    pub fn find_all(&self) -> RunnerResult<Vec<CnvValue>> {
+    pub fn find_all(&self) -> anyhow::Result<Vec<CnvValue>> {
         // FINDALL
         todo!()
     }
 
-    pub fn get(&self) -> RunnerResult<Option<CnvValue>> {
+    pub fn get(&self) -> anyhow::Result<Option<CnvValue>> {
         // GET
         todo!()
     }
 
-    pub fn get_marker_pos(&self) -> RunnerResult<usize> {
+    pub fn get_marker_pos(&self) -> anyhow::Result<usize> {
         // GETMARKERPOS
         todo!()
     }
 
-    pub fn get_size(&self) -> RunnerResult<usize> {
+    pub fn get_size(&self) -> anyhow::Result<usize> {
         // GETSIZE
         todo!()
     }
 
-    pub fn get_sum_value(&self) -> RunnerResult<CnvValue> {
+    pub fn get_sum_value(&self) -> anyhow::Result<CnvValue> {
         // GETSUMVALUE
         todo!()
     }
 
-    pub fn insert_at(&mut self) -> RunnerResult<()> {
+    pub fn insert_at(&mut self) -> anyhow::Result<()> {
         // INSERTAT
         todo!()
     }
 
-    pub fn load(&mut self) -> RunnerResult<()> {
+    pub fn load(&mut self) -> anyhow::Result<()> {
         // LOAD
         todo!()
     }
 
-    pub fn load_ini(&mut self) -> RunnerResult<()> {
+    pub fn load_ini(&mut self) -> anyhow::Result<()> {
         // LOADINI
         todo!()
     }
 
-    pub fn max(&mut self) -> RunnerResult<()> {
+    pub fn max(&mut self) -> anyhow::Result<()> {
         // MAX
         todo!()
     }
 
-    pub fn max_d(&mut self) -> RunnerResult<()> {
+    pub fn max_d(&mut self) -> anyhow::Result<()> {
         // MAXD
         todo!()
     }
 
-    pub fn min(&mut self) -> RunnerResult<()> {
+    pub fn min(&mut self) -> anyhow::Result<()> {
         // MIN
         todo!()
     }
 
-    pub fn min_d(&mut self) -> RunnerResult<()> {
+    pub fn min_d(&mut self) -> anyhow::Result<()> {
         // MIND
         todo!()
     }
 
-    pub fn mod_at(&mut self) -> RunnerResult<()> {
+    pub fn mod_at(&mut self) -> anyhow::Result<()> {
         // MODAT
         todo!()
     }
 
-    pub fn mul(&mut self) -> RunnerResult<()> {
+    pub fn mul(&mut self) -> anyhow::Result<()> {
         // MUL
         todo!()
     }
 
-    pub fn mul_a(&mut self) -> RunnerResult<()> {
+    pub fn mul_a(&mut self) -> anyhow::Result<()> {
         // MULA
         todo!()
     }
 
-    pub fn mul_at(&mut self) -> RunnerResult<()> {
+    pub fn mul_at(&mut self) -> anyhow::Result<()> {
         // MULAT
         todo!()
     }
 
-    pub fn next(&mut self) -> RunnerResult<()> {
+    pub fn next(&mut self) -> anyhow::Result<()> {
         // NEXT
         todo!()
     }
 
-    pub fn prev(&mut self) -> RunnerResult<()> {
+    pub fn prev(&mut self) -> anyhow::Result<()> {
         // PREV
         todo!()
     }
 
-    pub fn random_fill(&mut self) -> RunnerResult<()> {
+    pub fn random_fill(&mut self) -> anyhow::Result<()> {
         // RANDOMFILL
         todo!()
     }
 
-    pub fn remove(&mut self) -> RunnerResult<()> {
+    pub fn remove(&mut self) -> anyhow::Result<()> {
         // REMOVE
         todo!()
     }
 
-    pub fn remove_all(&mut self) -> RunnerResult<()> {
+    pub fn remove_all(&mut self) -> anyhow::Result<()> {
         // REMOVEALL
         todo!()
     }
 
-    pub fn remove_at(&mut self) -> RunnerResult<()> {
+    pub fn remove_at(&mut self) -> anyhow::Result<()> {
         // REMOVEAT
         todo!()
     }
 
-    pub fn reset_marker(&mut self) -> RunnerResult<()> {
+    pub fn reset_marker(&mut self) -> anyhow::Result<()> {
         // RESETMARKER
         todo!()
     }
 
-    pub fn reverse_find(&self) -> RunnerResult<Option<CnvValue>> {
+    pub fn reverse_find(&self) -> anyhow::Result<Option<CnvValue>> {
         // REVERSEFIND
         todo!()
     }
 
-    pub fn rotate_left(&mut self) -> RunnerResult<()> {
+    pub fn rotate_left(&mut self) -> anyhow::Result<()> {
         // ROTATELEFT
         todo!()
     }
 
-    pub fn rotate_right(&mut self) -> RunnerResult<()> {
+    pub fn rotate_right(&mut self) -> anyhow::Result<()> {
         // ROTATERIGHT
         todo!()
     }
 
-    pub fn save(&mut self) -> RunnerResult<()> {
+    pub fn save(&mut self) -> anyhow::Result<()> {
         // SAVE
         todo!()
     }
 
-    pub fn save_ini(&mut self) -> RunnerResult<()> {
+    pub fn save_ini(&mut self) -> anyhow::Result<()> {
         // SAVEINI
         todo!()
     }
 
-    pub fn send_on_change(&mut self) -> RunnerResult<()> {
+    pub fn send_on_change(&mut self) -> anyhow::Result<()> {
         // SENDONCHANGE
         todo!()
     }
 
-    pub fn set_marker_pos(&mut self) -> RunnerResult<()> {
+    pub fn set_marker_pos(&mut self) -> anyhow::Result<()> {
         // SETMARKERPOS
         todo!()
     }
 
-    pub fn shift_left(&mut self) -> RunnerResult<()> {
+    pub fn shift_left(&mut self) -> anyhow::Result<()> {
         // SHIFTLEFT
         todo!()
     }
 
-    pub fn shift_right(&mut self) -> RunnerResult<()> {
+    pub fn shift_right(&mut self) -> anyhow::Result<()> {
         // SHIFTRIGHT
         todo!()
     }
 
-    pub fn sort(&mut self) -> RunnerResult<()> {
+    pub fn sort(&mut self) -> anyhow::Result<()> {
         // SORT
         todo!()
     }
 
-    pub fn sort_many(&mut self) -> RunnerResult<()> {
+    pub fn sort_many(&mut self) -> anyhow::Result<()> {
         // SORTMANY
         todo!()
     }
 
-    pub fn sub(&mut self) -> RunnerResult<()> {
+    pub fn sub(&mut self) -> anyhow::Result<()> {
         // SUB
         todo!()
     }
 
-    pub fn sub_a(&mut self) -> RunnerResult<()> {
+    pub fn sub_a(&mut self) -> anyhow::Result<()> {
         // SUBA
         todo!()
     }
 
-    pub fn sub_at(&mut self) -> RunnerResult<()> {
+    pub fn sub_at(&mut self) -> anyhow::Result<()> {
         // SUBAT
         todo!()
     }
 
-    pub fn sum(&mut self) -> RunnerResult<()> {
+    pub fn sum(&mut self) -> anyhow::Result<()> {
         // SUM
         todo!()
     }
 
-    pub fn sum_a(&mut self) -> RunnerResult<()> {
+    pub fn sum_a(&mut self) -> anyhow::Result<()> {
         // SUMA
         todo!()
     }
 
-    pub fn swap(&mut self) -> RunnerResult<()> {
+    pub fn swap(&mut self) -> anyhow::Result<()> {
         // SWAP
         todo!()
     }

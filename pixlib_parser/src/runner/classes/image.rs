@@ -139,37 +139,39 @@ impl Image {
         image
     }
 
-    pub fn is_visible(&self) -> RunnerResult<bool> {
+    pub fn is_visible(&self) -> anyhow::Result<bool> {
         self.state.borrow().is_visible()
     }
 
-    pub fn get_priority(&self) -> RunnerResult<isize> {
+    pub fn get_priority(&self) -> anyhow::Result<isize> {
         self.state.borrow().get_priority()
     }
 
     // custom
 
-    pub fn get_position(&self) -> RunnerResult<(isize, isize)> {
+    pub fn get_position(&self) -> anyhow::Result<(isize, isize)> {
         self.state.borrow().get_position()
     }
 
-    pub fn get_size(&self) -> RunnerResult<(usize, usize)> {
-        self.state.borrow().get_size()
+    pub fn get_size(&self) -> anyhow::Result<(usize, usize)> {
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow().get_size(context)
     }
 
-    pub fn get_center_position(&self) -> RunnerResult<(isize, isize)> {
-        self.state.borrow().get_center_position()
+    pub fn get_center_position(&self) -> anyhow::Result<(isize, isize)> {
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state.borrow().get_center_position(context)
     }
 
-    pub fn does_monitor_collision(&self) -> RunnerResult<bool> {
+    pub fn does_monitor_collision(&self) -> anyhow::Result<bool> {
         Ok(self.state.borrow().does_monitor_collision)
     }
 
-    pub fn does_monitor_collision_pixel_perfect(&self) -> RunnerResult<bool> {
+    pub fn does_monitor_collision_pixel_perfect(&self) -> anyhow::Result<bool> {
         Ok(self.state.borrow().does_monitor_collision && self.should_collisions_respect_alpha)
     }
 
-    pub fn get_image_to_show(&self) -> RunnerResult<Option<(ImageDefinition, ImageData)>> {
+    pub fn get_image_to_show(&self) -> anyhow::Result<Option<(ImageDefinition, ImageData)>> {
         let state = self.state.borrow();
         if !state.is_visible {
             return Ok(None);
@@ -181,11 +183,11 @@ impl Image {
         Ok(Some((image.0.clone(), image.1.clone())))
     }
 
-    pub fn hide(&self) -> RunnerResult<()> {
+    pub fn hide(&self) -> anyhow::Result<()> {
         self.state.borrow_mut().hide()
     }
 
-    pub fn show(&self) -> RunnerResult<()> {
+    pub fn show(&self) -> anyhow::Result<()> {
         self.state.borrow_mut().show()
     }
 }
@@ -208,7 +210,7 @@ impl CnvType for Image {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("CLEARCLIPPING") => {
@@ -286,7 +288,7 @@ impl CnvType for Image {
                     .ok_or(RunnerError::ObjectNotFound { name })?;
                 self.state
                     .borrow()
-                    .is_near(other, arguments[1].to_int().max(0) as usize)
+                    .is_near(context, other, arguments[1].to_int().max(0) as usize)
                     .map(|v| Some(CnvValue::Bool(v)))
             }
             CallableIdentifier::Method("ISVISIBLE") => self
@@ -379,7 +381,8 @@ impl CnvType for Image {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -506,7 +509,7 @@ impl CnvType for Image {
 }
 
 impl Initable for Image {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         let mut state = self.state.borrow_mut();
         if self.should_preload {
             if let ImageFileData::NotLoaded(filename) = &state.file_data {
@@ -530,132 +533,137 @@ impl Initable for Image {
 }
 
 impl ImageState {
-    pub fn clear_clipping(&mut self) -> RunnerResult<()> {
+    pub fn clear_clipping(&mut self) -> anyhow::Result<()> {
         // CLEARCLIPPING
         todo!()
     }
 
-    pub fn draw_onto(&mut self) -> RunnerResult<()> {
+    pub fn draw_onto(&mut self) -> anyhow::Result<()> {
         // DRAWONTO
         todo!()
     }
 
-    pub fn flip_h(&mut self) -> RunnerResult<()> {
+    pub fn flip_h(&mut self) -> anyhow::Result<()> {
         // FLIPH
         self.is_flipped_horizontally = !self.is_flipped_horizontally;
         Ok(())
     }
 
-    pub fn flip_v(&mut self) -> RunnerResult<()> {
+    pub fn flip_v(&mut self) -> anyhow::Result<()> {
         // FLIPV
         self.is_flipped_vertically = !self.is_flipped_vertically;
         Ok(())
     }
 
-    pub fn get_alpha(&mut self) -> RunnerResult<()> {
+    pub fn get_alpha(&mut self) -> anyhow::Result<()> {
         // GETALPHA
         todo!()
     }
 
-    pub fn get_center_x(&mut self) -> RunnerResult<()> {
+    pub fn get_center_x(&mut self) -> anyhow::Result<()> {
         // GETCENTERX
         todo!()
     }
 
-    pub fn get_center_y(&mut self) -> RunnerResult<()> {
+    pub fn get_center_y(&mut self) -> anyhow::Result<()> {
         // GETCENTERY
         todo!()
     }
 
-    pub fn get_color_at(&mut self) -> RunnerResult<()> {
+    pub fn get_color_at(&mut self) -> anyhow::Result<()> {
         // GETCOLORAT
         todo!()
     }
 
-    pub fn get_color_b_at(&mut self) -> RunnerResult<()> {
+    pub fn get_color_b_at(&mut self) -> anyhow::Result<()> {
         // GETCOLORBAT
         todo!()
     }
 
-    pub fn get_color_g_at(&mut self) -> RunnerResult<()> {
+    pub fn get_color_g_at(&mut self) -> anyhow::Result<()> {
         // GETCOLORGAT
         todo!()
     }
 
-    pub fn get_color_r_at(&mut self) -> RunnerResult<()> {
+    pub fn get_color_r_at(&mut self) -> anyhow::Result<()> {
         // GETCOLORRAT
         todo!()
     }
 
-    pub fn get_height(&mut self) -> RunnerResult<()> {
+    pub fn get_height(&mut self) -> anyhow::Result<()> {
         // GETHEIGHT
         todo!()
     }
 
-    pub fn get_opacity(&mut self) -> RunnerResult<()> {
+    pub fn get_opacity(&mut self) -> anyhow::Result<()> {
         // GETOPACITY
         todo!()
     }
 
-    pub fn get_pixel(&mut self) -> RunnerResult<()> {
+    pub fn get_pixel(&mut self) -> anyhow::Result<()> {
         // GETPIXEL
         todo!()
     }
 
-    pub fn get_position_x(&self) -> RunnerResult<isize> {
+    pub fn get_position_x(&self) -> anyhow::Result<isize> {
         // GETPOSITIONX
         Ok(self.position.0)
     }
 
-    pub fn get_position_y(&self) -> RunnerResult<isize> {
+    pub fn get_position_y(&self) -> anyhow::Result<isize> {
         // GETPOSITIONY
         Ok(self.position.1)
     }
 
-    pub fn get_priority(&self) -> RunnerResult<isize> {
+    pub fn get_priority(&self) -> anyhow::Result<isize> {
         // GETPRIORITY
         Ok(self.priority)
     }
 
-    pub fn get_slide_comps(&mut self) -> RunnerResult<()> {
+    pub fn get_slide_comps(&mut self) -> anyhow::Result<()> {
         // GETSLIDECOMPS
         todo!()
     }
 
-    pub fn get_width(&mut self) -> RunnerResult<()> {
+    pub fn get_width(&mut self) -> anyhow::Result<()> {
         // GETWIDTH
         todo!()
     }
 
-    pub fn hide(&mut self) -> RunnerResult<()> {
+    pub fn hide(&mut self) -> anyhow::Result<()> {
         // HIDE
         self.is_visible = false;
         Ok(())
     }
 
-    pub fn invalidate(&mut self) -> RunnerResult<()> {
+    pub fn invalidate(&mut self) -> anyhow::Result<()> {
         // INVALIDATE
         todo!()
     }
 
-    pub fn is_at(&mut self) -> RunnerResult<()> {
+    pub fn is_at(&mut self) -> anyhow::Result<()> {
         // ISAT
         todo!()
     }
 
-    pub fn is_inside(&mut self) -> RunnerResult<()> {
+    pub fn is_inside(&mut self) -> anyhow::Result<()> {
         // ISINSIDE
         todo!()
     }
 
-    pub fn is_near(&self, other: Arc<CnvObject>, min_iou_percent: usize) -> RunnerResult<bool> {
+    pub fn is_near(
+        &self,
+        context: RunnerContext,
+        other: Arc<CnvObject>,
+        min_iou_percent: usize,
+    ) -> anyhow::Result<bool> {
         // ISNEAR
         let current_position = self.get_position()?;
-        let current_size = self.get_size()?;
+        let current_size = self.get_size(context.clone())?;
         let (other_position, other_size) = match &other.content {
             CnvContent::Animation(a) => (a.get_frame_position()?, a.get_frame_size()?),
             CnvContent::Image(i) => (i.get_position()?, i.get_size()?),
-            _ => return Err(RunnerError::ExpectedGraphicsObject),
+            _ => return Err(RunnerError::ExpectedGraphicsObject.into()),
         };
         let current_area = current_size.0 * current_size.1;
         let other_area = other_size.0 * other_size.1;
@@ -700,17 +708,17 @@ impl ImageState {
         Ok(intersection_area * 100 / union_area > min_iou_percent)
     }
 
-    pub fn is_visible(&self) -> RunnerResult<bool> {
+    pub fn is_visible(&self) -> anyhow::Result<bool> {
         // ISVISIBLE
         Ok(self.is_visible)
     }
 
-    pub fn link(&mut self) -> RunnerResult<()> {
+    pub fn link(&mut self) -> anyhow::Result<()> {
         // LINK
         todo!()
     }
 
-    pub fn load(&mut self, context: RunnerContext, filename: &str) -> RunnerResult<()> {
+    pub fn load(&mut self, context: RunnerContext, filename: &str) -> anyhow::Result<()> {
         // LOAD
         let script = context.current_object.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
@@ -748,96 +756,96 @@ impl ImageState {
         Ok(())
     }
 
-    pub fn merge_alpha(&mut self) -> RunnerResult<()> {
+    pub fn merge_alpha(&mut self) -> anyhow::Result<()> {
         // MERGEALPHA
         todo!()
     }
 
-    pub fn merge_alpha2(&mut self) -> RunnerResult<()> {
+    pub fn merge_alpha2(&mut self) -> anyhow::Result<()> {
         // MERGEALPHA2
         todo!()
     }
 
-    pub fn monitor_collision(&mut self) -> RunnerResult<()> {
+    pub fn monitor_collision(&mut self) -> anyhow::Result<()> {
         // MONITORCOLLISION
         todo!()
     }
 
-    pub fn move_by(&mut self, x: isize, y: isize) -> RunnerResult<()> {
+    pub fn move_by(&mut self, x: isize, y: isize) -> anyhow::Result<()> {
         // MOVE
         self.position = (self.position.0 + x, self.position.1 + y);
         Ok(())
     }
 
-    pub fn remove_monitor_collision(&mut self) -> RunnerResult<()> {
+    pub fn remove_monitor_collision(&mut self) -> anyhow::Result<()> {
         // REMOVEMONITORCOLLISION
         todo!()
     }
 
-    pub fn replace_color(&mut self) -> RunnerResult<()> {
+    pub fn replace_color(&mut self) -> anyhow::Result<()> {
         // REPLACECOLOR
         todo!()
     }
 
-    pub fn reset_flips(&mut self) -> RunnerResult<()> {
+    pub fn reset_flips(&mut self) -> anyhow::Result<()> {
         // RESETFLIPS
         todo!()
     }
 
-    pub fn reset_position(&mut self) -> RunnerResult<()> {
+    pub fn reset_position(&mut self) -> anyhow::Result<()> {
         // RESETPOSITION
         self.position = self.default_position;
         Ok(())
     }
 
-    pub fn save(&mut self) -> RunnerResult<()> {
+    pub fn save(&mut self) -> anyhow::Result<()> {
         // SAVE
         todo!()
     }
 
-    pub fn set_anchor(&mut self) -> RunnerResult<()> {
+    pub fn set_anchor(&mut self) -> anyhow::Result<()> {
         // SETANCHOR
         todo!()
     }
 
-    pub fn set_as_button(&mut self) -> RunnerResult<()> {
+    pub fn set_as_button(&mut self) -> anyhow::Result<()> {
         // SETASBUTTON
         todo!()
     }
 
-    pub fn set_clipping(&mut self) -> RunnerResult<()> {
+    pub fn set_clipping(&mut self) -> anyhow::Result<()> {
         // SETCLIPPING
         todo!()
     }
 
-    pub fn set_opacity(&mut self) -> RunnerResult<()> {
+    pub fn set_opacity(&mut self) -> anyhow::Result<()> {
         // SETOPACITY
         todo!()
     }
 
-    pub fn set_position(&mut self, x: isize, y: isize) -> RunnerResult<()> {
+    pub fn set_position(&mut self, x: isize, y: isize) -> anyhow::Result<()> {
         // SETPOSITION
         self.position = (x, y);
         Ok(())
     }
 
-    pub fn set_priority(&mut self) -> RunnerResult<()> {
+    pub fn set_priority(&mut self) -> anyhow::Result<()> {
         // SETPRIORITY
         todo!()
     }
 
-    pub fn set_reset_position(&mut self, x: isize, y: isize) -> RunnerResult<()> {
+    pub fn set_reset_position(&mut self, x: isize, y: isize) -> anyhow::Result<()> {
         // SETRESETPOSITION
         self.default_position = (x, y);
         Ok(())
     }
 
-    pub fn set_scale_factor(&mut self) -> RunnerResult<()> {
+    pub fn set_scale_factor(&mut self) -> anyhow::Result<()> {
         // SETSCALEFACTOR
         todo!()
     }
 
-    pub fn show(&mut self) -> RunnerResult<()> {
+    pub fn show(&mut self) -> anyhow::Result<()> {
         // SHOW
         self.is_visible = true;
         Ok(())
@@ -845,21 +853,21 @@ impl ImageState {
 
     // custom
 
-    pub fn get_position(&self) -> RunnerResult<(isize, isize)> {
+    pub fn get_position(&self) -> anyhow::Result<(isize, isize)> {
         Ok(self.position)
     }
 
-    pub fn get_size(&self) -> RunnerResult<(usize, usize)> {
+    pub fn get_size(&self, context: RunnerContext) -> anyhow::Result<(usize, usize)> {
         let ImageFileData::Loaded(loaded_data) = &self.file_data else {
-            return Err(RunnerError::NoDataLoaded);
+            return Err(RunnerError::NoImageDataLoaded(context.current_object.name.clone()).into());
         };
         let size = loaded_data.image.0.size_px;
         Ok((size.0 as usize, size.1 as usize))
     }
 
-    pub fn get_center_position(&self) -> RunnerResult<(isize, isize)> {
+    pub fn get_center_position(&self, context: RunnerContext) -> anyhow::Result<(isize, isize)> {
         let ImageFileData::Loaded(loaded_data) = &self.file_data else {
-            return Err(RunnerError::NoDataLoaded);
+            return Err(RunnerError::NoImageDataLoaded(context.current_object.name.clone()).into());
         };
         let position = self.position;
         let size = loaded_data.image.0.size_px;

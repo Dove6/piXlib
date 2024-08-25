@@ -58,7 +58,7 @@ impl Expression {
 
     // custom
 
-    pub fn calculate(&self) -> RunnerResult<CnvValue> {
+    pub fn calculate(&self) -> anyhow::Result<CnvValue> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         let left = self
             .left
@@ -110,7 +110,7 @@ impl CnvType for Expression {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         match name {
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
@@ -124,7 +124,8 @@ impl CnvType for Expression {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 

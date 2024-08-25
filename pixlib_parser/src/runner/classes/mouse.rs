@@ -126,7 +126,7 @@ impl Mouse {
         }
     }
 
-    pub fn handle_incoming_event(event: MouseEvent) -> RunnerResult<()> {
+    pub fn handle_incoming_event(event: MouseEvent) -> anyhow::Result<()> {
         let mut mouse_state = GLOBAL_MOUSE_STATE.write().unwrap();
         match event {
             MouseEvent::MovedTo { x, y } => mouse_state.set_position(x, y),
@@ -140,8 +140,8 @@ impl Mouse {
     }
 
     pub fn handle_outgoing_events(
-        mut handler: impl FnMut(InternalMouseEvent) -> RunnerResult<()>,
-    ) -> RunnerResult<()> {
+        mut handler: impl FnMut(InternalMouseEvent) -> anyhow::Result<()>,
+    ) -> anyhow::Result<()> {
         let mut mouse_state = GLOBAL_MOUSE_STATE.write().unwrap();
         for event in mouse_state.events_out.drain(..) {
             handler(event)?;
@@ -149,12 +149,12 @@ impl Mouse {
         Ok(())
     }
 
-    pub fn get_position() -> RunnerResult<(isize, isize)> {
+    pub fn get_position() -> anyhow::Result<(isize, isize)> {
         let mouse_state = GLOBAL_MOUSE_STATE.read().unwrap();
         Ok(mouse_state.position)
     }
 
-    pub fn is_left_button_down() -> RunnerResult<bool> {
+    pub fn is_left_button_down() -> anyhow::Result<bool> {
         let mouse_state = GLOBAL_MOUSE_STATE.read().unwrap();
         Ok(mouse_state.is_left_button_down)
     }
@@ -178,7 +178,7 @@ impl CnvType for Mouse {
         name: CallableIdentifier,
         arguments: &[CnvValue],
         context: RunnerContext,
-    ) -> RunnerResult<Option<CnvValue>> {
+    ) -> anyhow::Result<Option<CnvValue>> {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("CLICK") => self
@@ -289,7 +289,8 @@ impl CnvType for Mouse {
             ident => Err(RunnerError::InvalidCallable {
                 object_name: self.parent.name.clone(),
                 callable: ident.to_owned(),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -365,7 +366,7 @@ impl CnvType for Mouse {
 }
 
 impl Initable for Mouse {
-    fn initialize(&self, context: RunnerContext) -> RunnerResult<()> {
+    fn initialize(&self, context: RunnerContext) -> anyhow::Result<()> {
         context
             .runner
             .internal_events
@@ -382,84 +383,84 @@ impl Initable for Mouse {
 }
 
 impl MouseState {
-    pub fn click_left_button(&mut self) -> RunnerResult<()> {
+    pub fn click_left_button(&mut self) -> anyhow::Result<()> {
         // CLICK
         self.set_left_button_down(true)
     }
 
-    pub fn disable(&mut self) -> RunnerResult<()> {
+    pub fn disable(&mut self) -> anyhow::Result<()> {
         // DISABLE
         self.is_enabled = false;
         Ok(())
     }
 
-    pub fn disable_event_handling(&mut self) -> RunnerResult<()> {
+    pub fn disable_event_handling(&mut self) -> anyhow::Result<()> {
         // DISABLESIGNAL
         self.are_events_enabled = false;
         Ok(())
     }
 
-    pub fn enable(&mut self) -> RunnerResult<()> {
+    pub fn enable(&mut self) -> anyhow::Result<()> {
         // ENABLE
         self.is_enabled = true;
         Ok(())
     }
 
-    pub fn enable_event_handling(&mut self) -> RunnerResult<()> {
+    pub fn enable_event_handling(&mut self) -> anyhow::Result<()> {
         // ENABLESIGNAL
         self.are_events_enabled = true;
         Ok(())
     }
 
-    pub fn get_last_click_position_x(&self) -> RunnerResult<isize> {
+    pub fn get_last_click_position_x(&self) -> anyhow::Result<isize> {
         // GETLASTCLICKPOSX
         Ok(self.last_left_click_position.0)
     }
 
-    pub fn get_last_click_position_y(&self) -> RunnerResult<isize> {
+    pub fn get_last_click_position_y(&self) -> anyhow::Result<isize> {
         // GETLASTCLICKPOSY
         Ok(self.last_left_click_position.1)
     }
 
-    pub fn get_position_x(&self) -> RunnerResult<isize> {
+    pub fn get_position_x(&self) -> anyhow::Result<isize> {
         // GETPOSX
         Ok(self.position.0)
     }
 
-    pub fn get_position_y(&self) -> RunnerResult<isize> {
+    pub fn get_position_y(&self) -> anyhow::Result<isize> {
         // GETPOSY
         Ok(self.position.1)
     }
 
-    pub fn hide(&mut self) -> RunnerResult<()> {
+    pub fn hide(&mut self) -> anyhow::Result<()> {
         // HIDE
         self.is_visible = false;
         Ok(())
     }
 
-    pub fn is_left_button_down(&self) -> RunnerResult<bool> {
+    pub fn is_left_button_down(&self) -> anyhow::Result<bool> {
         // ISLBUTTONDOWN
         Ok(self.is_left_button_down)
     }
 
-    pub fn is_right_button_down(&self) -> RunnerResult<bool> {
+    pub fn is_right_button_down(&self) -> anyhow::Result<bool> {
         // ISRBUTTONDOWN
         Ok(self.is_right_button_down)
     }
 
-    pub fn lock_cursor(&mut self) -> RunnerResult<()> {
+    pub fn lock_cursor(&mut self) -> anyhow::Result<()> {
         // LOCKACTIVECURSOR
         self.is_locked = true;
         self.events_out.push_back(InternalMouseEvent::CursorLocked);
         Ok(())
     }
 
-    pub fn release_left_button(&mut self) -> RunnerResult<()> {
+    pub fn release_left_button(&mut self) -> anyhow::Result<()> {
         // MOUSERELEASE
         self.set_left_button_down(false)
     }
 
-    pub fn move_by(&mut self, x: isize, y: isize) -> RunnerResult<()> {
+    pub fn move_by(&mut self, x: isize, y: isize) -> anyhow::Result<()> {
         // MOVE
         self.position = (self.position.0 + x, self.position.1 + y);
         self.events_out
@@ -467,22 +468,22 @@ impl MouseState {
         Ok(())
     }
 
-    pub fn set(&mut self) -> RunnerResult<()> {
+    pub fn set(&mut self) -> anyhow::Result<()> {
         // SET
         todo!()
     }
 
-    pub fn set_active_rect(&mut self) -> RunnerResult<()> {
+    pub fn set_active_rect(&mut self) -> anyhow::Result<()> {
         // SETACTIVERECT
         todo!()
     }
 
-    pub fn set_clip_rect(&mut self) -> RunnerResult<()> {
+    pub fn set_clip_rect(&mut self) -> anyhow::Result<()> {
         // SETCLIPRECT
         todo!()
     }
 
-    pub fn set_position(&mut self, x: isize, y: isize) -> RunnerResult<()> {
+    pub fn set_position(&mut self, x: isize, y: isize) -> anyhow::Result<()> {
         // SETPOSITION
         let position_diff = (x - self.position.0, y - self.position.1);
         self.position = (x, y);
@@ -495,7 +496,7 @@ impl MouseState {
         Ok(())
     }
 
-    pub fn show(&mut self) -> RunnerResult<()> {
+    pub fn show(&mut self) -> anyhow::Result<()> {
         // SHOW
         self.is_visible = true;
         Ok(())
@@ -503,7 +504,7 @@ impl MouseState {
 
     // custom
 
-    pub fn set_left_button_down(&mut self, is_down: bool) -> RunnerResult<()> {
+    pub fn set_left_button_down(&mut self, is_down: bool) -> anyhow::Result<()> {
         if is_down != self.is_left_button_down {
             if is_down {
                 self.events_out
@@ -536,7 +537,7 @@ impl MouseState {
         Ok(())
     }
 
-    pub fn set_middle_button_down(&mut self, is_down: bool) -> RunnerResult<()> {
+    pub fn set_middle_button_down(&mut self, is_down: bool) -> anyhow::Result<()> {
         if is_down != self.is_middle_button_down {
             if is_down {
                 self.events_out
@@ -556,7 +557,7 @@ impl MouseState {
         Ok(())
     }
 
-    pub fn set_right_button_down(&mut self, is_down: bool) -> RunnerResult<()> {
+    pub fn set_right_button_down(&mut self, is_down: bool) -> anyhow::Result<()> {
         if is_down != self.is_right_button_down {
             if is_down {
                 self.events_out
