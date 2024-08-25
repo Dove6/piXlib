@@ -2,6 +2,8 @@ use std::{fmt::Display, sync::Arc};
 
 use pixlib_formats::file_formats::ann::LoopingSettings;
 
+use crate::parser::seq_parser::SeqEntry;
+
 #[derive(Debug, Clone)]
 pub enum CallableIdentifier<'a> {
     Method(&'a str),
@@ -73,7 +75,7 @@ pub enum SequenceFileData {
 #[derive(Debug, Clone)]
 pub struct LoadedSequence {
     pub filename: Option<String>,
-    pub sequence: Vec<String>,
+    pub sequence: Arc<SeqEntry>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

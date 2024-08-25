@@ -89,6 +89,10 @@ pub enum SoundSource {
         script_path: ScenePath,
         object_name: String,
     },
+    Sequence {
+        script_path: ScenePath,
+        object_name: String,
+    },
 }
 
 #[derive(Debug, Clone)]

@@ -325,6 +325,22 @@ impl Animation {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow_mut().resume(context)
     }
+
+    pub fn get_filename(&self) -> anyhow::Result<Option<String>> {
+        self.state.borrow().get_filename()
+    }
+
+    pub fn has_sequence(&self, name: &str) -> anyhow::Result<bool> {
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        self.state
+            .borrow_mut()
+            .use_and_drop_mut(|s| s.load_if_needed(context.clone()))?;
+        self.state.borrow().has_sequence(context, name)
+    }
+
+    pub fn is_playing(&self) -> anyhow::Result<bool> {
+        Ok(self.state.borrow().is_playing)
+    }
 }
 
 impl CnvType for Animation {
@@ -1801,5 +1817,22 @@ impl AnimationState {
             self.load(context, &filename)?;
         };
         Ok(())
+    }
+
+    pub fn get_filename(&self) -> anyhow::Result<Option<String>> {
+        Ok(match &*self.file_data {
+            AnimationFileData::Empty => None,
+            AnimationFileData::NotLoaded(filename) => Some(filename.to_owned()),
+            AnimationFileData::Loaded(LoadedAnimation { filename, .. }) => filename.clone(),
+        })
+    }
+
+    pub fn has_sequence(&self, context: RunnerContext, name: &str) -> anyhow::Result<bool> {
+        let AnimationFileData::Loaded(ref loaded_file) = *self.file_data else {
+            return Err(
+                RunnerError::NoAnimationDataLoaded(context.current_object.name.clone()).into(),
+            );
+        };
+        Ok(loaded_file.sequences.iter().any(|s| s.name == name))
     }
 }

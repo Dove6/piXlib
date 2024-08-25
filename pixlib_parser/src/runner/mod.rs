@@ -33,7 +33,7 @@ use thiserror::Error;
 pub use tree_walking::{CnvExpression, CnvStatement};
 pub use value::CnvValue;
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::fmt::Display;
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
@@ -102,6 +102,14 @@ pub enum RunnerError {
     NoSoundDataLoaded(String),
     #[error("No image data loaded for object {0}")]
     NoImageDataLoaded(String),
+    #[error("No sequence data loaded for object {0}")]
+    NoSequenceDataLoaded(String),
+    #[error("Sequence object {0} is not currently playing")]
+    SeqNotPlaying(String),
+    #[error("Sequence object {0} is not currently sound")]
+    SeqNotPlayingSound(String),
+    #[error("Object {0} has not been initialized yet")]
+    NotInitialized(String),
     #[error("Sequence {sequence_name} not found in object {object_name}")]
     SequenceNameNotFound {
         object_name: String,
@@ -460,12 +468,14 @@ impl CnvRunner {
         Ok(runner)
     }
 
+    #[allow(clippy::mutable_key_type)]
     pub fn step(self: &Arc<CnvRunner>) -> anyhow::Result<()> {
         let mut to_init = Vec::new();
         self.find_objects(|o| !*o.initialized.borrow(), &mut to_init);
         for object in to_init {
             object.init(None)?;
         }
+        let mut finished_animations = HashSet::new();
         self.events_in
             .timer
             .borrow_mut()
@@ -481,9 +491,13 @@ impl CnvRunner {
                             for animation_object in buffer.iter() {
                                 let CnvContent::Animation(animation) = &animation_object.content
                                 else {
-                                    panic!();
+                                    unreachable!();
                                 };
+                                let was_playing = animation.is_playing()?;
                                 animation.step(seconds)?;
+                                if was_playing && !animation.is_playing()? {
+                                    finished_animations.insert(animation_object.clone());
+                                }
                             }
                             self.find_objects(
                                 |o| matches!(&o.content, CnvContent::Timer(_)),
@@ -491,7 +505,7 @@ impl CnvRunner {
                             );
                             for timer_object in buffer.iter() {
                                 let CnvContent::Timer(ref timer) = &timer_object.content else {
-                                    panic!();
+                                    unreachable!();
                                 };
                                 timer.step(seconds)?;
                             }
@@ -500,6 +514,21 @@ impl CnvRunner {
                 }
                 Ok(())
             })?;
+        let mut sequences = Vec::new();
+        self.find_objects(
+            |o| matches!(&o.content, CnvContent::Sequence(_)),
+            &mut sequences,
+        );
+        for sequence in sequences.iter() {
+            let CnvContent::Sequence(sequence) = &sequence.content else {
+                unreachable!()
+            };
+            if let Some(played_animation) = sequence.get_currently_played_animation()? {
+                if finished_animations.contains(&played_animation) {
+                    sequence.handle_animation_finished()?;
+                }
+            }
+        }
         self.events_in
             .mouse
             .borrow_mut()
@@ -545,9 +574,34 @@ impl CnvRunner {
                                         continue;
                                     };
                                     let CnvContent::Sound(ref sound) = &sound_object.content else {
-                                        panic!();
+                                        unreachable!();
                                     };
                                     sound.handle_finished()?;
+                                }
+                                SoundSource::Sequence {
+                                    script_path,
+                                    object_name,
+                                } => {
+                                    let Some(sequence_object) = self
+                                        .get_script(script_path)
+                                        .and_then(|s| s.get_object(object_name))
+                                    else {
+                                        eprintln!(
+                                            "Object {} / {} not found for event {:?}",
+                                            script_path.to_str(),
+                                            object_name,
+                                            evt
+                                        );
+                                        continue;
+                                    };
+                                    let CnvContent::Sequence(ref sequence) =
+                                        &sequence_object.content
+                                    else {
+                                        unreachable!();
+                                    };
+                                    if sequence.is_currently_playing_sound()? {
+                                        sequence.handle_sound_finished()?;
+                                    }
                                 }
                                 SoundSource::AnimationSfx { .. } => {}
                             };

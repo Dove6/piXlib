@@ -239,9 +239,11 @@ impl CnvType for Text {
             CallableIdentifier::Method("SETRECT") => {
                 self.state.borrow_mut().set_rect().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SETTEXT") => {
-                self.state.borrow_mut().set_text().map(|_| CnvValue::Null)
-            }
+            CallableIdentifier::Method("SETTEXT") => self
+                .state
+                .borrow_mut()
+                .set_text(arguments[0].to_str())
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETTEXTDOUBLE") => self
                 .state
                 .borrow_mut()
@@ -521,9 +523,10 @@ impl TextState {
         todo!()
     }
 
-    pub fn set_text(&mut self) -> anyhow::Result<()> {
+    pub fn set_text(&mut self, text: String) -> anyhow::Result<()> {
         // SETTEXT
-        todo!()
+        self.text = text;
+        Ok(())
     }
 
     pub fn set_text_double(&mut self) -> anyhow::Result<()> {

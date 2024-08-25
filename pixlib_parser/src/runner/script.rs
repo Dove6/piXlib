@@ -1,4 +1,4 @@
-use std::{cell::RefCell, sync::Arc};
+use std::{cell::RefCell, hash::Hash, sync::Arc};
 
 use super::{containers::ObjectContainer, path::ScenePath, CnvObject, CnvRunner};
 
@@ -14,6 +14,14 @@ pub struct CnvScript {
 impl PartialEq for CnvScript {
     fn eq(&self, other: &Self) -> bool {
         self.path == other.path
+    }
+}
+
+impl Eq for CnvScript {}
+
+impl Hash for CnvScript {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.path.hash(state);
     }
 }
 
@@ -85,6 +93,10 @@ impl CnvScript {
                 buffer.push(Arc::clone(object));
             }
         }
+    }
+
+    pub fn add_object(&self, object: Arc<CnvObject>) -> anyhow::Result<()> {
+        self.objects.borrow_mut().push_object(object)
     }
 }
 

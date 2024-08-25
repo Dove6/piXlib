@@ -168,8 +168,8 @@ impl SeqBuilder {
             Ok(Arc::new(SeqEntry {
                 name,
                 r#type: SeqType::Simple {
-                    filename: filename.to_ascii_uppercase(),
-                    event: event.to_ascii_uppercase(),
+                    filename: filename.trim().to_ascii_uppercase(),
+                    event: event.trim().to_ascii_uppercase(),
                 },
             }))
         }
@@ -236,9 +236,9 @@ impl SeqBuilder {
             Ok(Arc::new(SeqEntry {
                 name,
                 r#type: SeqType::Speaking {
-                    animation_filename,
-                    sound_filename,
-                    prefix,
+                    animation_filename: animation_filename.trim().to_uppercase(),
+                    sound_filename: sound_filename.trim().to_uppercase(),
+                    prefix: prefix.trim().to_uppercase(),
                     starting,
                     ending,
                 },
@@ -561,6 +561,7 @@ impl<I: Iterator<Item = ParserInput>> Iterator for SeqParser<I> {
             match c {
                 '\n' if !line_state.had_non_whitespace => line_state.reset(),
                 _ if !line_state.had_non_whitespace && c.is_whitespace() => {}
+                '\r' => {}
                 _ => line_state.content.push(c),
             }
             if line_state.content.len() >= self.settings.max_line_length {

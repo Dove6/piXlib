@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
+    hash::Hash,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -132,6 +133,16 @@ pub struct CnvObject {
 impl PartialEq for CnvObject {
     fn eq(&self, other: &Self) -> bool {
         self.parent == other.parent && self.index == other.index && self.name == other.name
+    }
+}
+
+impl Eq for CnvObject {}
+
+impl Hash for CnvObject {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.parent.hash(state);
+        self.index.hash(state);
+        self.name.hash(state);
     }
 }
 

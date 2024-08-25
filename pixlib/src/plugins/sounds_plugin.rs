@@ -215,6 +215,7 @@ fn assign_pool(
     let mut bgm_assigned = false;
     let mut sound_counter = 0;
     let mut animation_sfx_counter = 0;
+    let mut sequence_counter = 0;
     let mut iter = query.iter_mut();
     // info!("Current scene: {:?}", runner.get_current_scene());
     if let Some(current_scene) = runner.get_current_scene() {
@@ -254,12 +255,27 @@ fn assign_pool(
             animation_sfx_counter += 1;
         }
     }
+    for script in runner.scripts.borrow().iter() {
+        for object in script
+            .objects
+            .borrow()
+            .iter()
+            .filter(|o| matches!(&o.content, CnvContent::Sequence(_)))
+        {
+            **iter.next().unwrap() = Some(SoundSource::Sequence {
+                script_path: script.path.clone(),
+                object_name: object.name.clone(),
+            });
+            sequence_counter += 1;
+        }
+    }
     pool_query.single_mut().state = PoolState::Assigned;
     info!(
-        "Assigned {} background music, {} sounds and {} animation SFX",
+        "Assigned {} background music, {} sounds, {} animation SFX and {} sequences",
         if bgm_assigned { "a" } else { "no" },
         sound_counter,
-        animation_sfx_counter
+        animation_sfx_counter,
+        sequence_counter
     );
 }
 
@@ -285,6 +301,7 @@ fn check_for_state_transitions(
         if state.has_position_after(&instance.state().into()) {
             instance.pause(EASING);
             let mut events = runner.events_in.multimedia.borrow_mut();
+            // info!("Sound finished playing {:?}", source);
             events.push_back(MultimediaEvents::SoundFinishedPlaying(source.clone()))
         }
         *state = instance.state().into();
