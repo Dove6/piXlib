@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use super::{content::CnvContent, parsers::TypeParsingError, CallableIdentifier, CnvObject};
+use super::{content::CnvContent, parsers::TypeParsingError, CallableIdentifier, CnvObject, Rect};
 use crate::runner::{CnvValue, RunnerContext};
 
 pub trait CnvType: std::fmt::Debug {
@@ -117,6 +117,28 @@ pub trait GeneralCondition {
 pub trait GeneralGraphics {
     fn show(&self) -> anyhow::Result<()>;
     fn hide(&self) -> anyhow::Result<()>;
+    fn is_visible(&self) -> anyhow::Result<bool>;
+    fn get_rect(&self) -> anyhow::Result<Option<Rect>>;
+    fn get_priority(&self) -> anyhow::Result<isize>;
+}
+
+pub trait GeneralButton {
+    fn is_enabled(&self) -> anyhow::Result<bool>;
+    fn get_rect(&self) -> anyhow::Result<Option<Rect>>;
+    fn get_priority(&self) -> anyhow::Result<isize>;
+    fn handle_lmb_pressed(&self) -> anyhow::Result<()>;
+    fn handle_lmb_released(&self) -> anyhow::Result<()>;
+    fn handle_cursor_over(&self) -> anyhow::Result<()>;
+    fn handle_cursor_away(&self) -> anyhow::Result<()>;
+    fn makes_cursor_pointer(&self) -> anyhow::Result<bool>;
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum CursorInteraction {
+    #[default]
+    None,
+    Hovering,
+    Pressing,
 }
 
 pub type EpisodeName = String;

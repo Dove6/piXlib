@@ -10,7 +10,7 @@ use bevy::{
     sprite::{Anchor, Sprite, SpriteBundle},
 };
 
-use pixlib_parser::runner::{CnvContent, ScenePath, ScriptEvent};
+use pixlib_parser::runner::{classes::GeneralGraphics, CnvContent, ScenePath, ScriptEvent};
 
 use crate::{
     util::{add_tuples, animation_data_to_handle, image_data_to_handle},

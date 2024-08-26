@@ -153,54 +153,65 @@ impl Button {
             sound_on_click: props.snd_on_click,
         }
     }
+}
 
-    // custom
-
-    pub fn is_enabled(&self) -> anyhow::Result<bool> {
+impl GeneralButton for Button {
+    fn is_enabled(&self) -> anyhow::Result<bool> {
         Ok(self.state.borrow().is_enabled)
     }
 
-    pub fn get_rect(&self) -> anyhow::Result<Option<Rect>> {
+    fn get_rect(&self) -> anyhow::Result<Option<Rect>> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state.borrow().get_rect(context)
     }
 
-    pub fn get_priority(&self) -> anyhow::Result<isize> {
+    fn get_priority(&self) -> anyhow::Result<isize> {
         self.state.borrow().get_priority()
     }
 
-    pub fn set_normal(&self) -> anyhow::Result<()> {
-        // println!("{}.set_normal()", self.parent.name);
-        self.state.borrow_mut().try_set_interaction(
-            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
-            Interaction::None,
-        )
-    }
-
-    pub fn set_hovering(&self) -> anyhow::Result<()> {
-        // println!("{}.set_hovering()", self.parent.name);
-        self.state.borrow_mut().try_set_interaction(
-            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
-            Interaction::Hovering,
-        )
-    }
-
-    pub fn set_pressing(&self) -> anyhow::Result<()> {
-        // println!("{}.set_pressing()", self.parent.name);
+    fn handle_lmb_pressed(&self) -> anyhow::Result<()> {
         self.state.borrow_mut().try_set_interaction(
             RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
             Interaction::Pressing,
         )
     }
 
-    pub fn promote_to_hovering_or_keep_pressing(&self) -> anyhow::Result<()> {
-        // println!("{}.keep_pressing()", self.parent.name);
+    fn handle_lmb_released(&self) -> anyhow::Result<()> {
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|internal_events| {
+                internal_events.push_back(InternalEvent {
+                    context: context.clone(),
+                    callable: CallableIdentifier::Event("ONACTION").to_owned(),
+                })
+            });
+        self.state.borrow_mut().try_set_interaction(
+            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
+            Interaction::Hovering,
+        )
+    }
+
+    fn handle_cursor_over(&self) -> anyhow::Result<()> {
         self.state
             .borrow_mut()
             .promote_to_hovering_or_keep_pressing(RunnerContext::new_minimal(
                 &self.parent.parent.runner,
                 &self.parent,
             ))
+    }
+
+    fn handle_cursor_away(&self) -> anyhow::Result<()> {
+        self.state.borrow_mut().try_set_interaction(
+            RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent),
+            Interaction::None,
+        )
+    }
+
+    fn makes_cursor_pointer(&self) -> anyhow::Result<bool> {
+        Ok(true)
     }
 }
 
@@ -585,13 +596,12 @@ impl ButtonState {
                             name: reference.clone(),
                         },
                     )?;
-                    if let CnvContent::Animation(animation) = &object.content {
-                        animation.get_frame_rect().map(Some)
-                    } else if let CnvContent::Image(image) = &object.content {
-                        image.get_rect().map(Some)
-                    } else {
-                        Err(RunnerError::ExpectedGraphicsObject.into())
-                    }
+                    let graphics: &dyn GeneralGraphics = match &object.content {
+                        CnvContent::Animation(a) => a,
+                        CnvContent::Image(i) => i,
+                        _ => return Err(RunnerError::ExpectedGraphicsObject.into()),
+                    };
+                    graphics.get_rect()
                 }
             }
         } else if let Some(graphics_normal) = &self.graphics_normal {
@@ -602,13 +612,12 @@ impl ButtonState {
                     .ok_or(RunnerError::ObjectNotFound {
                         name: graphics_normal.clone(),
                     })?;
-            if let CnvContent::Animation(animation) = &object.content {
-                animation.get_frame_rect().map(Some)
-            } else if let CnvContent::Image(image) = &object.content {
-                image.get_rect().map(Some)
-            } else {
-                Err(RunnerError::ExpectedGraphicsObject.into())
-            }
+            let graphics: &dyn GeneralGraphics = match &object.content {
+                CnvContent::Animation(a) => a,
+                CnvContent::Image(i) => i,
+                _ => return Err(RunnerError::ExpectedGraphicsObject.into()),
+            };
+            graphics.get_rect()
         } else {
             Ok(None)
         }

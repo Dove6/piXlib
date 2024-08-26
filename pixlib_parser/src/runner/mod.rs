@@ -47,7 +47,7 @@ use crate::{
     },
     scanner::parse_cnv,
 };
-use classes::{InternalMouseEvent, Mouse};
+use classes::{GeneralButton, InternalMouseEvent, Mouse};
 use object::CnvObjectBuilder;
 
 #[derive(Debug)]
@@ -635,17 +635,20 @@ impl CnvRunner {
         let mut enabled_buttons = Vec::new();
         self.filter_map_objects(
             |id, o| {
-                let CnvContent::Button(b) = &o.content else {
-                    return Ok(None);
+                let button: &dyn GeneralButton = match &o.content {
+                    CnvContent::Animation(a) => a,
+                    CnvContent::Button(b) => b,
+                    CnvContent::Image(i) => i,
+                    _ => return Ok(None),
                 };
-                if !b.is_enabled()? {
+                if !button.is_enabled()? {
                     return Ok(None);
                 }
-                let Some(rect) = b.get_rect()? else {
+                let Some(rect) = button.get_rect()? else {
                     return Ok(None);
                 };
                 Ok(Some(ButtonDescriptor {
-                    priority: b.get_priority()?,
+                    priority: button.get_priority()?,
                     object_index: id,
                     object: o.clone(),
                     rect,
@@ -655,29 +658,40 @@ impl CnvRunner {
         )?;
         enabled_buttons.sort();
         let mouse_position = Mouse::get_position()?;
-        let mouse_is_left_button_down = Mouse::is_left_button_down()?;
         let found_button_index =
             self.find_relevant_button(enabled_buttons.as_ref(), mouse_position)?;
         for (i, ButtonDescriptor { object: o, .. }) in enabled_buttons.iter().enumerate() {
-            let CnvContent::Button(ref button) = &o.content else {
-                panic!();
+            let button: &dyn GeneralButton = match &o.content {
+                CnvContent::Animation(a) => a,
+                CnvContent::Button(b) => b,
+                CnvContent::Image(i) => i,
+                _ => unreachable!(),
             };
             if found_button_index.is_some_and(|found| found == i) {
-                if mouse_is_left_button_down {
-                    button.promote_to_hovering_or_keep_pressing()
-                } else {
-                    button.set_hovering()
-                }
+                button.handle_cursor_over()
             } else {
-                button.set_normal()
+                button.handle_cursor_away()
             }?
         }
         if found_button_index.is_some() && !self.cursor_state.borrow().is_pointer {
-            self.cursor_state.borrow_mut().is_pointer = true;
-            self.events_out
-                .cursor
-                .borrow_mut()
-                .use_and_drop_mut(|events| events.push_back(CursorEvent::CursorSetToPointer));
+            let button: Option<&dyn GeneralButton> =
+                match &enabled_buttons[found_button_index.unwrap()].object.content {
+                    CnvContent::Animation(a) => Some(a),
+                    CnvContent::Button(b) => Some(b),
+                    CnvContent::Image(i) => Some(i),
+                    _ => None,
+                };
+            if button
+                .map(|b| b.makes_cursor_pointer())
+                .transpose()?
+                .unwrap_or_default()
+            {
+                self.cursor_state.borrow_mut().is_pointer = true;
+                self.events_out
+                    .cursor
+                    .borrow_mut()
+                    .use_and_drop_mut(|events| events.push_back(CursorEvent::CursorSetToPointer));
+            }
         } else if found_button_index.is_none() && self.cursor_state.borrow().is_pointer {
             self.cursor_state.borrow_mut().is_pointer = false;
             self.events_out
@@ -696,29 +710,28 @@ impl CnvRunner {
                 if let Some(button_idx) =
                     self.find_relevant_button(enabled_buttons.as_ref(), (*x, *y))?
                 {
-                    let CnvContent::Button(ref button) =
-                        &enabled_buttons[button_idx].object.content
-                    else {
-                        panic!();
-                    };
-                    button.set_pressing()?;
+                    let button: &dyn GeneralButton =
+                        match &enabled_buttons[button_idx].object.content {
+                            CnvContent::Animation(a) => a,
+                            CnvContent::Button(b) => b,
+                            CnvContent::Image(i) => i,
+                            _ => unreachable!(),
+                        };
+                    button.handle_lmb_pressed()?;
                 }
             }
             if let InternalMouseEvent::LeftButtonReleased { x, y } = &mouse_event {
-                if let Some(button_index) =
+                if let Some(button_idx) =
                     self.find_relevant_button(enabled_buttons.as_ref(), (*x, *y))?
                 {
-                    self.internal_events
-                        .borrow_mut()
-                        .use_and_drop_mut(|internal_events| {
-                            internal_events.push_back(InternalEvent {
-                                context: RunnerContext::new_minimal(
-                                    self,
-                                    &enabled_buttons[button_index].object,
-                                ),
-                                callable: CallableIdentifier::Event("ONACTION").to_owned(),
-                            })
-                        });
+                    let button: &dyn GeneralButton =
+                        match &enabled_buttons[button_idx].object.content {
+                            CnvContent::Animation(a) => a,
+                            CnvContent::Button(b) => b,
+                            CnvContent::Image(i) => i,
+                            _ => unreachable!(),
+                        };
+                    button.handle_lmb_released()?;
                 }
             }
             let callable = CallableIdentifier::Event(match mouse_event {

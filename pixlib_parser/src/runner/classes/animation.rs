@@ -79,6 +79,10 @@ struct AnimationState {
     pub panning: isize,
     pub volume: isize,
     pub current_sfx: SoundFileData,
+
+    // related to button
+    pub cursor_interaction: CursorInteraction,
+    pub should_show_pointer_on_hover: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -196,14 +200,6 @@ impl Animation {
                 Arc::new(AnimationFileData::NotLoaded(filename));
         }
         animation
-    }
-
-    pub fn is_visible(&self) -> anyhow::Result<bool> {
-        self.state.borrow().is_visible()
-    }
-
-    pub fn get_priority(&self) -> anyhow::Result<isize> {
-        self.state.borrow().get_priority()
     }
 
     // custom
@@ -342,6 +338,135 @@ impl GeneralGraphics for Animation {
 
     fn show(&self) -> anyhow::Result<()> {
         self.state.borrow_mut().show()
+    }
+
+    fn is_visible(&self) -> anyhow::Result<bool> {
+        self.state.borrow().is_visible()
+    }
+
+    fn get_rect(&self) -> anyhow::Result<Option<Rect>> {
+        self.get_frame_rect().map(Some)
+    }
+
+    fn get_priority(&self) -> anyhow::Result<isize> {
+        self.state.borrow().get_priority()
+    }
+}
+
+impl GeneralButton for Animation {
+    fn is_enabled(&self) -> anyhow::Result<bool> {
+        Ok(self.state.borrow().is_button)
+    }
+
+    fn get_rect(&self) -> anyhow::Result<Option<Rect>> {
+        let graphics: &dyn GeneralGraphics = self;
+        graphics.get_rect()
+    }
+
+    fn get_priority(&self) -> anyhow::Result<isize> {
+        let graphics: &dyn GeneralGraphics = self;
+        graphics.get_priority()
+    }
+
+    fn handle_lmb_pressed(&self) -> anyhow::Result<()> {
+        if self.state.borrow_mut().use_and_drop_mut(|state| {
+            let prev_interaction = state.cursor_interaction;
+            state.cursor_interaction = CursorInteraction::Pressing;
+            prev_interaction != state.cursor_interaction
+        }) {
+            let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+            context
+                .runner
+                .internal_events
+                .borrow_mut()
+                .use_and_drop_mut(|internal_events| {
+                    internal_events.push_back(InternalEvent {
+                        context: context.clone(),
+                        callable: CallableIdentifier::Event("ONCLICK").to_owned(),
+                    })
+                });
+        }
+        Ok(())
+    }
+
+    fn handle_lmb_released(&self) -> anyhow::Result<()> {
+        if self.state.borrow_mut().use_and_drop_mut(|state| {
+            let prev_interaction = state.cursor_interaction;
+            state.cursor_interaction = CursorInteraction::Hovering;
+            prev_interaction != state.cursor_interaction
+        }) {
+            let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+            context
+                .runner
+                .internal_events
+                .borrow_mut()
+                .use_and_drop_mut(|internal_events| {
+                    internal_events.push_back(InternalEvent {
+                        context: context.clone(),
+                        callable: CallableIdentifier::Event("ONRELEASE").to_owned(),
+                    })
+                });
+        }
+        Ok(())
+    }
+
+    fn handle_cursor_over(&self) -> anyhow::Result<()> {
+        if self.state.borrow_mut().use_and_drop_mut(|state| {
+            if state.cursor_interaction == CursorInteraction::Pressing {
+                return false;
+            }
+            let prev_interaction = state.cursor_interaction;
+            state.cursor_interaction = CursorInteraction::Hovering;
+            prev_interaction != state.cursor_interaction
+        }) {
+            let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+            context
+                .runner
+                .internal_events
+                .borrow_mut()
+                .use_and_drop_mut(|internal_events| {
+                    internal_events.push_back(InternalEvent {
+                        context: context.clone(),
+                        callable: CallableIdentifier::Event("ONFOCUSON").to_owned(),
+                    })
+                });
+        }
+        Ok(())
+    }
+
+    fn handle_cursor_away(&self) -> anyhow::Result<()> {
+        let (unfocused, released) = self.state.borrow_mut().use_and_drop_mut(|state| {
+            let prev_interaction = state.cursor_interaction;
+            state.cursor_interaction = CursorInteraction::None;
+            (
+                prev_interaction != state.cursor_interaction,
+                prev_interaction == CursorInteraction::Pressing,
+            )
+        });
+        if unfocused {
+            let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+            context
+                .runner
+                .internal_events
+                .borrow_mut()
+                .use_and_drop_mut(|internal_events| {
+                    internal_events.push_back(InternalEvent {
+                        context: context.clone(),
+                        callable: CallableIdentifier::Event("ONFOCUSOFF").to_owned(),
+                    });
+                    if released {
+                        internal_events.push_back(InternalEvent {
+                            context: context.clone(),
+                            callable: CallableIdentifier::Event("ONRELEASE").to_owned(),
+                        });
+                    }
+                });
+        }
+        Ok(())
+    }
+
+    fn makes_cursor_pointer(&self) -> anyhow::Result<bool> {
+        Ok(self.state.borrow().should_show_pointer_on_hover)
     }
 }
 
@@ -1417,9 +1542,19 @@ impl AnimationState {
         todo!()
     }
 
-    pub fn set_as_button(&self, _enabled: bool, _arg2: bool) -> anyhow::Result<()> {
+    pub fn set_as_button(
+        &mut self,
+        enabled: bool,
+        should_show_pointer_on_hover: bool,
+    ) -> anyhow::Result<()> {
         // SETASBUTTON (BOOL enabled, BOOL)
-        todo!()
+        if self.is_button != enabled {
+            self.cursor_interaction = CursorInteraction::None;
+            // TODO: should call ONFOCUSOFF and ONRELEASE events?
+        }
+        self.is_button = enabled;
+        self.should_show_pointer_on_hover = should_show_pointer_on_hover;
+        Ok(())
     }
 
     pub fn set_backward(&mut self) -> anyhow::Result<()> {
