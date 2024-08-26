@@ -223,7 +223,8 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
                 let mut length_exceeded = false;
                 while let Some(triple) = self.input.next_if(|result| {
                     result.as_ref().is_ok_and(|(_, c, _)| match c {
-                        '|' | '$' => false,
+                        '|' => false,
+                        '$' => true, // TODO: come up with something clever
                         '^' | ';' => relative_brace_level > 0,
                         '+' | '-' | '*' | '@' | '%' => self.state.bracket_level == 0,
                         ',' => relative_parenthesis_level > 0,

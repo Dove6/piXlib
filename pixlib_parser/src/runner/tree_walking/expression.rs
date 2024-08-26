@@ -20,13 +20,27 @@ impl CnvExpression for IgnorableExpression {
     }
 }
 
+fn substitute_behavior_arguments(identifier: &str, context: &RunnerContext) -> String {
+    let mut needle = String::from("$1");
+    let mut haystack = identifier.to_owned();
+    let argument_count: u8 = context.arguments.len().min(9) as u8;
+    for i in 0..argument_count {
+        needle.drain(1..);
+        needle.push((b'1' + i) as char);
+        haystack = identifier.replace(&needle, &context.arguments[i as usize].to_str());
+    }
+    haystack
+}
+
 impl CnvExpression for Expression {
     fn calculate(&self, context: RunnerContext) -> anyhow::Result<CnvValue> {
         // println!("Expression::calculate: {:?} with context: {}", self, context);
         let result = match self {
             Expression::LiteralBool(b) => Ok(CnvValue::Bool(*b)),
             Expression::LiteralNull => Ok(CnvValue::Null),
-            Expression::Identifier(name) => Ok(CnvValue::String(name.to_owned())),
+            Expression::Identifier(name) => Ok(CnvValue::String(substitute_behavior_arguments(
+                name, &context,
+            ))),
             Expression::Invocation(invocation) => invocation.calculate(context.clone()),
             Expression::SelfReference => Ok(CnvValue::String(context.self_object.name.clone())),
             Expression::Parameter(name) => Ok(context

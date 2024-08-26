@@ -159,7 +159,20 @@ impl CnvType for Behavior {
                 }
             }
             CallableIdentifier::Method("RUNLOOPED") => {
-                self.state.borrow().run_looped().map(|_| CnvValue::Null)
+                if let Some(code) = self.code.as_ref() {
+                    self.state
+                        .borrow()
+                        .run_looped(
+                            context,
+                            code.clone(),
+                            arguments[0].to_int(),
+                            arguments[1].to_int(),
+                            arguments.get(2).map(CnvValue::to_int).unwrap_or(1),
+                        )
+                        .map(|_| CnvValue::Null)
+                } else {
+                    Ok(CnvValue::Null)
+                }
             }
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
@@ -293,8 +306,21 @@ impl BehaviorState {
         self.run(context, code, arguments)
     }
 
-    pub fn run_looped(&self) -> anyhow::Result<()> {
+    pub fn run_looped(
+        &self,
+        context: RunnerContext,
+        code: Arc<ParsedScript>,
+        start: i32,
+        width: i32,
+        step: i32,
+    ) -> anyhow::Result<()> {
         // RUNLOOPED
-        todo!()
+        if step < 0 {
+            todo!();
+        }
+        for i in (start..(start + width)).step_by(step as usize) {
+            self.run(context.clone(), code.clone(), vec![CnvValue::Integer(i)])?;
+        }
+        Ok(())
     }
 }
