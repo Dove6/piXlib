@@ -111,7 +111,7 @@ impl CnvTypeFactory {
 }
 
 pub trait GeneralCondition {
-    fn check(&self) -> anyhow::Result<bool>;
+    fn check(&self, context: Option<RunnerContext>) -> anyhow::Result<bool>;
 }
 
 pub trait GeneralGraphics {

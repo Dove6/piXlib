@@ -286,7 +286,7 @@ impl BehaviorState {
                 CnvContent::ComplexCondition(c) => c,
                 _ => return Err(RunnerError::ExpectedConditionObject.into()),
             };
-            if !condition.check()? {
+            if !condition.check(Some(context.clone()))? {
                 return Ok(CnvValue::Null);
             }
         }

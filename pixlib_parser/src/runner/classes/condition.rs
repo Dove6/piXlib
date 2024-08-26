@@ -74,8 +74,13 @@ impl Condition {
 }
 
 impl GeneralCondition for Condition {
-    fn check(&self) -> anyhow::Result<bool> {
-        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+    fn check(&self, context: Option<RunnerContext>) -> anyhow::Result<bool> {
+        let context = context
+            .map(|c| c.with_current_object(self.parent.clone()))
+            .unwrap_or(RunnerContext::new_minimal(
+                &self.parent.parent.runner,
+                &self.parent,
+            ));
         self.state.borrow().check(context)
     }
 }

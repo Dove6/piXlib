@@ -71,8 +71,13 @@ impl ComplexCondition {
 }
 
 impl GeneralCondition for ComplexCondition {
-    fn check(&self) -> anyhow::Result<bool> {
-        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
+    fn check(&self, context: Option<RunnerContext>) -> anyhow::Result<bool> {
+        let context = context
+            .map(|c| c.with_current_object(self.parent.clone()))
+            .unwrap_or(RunnerContext::new_minimal(
+                &self.parent.parent.runner,
+                &self.parent,
+            ));
         self.state.borrow().check(context)
     }
 }
@@ -191,17 +196,17 @@ impl ComplexConditionState {
         };
         let result = match complex_condition.operator {
             ComplexConditionOperator::And => {
-                if !left.check()? {
+                if !left.check(Some(context.clone()))? {
                     Ok(false)
                 } else {
-                    Ok(right.check()?)
+                    Ok(right.check(Some(context.clone()))?)
                 }
             }
             ComplexConditionOperator::Or => {
-                if left.check()? {
+                if left.check(Some(context.clone()))? {
                     Ok(true)
                 } else {
-                    Ok(right.check()?)
+                    Ok(right.check(Some(context.clone()))?)
                 }
             }
         };
