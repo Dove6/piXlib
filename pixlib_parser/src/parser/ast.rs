@@ -7,25 +7,25 @@ use crate::{
 
 pub type ParsedScript = IgnorableExpression;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IgnorableExpression {
     pub ignored: bool,
     pub value: Expression,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     ExpressionStatement(IgnorableExpression),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Invocation {
     pub parent: Option<Expression>,
     pub name: String,
     pub arguments: Vec<Expression>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     LiteralBool(bool),
     LiteralNull,
@@ -39,7 +39,7 @@ pub enum Expression {
     Block(Vec<Statement>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Operation {
     Addition,
     Multiplication,

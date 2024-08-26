@@ -70,7 +70,6 @@ pub struct LexerState {
     pub brace_level: usize,
     pub bracket_level: usize,
     pub parenthesis_level: usize,
-    pub expecting_arguments: bool,
 }
 
 #[derive(Debug)]
@@ -114,17 +113,13 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
         {}
         match self.input.next() {
             Some(Ok((pos, '@', next_pos))) => {
-                self.state.expecting_arguments = true;
                 Some(Ok((pos, CnvToken::At, self.next_position.assign(next_pos))))
             }
-            Some(Ok((pos, '^', next_pos))) => {
-                self.state.expecting_arguments = true;
-                Some(Ok((
-                    pos,
-                    CnvToken::Caret,
-                    self.next_position.assign(next_pos),
-                )))
-            }
+            Some(Ok((pos, '^', next_pos))) => Some(Ok((
+                pos,
+                CnvToken::Caret,
+                self.next_position.assign(next_pos),
+            ))),
             Some(Ok((pos, '|', next_pos))) => Some(Ok((
                 pos,
                 CnvToken::Pipe,
@@ -145,16 +140,12 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
                 CnvToken::Bang,
                 self.next_position.assign(next_pos),
             ))),
-            Some(Ok((pos, ';', next_pos))) => {
-                self.state.expecting_arguments = false;
-                Some(Ok((
-                    pos,
-                    CnvToken::Semicolon,
-                    self.next_position.assign(next_pos),
-                )))
-            }
+            Some(Ok((pos, ';', next_pos))) => Some(Ok((
+                pos,
+                CnvToken::Semicolon,
+                self.next_position.assign(next_pos),
+            ))),
             Some(Ok((pos, '(', next_pos))) => {
-                self.state.expecting_arguments = false;
                 self.state.parenthesis_level += 1; // TODO: check limits
                 Some(Ok((
                     pos,
@@ -238,7 +229,7 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
                         ',' => relative_parenthesis_level > 0,
                         '(' => {
                             relative_parenthesis_level += 1;
-                            !self.state.expecting_arguments
+                            false
                         }
                         ')' => {
                             if relative_parenthesis_level == 0 {

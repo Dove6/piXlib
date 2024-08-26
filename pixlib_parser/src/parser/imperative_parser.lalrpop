@@ -34,7 +34,7 @@ Callable: ast::Expression = {
 
 CallPart: (String, Vec<ast::Expression>) = {
     "^" <m:"identifier"> "(" <a:Arguments> ")" => (m, a),
-    "(" <a:Arguments> ")" => ("RUN".into(), a),
+    "(" <a:Arguments> ")" => ("RUNC".into(), a),
 }
 
 Arguments: Vec<ast::Expression> = {
