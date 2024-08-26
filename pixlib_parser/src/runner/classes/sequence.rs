@@ -364,7 +364,7 @@ impl SequenceState {
 
     pub fn is_playing(&self) -> anyhow::Result<bool> {
         // ISPLAYING
-        todo!()
+        Ok(self.currently_playing.is_some())
     }
 
     pub fn pause(&mut self) -> anyhow::Result<()> {
