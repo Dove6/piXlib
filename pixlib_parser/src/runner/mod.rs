@@ -463,6 +463,28 @@ impl CnvRunner {
                         builder.build().unwrap()
                     })
                     .unwrap();
+                objects
+                    .push_object({
+                        let mut builder = CnvObjectBuilder::new(
+                            Arc::clone(&global_script),
+                            "CANVAS_OBSERVER".to_owned(),
+                            range.next().unwrap(),
+                        );
+                        builder.add_property("TYPE".into(), "CANVAS_OBSERVER".to_owned())?;
+                        builder.build().unwrap()
+                    })
+                    .unwrap();
+                objects
+                    .push_object({
+                        let mut builder = CnvObjectBuilder::new(
+                            Arc::clone(&global_script),
+                            "CANVASOBSERVER".to_owned(),
+                            range.next().unwrap(),
+                        );
+                        builder.add_property("TYPE".into(), "CANVASOBSERVER".to_owned())?;
+                        builder.build().unwrap()
+                    })
+                    .unwrap();
                 Ok(())
             })?;
         Ok(runner)
@@ -471,7 +493,7 @@ impl CnvRunner {
     #[allow(clippy::mutable_key_type)]
     pub fn step(self: &Arc<CnvRunner>) -> anyhow::Result<()> {
         let mut to_init = Vec::new();
-        self.find_objects(|o| !*o.initialized.borrow(), &mut to_init);
+        self.find_objects(|o| !*o.initialized.read().unwrap(), &mut to_init);
         for object in to_init {
             object.init(None)?;
         }

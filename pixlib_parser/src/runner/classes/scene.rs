@@ -159,22 +159,6 @@ impl Scene {
         !matches!(&self.state.borrow().music_data, SoundFileData::Empty)
     }
 
-    pub fn get_background_to_show(&self) -> anyhow::Result<(ImageDefinition, ImageData)> {
-        let mut state = self.state.borrow_mut();
-        if let ImageFileData::NotLoaded(filename) = &state.background_data {
-            let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
-            let path = ScenePath::new(self.path.as_ref().unwrap(), filename);
-            state.load_background(context, &path)?;
-        } else if let ImageFileData::Empty = &state.background_data {
-            return Err(RunnerError::MissingFilenameToLoad.into());
-        }
-        let ImageFileData::Loaded(loaded_background) = &state.background_data else {
-            unreachable!();
-        };
-        let image = &loaded_background.image;
-        Ok((image.0.clone(), image.1.clone()))
-    }
-
     pub fn get_music_volume_pan_freq(&self) -> anyhow::Result<(f32, i32, usize)> {
         Ok(self.state.borrow().use_and_drop(|state| {
             (
@@ -213,9 +197,18 @@ impl Scene {
 
     pub fn handle_scene_loaded(&self) -> anyhow::Result<()> {
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
-        self.state
-            .borrow_mut()
-            .use_and_drop_mut(|s| s.load_music_if_not_loaded(context.clone()))?;
+        self.state.borrow_mut().use_and_drop_mut(|s| {
+            s.load_music_if_not_loaded(context.clone())?;
+            s.load_background_if_not_loaded(context.clone())
+        })?;
+        let canvas_observer = context
+            .runner
+            .find_object(|o| matches!(&o.content, CnvContent::CanvasObserver(_)))
+            .unwrap();
+        let CnvContent::CanvasObserver(canvas_observer) = &canvas_observer.content else {
+            unreachable!();
+        };
+        canvas_observer.set_background_data(self.state.borrow().background_data.clone())?;
         if self.state.borrow().use_and_drop(|s| s.is_music_playing) {
             if let SoundFileData::Loaded(sound_data) =
                 self.state.borrow().use_and_drop(|s| s.music_data.clone())
@@ -512,7 +505,6 @@ impl Initable for Scene {
             let path = ScenePath::new(self.path.as_ref().unwrap(), filename);
             state.load_background(context.clone(), &path)?;
         };
-        state.load_music_if_not_loaded(context.clone())?;
         context
             .runner
             .internal_events
@@ -754,6 +746,18 @@ impl SceneState {
         Ok(())
     }
 
+    pub fn load_background_if_not_loaded(&mut self, context: RunnerContext) -> anyhow::Result<()> {
+        if let ImageFileData::NotLoaded(filename) = &self.background_data {
+            let CnvContent::Scene(scene) = &context.current_object.content else {
+                unreachable!();
+            };
+            let path = ScenePath::new(scene.path.as_deref().unwrap_or_default(), filename);
+            self.load_background(context, &path)
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn load_music(&mut self, context: RunnerContext, path: &ScenePath) -> anyhow::Result<()> {
         let script = context.current_object.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
@@ -777,8 +781,11 @@ impl SceneState {
 
     pub fn load_music_if_not_loaded(&mut self, context: RunnerContext) -> anyhow::Result<()> {
         if let SoundFileData::NotLoaded(filename) = &self.music_data {
-            let path = context.current_object.parent.path.with_file_path(filename);
-            self.load_music(context.clone(), &path)
+            let CnvContent::Scene(scene) = &context.current_object.content else {
+                unreachable!();
+            };
+            let path = ScenePath::new(scene.path.as_deref().unwrap_or_default(), filename);
+            self.load_music(context, &path)
         } else {
             Ok(())
         }

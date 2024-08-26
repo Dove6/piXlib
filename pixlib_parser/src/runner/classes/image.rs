@@ -204,6 +204,10 @@ impl Image {
         let image = &loaded_data.image;
         Ok(Some((image.0.clone(), image.1.clone())))
     }
+
+    pub fn get_file_data(&self) -> anyhow::Result<ImageFileData> {
+        Ok(self.state.borrow().file_data.clone())
+    }
 }
 
 impl GeneralGraphics for Image {

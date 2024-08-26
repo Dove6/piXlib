@@ -135,20 +135,11 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
     // runner.find_objects(|_| true, &mut all_objects);
     // let all_objects: Vec<String> = all_objects.iter().map(|o| o.name.clone()).collect();
     // info!("All loaded objects: {:?}", all_objects);
-    let mut background_assigned = false;
     let mut image_counter = 0;
     let mut animation_counter = 0;
     let mut iter = query.iter_mut();
     // info!("Current scene: {:?}", runner.get_current_scene());
-    if let Some(current_scene) = runner.get_current_scene() {
-        let CnvContent::Scene(ref current_scene) = &current_scene.content else {
-            panic!();
-        };
-        if current_scene.has_background_image() {
-            *iter.next().unwrap() = GraphicsMarker::BackgroundImage;
-            background_assigned = true;
-        }
-    }
+    *iter.next().unwrap() = GraphicsMarker::BackgroundImage;
     for (script_index, script) in runner.scripts.borrow().iter().enumerate() {
         for (object_index, object) in script.objects.borrow().iter().enumerate() {
             if !matches!(&object.content, CnvContent::Image(_)) {
@@ -180,10 +171,8 @@ pub fn assign_pool(mut query: Query<&mut GraphicsMarker>, runner: NonSend<Script
         }
     }
     info!(
-        "Assigned {} background, {} images and {} animations",
-        if background_assigned { "a" } else { "no" },
-        image_counter,
-        animation_counter
+        "Assigned {} images and {} animations",
+        image_counter, animation_counter
     );
 }
 
@@ -206,17 +195,26 @@ pub fn update_background(
             continue;
         }
         // info!("Current scene: {:?}", runner.get_current_scene());
-        let Some(scene_object) = runner.get_current_scene() else {
+        let Some(canvas_observer_object) =
+            runner.find_object(|o| matches!(&o.content, CnvContent::CanvasObserver(_)))
+        else {
             continue;
         };
-        let CnvContent::Scene(ref scene) = &scene_object.content else {
-            panic!();
+        let CnvContent::CanvasObserver(ref canvas_observer) = &canvas_observer_object.content
+        else {
+            unreachable!();
         };
-        let Ok((image_definition, image_data)) = scene.get_background_to_show() else {
+        let result = canvas_observer.get_background_to_show();
+        let Ok(background_data) = result else {
             eprintln!(
-                "Error getting background image for scene {}",
-                scene_object.name
+                "Error getting background image for scene {}: {:?}",
+                canvas_observer_object.name,
+                result.unwrap_err()
             );
+            *visibility = Visibility::Hidden;
+            continue;
+        };
+        let Some((image_definition, image_data)) = background_data else {
             *visibility = Visibility::Hidden;
             continue;
         };

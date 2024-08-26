@@ -1,4 +1,8 @@
-use std::{any::Any, cell::RefCell};
+use lazy_static::lazy_static;
+use pixlib_formats::file_formats::img::parse_img;
+use std::any::Any;
+use std::sync::RwLock;
+use xxhash_rust::xxh3::xxh3_64;
 
 use super::super::content::EventHandler;
 use super::super::initable::Initable;
@@ -29,7 +33,7 @@ struct CanvasObserverState {
     // deduced from methods
     background_data: ImageFileData,
     background_position: (isize, isize),
-    graphics: Vec<Arc<CnvObject>>,
+    // graphics: Vec<Arc<CnvObject>>,
 }
 
 #[derive(Debug, Clone)]
@@ -62,11 +66,18 @@ impl EventHandler for CanvasObserverEventHandlers {
     }
 }
 
+lazy_static! {
+    static ref GLOBAL_CANVAS_OBSERVER_STATE: Arc<RwLock<CanvasObserverState>> =
+        Arc::new(RwLock::new(CanvasObserverState {
+            ..Default::default()
+        }));
+}
+
 #[derive(Debug, Clone)]
 pub struct CanvasObserver {
     parent: Arc<CnvObject>,
 
-    state: RefCell<CanvasObserverState>,
+    state: Arc<RwLock<CanvasObserverState>>,
     event_handlers: CanvasObserverEventHandlers,
 }
 
@@ -77,9 +88,7 @@ impl CanvasObserver {
     ) -> Self {
         Self {
             parent,
-            state: RefCell::new(CanvasObserverState {
-                ..Default::default()
-            }),
+            state: Arc::clone(&GLOBAL_CANVAS_OBSERVER_STATE),
             event_handlers: CanvasObserverEventHandlers {
                 on_done: props.on_done,
                 on_init: props.on_init,
@@ -92,6 +101,36 @@ impl CanvasObserver {
                 on_window_focus_on: props.on_window_focus_on,
             },
         }
+    }
+
+    pub fn set_background_data(&self, background_data: ImageFileData) -> anyhow::Result<()> {
+        GLOBAL_CANVAS_OBSERVER_STATE
+            .write()
+            .unwrap()
+            .use_and_drop_mut(|state| state.background_data = background_data);
+        Ok(())
+    }
+
+    pub fn get_background_to_show(&self) -> anyhow::Result<Option<(ImageDefinition, ImageData)>> {
+        let runner = &self.parent.parent.runner;
+        let mut state = GLOBAL_CANVAS_OBSERVER_STATE.write().unwrap();
+        if let ImageFileData::NotLoaded(filename) = &state.background_data {
+            let Some(current_scene) = runner.get_current_scene() else {
+                return Ok(None);
+            };
+            let CnvContent::Scene(current_scene) = &current_scene.content else {
+                unreachable!();
+            };
+            let path = ScenePath::new(&current_scene.get_script_path().unwrap(), filename);
+            state.load_background(runner, &path)?;
+        } else if let ImageFileData::Empty = &state.background_data {
+            return Ok(None);
+        }
+        let ImageFileData::Loaded(loaded_background) = &state.background_data else {
+            unreachable!();
+        };
+        let image = &loaded_background.image;
+        Ok(Some((image.0.clone(), image.1.clone())))
     }
 }
 
@@ -117,54 +156,66 @@ impl CnvType for CanvasObserver {
         // println!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("ADD") => {
-                self.state.borrow_mut().add().map(|_| CnvValue::Null)
+                self.state.write().unwrap().add().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("ENABLENOTIFY") => self
                 .state
-                .borrow_mut()
+                .write()
+                .unwrap()
                 .enable_notify()
                 .map(|_| CnvValue::Null),
             CallableIdentifier::Method("GETBPP") => self
                 .state
-                .borrow()
+                .read()
+                .unwrap()
                 .get_bpp()
                 .map(|v| CnvValue::Integer(v as i32)),
             CallableIdentifier::Method("GETGRAPHICSAT") => self
                 .state
-                .borrow()
+                .read()
+                .unwrap()
                 .get_graphics_at()
                 .map(|v| v.map(CnvValue::String).unwrap_or_default()),
             CallableIdentifier::Method("GETGRAPHICSAT2") => self
                 .state
-                .borrow()
+                .read()
+                .unwrap()
                 .get_graphics_at2()
                 .map(|v| v.map(CnvValue::String).unwrap_or_default()),
-            CallableIdentifier::Method("MOVEBKG") => {
-                self.state.borrow_mut().move_bkg().map(|_| CnvValue::Null)
-            }
+            CallableIdentifier::Method("MOVEBKG") => self
+                .state
+                .write()
+                .unwrap()
+                .move_bkg()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("PASTE") => {
-                self.state.borrow_mut().paste().map(|_| CnvValue::Null)
+                self.state.write().unwrap().paste().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("REDRAW") => {
-                self.state.borrow_mut().redraw().map(|_| CnvValue::Null)
+                self.state.write().unwrap().redraw().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("REFRESH") => {
-                self.state.borrow_mut().refresh().map(|_| CnvValue::Null)
-            }
+            CallableIdentifier::Method("REFRESH") => self
+                .state
+                .write()
+                .unwrap()
+                .refresh()
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("REMOVE") => {
-                self.state.borrow_mut().remove().map(|_| CnvValue::Null)
+                self.state.write().unwrap().remove().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("SAVE") => {
-                self.state.borrow_mut().save().map(|_| CnvValue::Null)
+                self.state.write().unwrap().save().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("SETBACKGROUND") => self
                 .state
-                .borrow_mut()
-                .set_background()
+                .write()
+                .unwrap()
+                .set_background(context, &arguments[0].to_str())
                 .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETBKGPOS") => self
                 .state
-                .borrow_mut()
+                .write()
+                .unwrap()
                 .set_bkg_pos()
                 .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {
@@ -323,13 +374,61 @@ impl CanvasObserverState {
         todo!()
     }
 
-    pub fn set_background(&mut self) -> anyhow::Result<()> {
+    pub fn set_background(
+        &mut self,
+        context: RunnerContext,
+        object_name: &str,
+    ) -> anyhow::Result<()> {
         // SETBACKGROUND
-        todo!()
+        let Some(object) = context.runner.get_object(object_name) else {
+            return Err(RunnerError::ObjectNotFound {
+                name: object_name.to_owned(),
+            }
+            .into());
+        };
+        let CnvContent::Image(image) = &object.content else {
+            return Err(RunnerError::ExpectedGraphicsObject.into());
+        };
+        self.background_data = image.get_file_data()?;
+        Ok(())
     }
 
     pub fn set_bkg_pos(&mut self) -> anyhow::Result<()> {
         // SETBKGPOS
         todo!()
+    }
+
+    // custom
+
+    pub fn load_background(
+        &mut self,
+        runner: &Arc<CnvRunner>,
+        path: &ScenePath,
+    ) -> anyhow::Result<()> {
+        let filesystem = Arc::clone(&runner.filesystem);
+        let data = filesystem
+            .borrow_mut()
+            .read_scene_asset(Arc::clone(&runner.game_paths), path)
+            .map_err(|_| RunnerError::IoError {
+                source: std::io::Error::from(std::io::ErrorKind::NotFound),
+            })?;
+        let data = parse_img(&data);
+        let converted_data = data
+            .image_data
+            .to_rgba8888(data.header.color_format, data.header.compression_type);
+        self.background_data = ImageFileData::Loaded(LoadedImage {
+            filename: Some(path.file_path.to_str()),
+            image: (
+                ImageDefinition {
+                    size_px: (data.header.width_px, data.header.height_px),
+                    offset_px: (data.header.x_position_px, data.header.y_position_px),
+                },
+                ImageData {
+                    hash: xxh3_64(&converted_data),
+                    data: converted_data,
+                },
+            ),
+        });
+        Ok(())
     }
 }

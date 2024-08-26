@@ -3,6 +3,7 @@ use std::{
     error::Error,
     fmt::Display,
     ops::Add,
+    sync::{RwLockReadGuard, RwLockWriteGuard},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
@@ -184,6 +185,9 @@ pub trait DroppableRefMut {
 
 impl<T> DroppableRefMut for RefMut<'_, T> {}
 impl<T> DroppableRefMut for Ref<'_, T> {}
+
+impl<T> DroppableRefMut for RwLockWriteGuard<'_, T> {}
+impl<T> DroppableRefMut for RwLockReadGuard<'_, T> {}
 
 pub trait RemoveSearchable<T> {
     fn remove_found<P: FnMut(&T) -> bool>(&mut self, predicate: P) -> Option<T>;

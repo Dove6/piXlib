@@ -1,9 +1,8 @@
 use std::{
-    cell::RefCell,
     collections::HashMap,
     hash::Hash,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, RwLock},
 };
 
 use lalrpop_util::ParseError;
@@ -67,7 +66,7 @@ impl CnvObjectBuilder {
             parent: self.parent,
             name: self.name.clone(),
             index: self.index,
-            initialized: RefCell::new(false),
+            initialized: RwLock::new(false),
             content: CnvContent::None(DummyCnvType {}),
         });
         let content =
@@ -126,7 +125,7 @@ pub struct CnvObject {
     pub parent: Arc<CnvScript>,
     pub name: String,
     pub index: usize,
-    pub initialized: RefCell<bool>,
+    pub initialized: RwLock<bool>,
     pub content: CnvContent,
 }
 
@@ -195,7 +194,10 @@ impl CnvObject {
     pub fn init(self: &Arc<Self>, context: Option<RunnerContext>) -> anyhow::Result<()> {
         let as_initable: Option<&dyn Initable> = (&self.content).into();
         let Some(initable) = as_initable else {
-            *self.initialized.borrow_mut() = true;
+            self.initialized
+                .write()
+                .unwrap()
+                .use_and_drop_mut(|i| **i = true);
             return Ok(());
         };
         let context = context
@@ -203,7 +205,8 @@ impl CnvObject {
             .unwrap_or(RunnerContext::new_minimal(&self.parent.runner, self));
         initable.initialize(context).inspect(|_| {
             self.initialized
-                .borrow_mut()
+                .write()
+                .unwrap()
                 .use_and_drop_mut(|i| **i = true)
         })
     }

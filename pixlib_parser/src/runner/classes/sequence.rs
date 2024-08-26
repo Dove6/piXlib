@@ -374,7 +374,7 @@ impl SequenceState {
 
     pub fn play(&mut self, context: RunnerContext, parameter: &str) -> anyhow::Result<()> {
         // PLAY
-        if !*context.current_object.initialized.borrow() {
+        if !*context.current_object.initialized.read().unwrap() {
             return Err(RunnerError::NotInitialized(context.current_object.name.clone()).into());
         }
         self.stop(context.clone(), false)?;
