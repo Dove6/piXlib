@@ -861,10 +861,11 @@ impl CnvRunner {
             .borrow_mut()
             .use_and_drop_mut(|events| events.pop_front())
         {
+            // println!("Internal event: {:?} with context {}", evt.callable, evt.context);
             evt.context.current_object.call_method(
                 (&evt.callable).into(),
                 &evt.context.arguments,
-                Some(evt.context.clone()),
+                Some(evt.context.clone().with_arguments(Vec::new())),
             )?;
         }
         Ok(())

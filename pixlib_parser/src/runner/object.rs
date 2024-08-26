@@ -172,6 +172,10 @@ impl CnvObject {
         let context = context
             .map(|c| c.with_current_object(self.clone()))
             .unwrap_or(RunnerContext::new_minimal(&self.parent.runner, self));
+        // println!(
+        //     "[1] Calling method: {:?} of: {:?} with context {} and arguments: {:?}",
+        //     identifier, self.name, context, arguments
+        // );
         let arguments = if matches!(identifier, CallableIdentifier::Method(_)) {
             arguments
                 .iter()
@@ -182,11 +186,17 @@ impl CnvObject {
         };
 
         self.content
-            .call_method(identifier.clone(), &arguments, context)
+            .call_method(identifier.clone(), &arguments, context.clone())
         // .inspect(|v| {
         //     println!(
-        //         "Called method: {:?} of: {:?} with arguments: {:?} and result: {:?}",
-        //         identifier, self.name, arguments, v
+        //         "[2] Called method: {:?} of: {:?} with context {}, arguments: {:?} and result: {:?}",
+        //         identifier, self.name, context, arguments, v
+        //     )
+        // })
+        // .inspect_err(|e| {
+        //     eprintln!(
+        //         "[2] Called method: {:?} of: {:?} with context {}, arguments: {:?} and error: {}",
+        //         identifier, self.name, context, arguments, e
         //     )
         // })
     }

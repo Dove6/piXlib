@@ -112,10 +112,9 @@ impl CnvValue {
 }
 
 fn get_reference_value(r: &Arc<CnvObject>) -> anyhow::Result<Option<CnvValue>> {
-    let context = RunnerContext::new_minimal(&r.parent.runner, r);
+    // println!("Resolving value: {:?}", r);
     match &r.content {
         CnvContent::Expression(e) => e.calculate().map(Some),
-        CnvContent::Behavior(b) => b.run_c(context, Vec::new()).map(Some),
         CnvContent::Integer(i) => i.get().map(|v| Some(CnvValue::Integer(v))),
         CnvContent::Double(d) => d.get().map(|v| Some(CnvValue::Double(v))),
         CnvContent::Bool(b) => b.get().map(|v| Some(CnvValue::Bool(v))),

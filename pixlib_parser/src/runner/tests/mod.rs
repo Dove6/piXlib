@@ -254,6 +254,42 @@ fn surrounding_quotes_should_be_handled_correctly_with_two_level_indirect_set_an
     assert_eq!(result, CnvValue::String(expected.into()));
 }
 
+#[test]
+fn behaviors_passed_by_name_should_handle_arguments_correctly() {
+    let runner = CnvRunner::try_new(
+        Arc::new(RefCell::new(DummyFileSystem)),
+        Default::default(),
+        Default::default(),
+        Default::default(),
+    )
+    .unwrap();
+    let script = r#"
+        OBJECT=TESTSTR
+        TESTSTR:TYPE=STRING
+        TESTSTR:VALUE="ORIGINAL"
+        TESTSTR:ONINIT=TESTBEH
+
+        OBJECT=TESTBEH
+        TESTBEH:TYPE=BEHAVIOUR
+        TESTBEH:CODE={THIS^SET("TESTBEH");}
+        "#;
+    runner
+        .load_script(
+            ScenePath::new(".", "SCRIPT.CNV"),
+            as_parser_input(script),
+            None,
+            ScriptSource::CnvLoader,
+        )
+        .unwrap();
+    runner.step().unwrap();
+    let test_str_object = runner.get_object("TESTSTR").unwrap();
+    let result = test_str_object
+        .call_method(CallableIdentifier::Method("GET"), &Vec::new(), None)
+        .unwrap();
+
+    assert_eq!(result, CnvValue::String("TESTBEH".into()));
+}
+
 fn as_parser_input(string: &str) -> impl Iterator<Item = declarative_parser::ParserInput> + '_ {
     string.chars().enumerate().map(|(i, c)| {
         Ok((
