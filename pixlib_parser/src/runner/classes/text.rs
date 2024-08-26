@@ -234,7 +234,7 @@ impl CnvType for Text {
             CallableIdentifier::Method("SETPRIORITY") => self
                 .state
                 .borrow_mut()
-                .set_priority()
+                .set_priority(arguments[0].to_int() as isize)
                 .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETRECT") => {
                 self.state.borrow_mut().set_rect().map(|_| CnvValue::Null)
@@ -512,9 +512,10 @@ impl TextState {
         todo!()
     }
 
-    pub fn set_priority(&mut self) -> anyhow::Result<()> {
+    pub fn set_priority(&mut self, priority: isize) -> anyhow::Result<()> {
         // SETPRIORITY
-        todo!()
+        self.priority = priority;
+        Ok(())
     }
 
     pub fn set_rect(&mut self) -> anyhow::Result<()> {

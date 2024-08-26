@@ -9,7 +9,7 @@ use std::{any::Any, cell::RefCell, sync::Arc};
 use xxhash_rust::xxh3::xxh3_64;
 
 use crate::{
-    common::DroppableRefMut,
+    common::{add_tuples, pair_i32_to_isize, pair_u32_to_usize, DroppableRefMut},
     parser::ast::ParsedScript,
     runner::{InternalEvent, RunnerError},
 };
@@ -72,6 +72,7 @@ struct AnimationState {
     pub is_paused: bool,
     pub is_reversed: bool,
     pub current_frame: FrameIdentifier,
+    pub sprite_idx_override: Option<usize>,
     // more temporary
     pub current_frame_duration: f64,
 
@@ -253,9 +254,7 @@ impl Animation {
         self.state.borrow_mut().step(context, seconds)
     }
 
-    pub fn get_frame_to_show(
-        &self,
-    ) -> anyhow::Result<Option<(FrameDefinition, SpriteDefinition, SpriteData)>> {
+    pub fn get_frame_to_show(&self) -> anyhow::Result<Option<(Rect, SpriteData)>> {
         // eprintln!("[ANIMO: {}] is_visible: {}", self.parent.name, self.is_visible);
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state
@@ -267,6 +266,21 @@ impl Animation {
         }
         let AnimationFileData::Loaded(ref loaded_data) = *state.file_data else {
             return Ok(None);
+        };
+        if loaded_data.sprites.is_empty() {
+            return Ok(None);
+        }
+        if let Some(sprite_idx_override) = state.sprite_idx_override {
+            let Some(sprite) = loaded_data.sprites.get(sprite_idx_override) else {
+                return Err(RunnerError::SpriteIndexNotFound {
+                    object_name: context.current_object.name.clone(),
+                    index: sprite_idx_override,
+                }
+                .into());
+            };
+            let position = add_tuples(state.position, pair_i32_to_isize(sprite.0.offset_px));
+            let size = pair_u32_to_usize(sprite.0.size_px);
+            return Ok(Some((Rect::from(position, size), sprite.1.clone())));
         };
         if loaded_data.sequences.is_empty() {
             return Ok(None);
@@ -290,8 +304,11 @@ impl Animation {
             }
             .into());
         };
+        let position = add_tuples(state.position, pair_i32_to_isize(sprite.0.offset_px));
+        let position = add_tuples(position, pair_i32_to_isize(frame.offset_px));
+        let size = pair_u32_to_usize(sprite.0.size_px);
         // eprintln!("[ANIMO: {}] [current frame] position: {:?} + {:?}, hash: {:?}", self.parent.name, sprite.0.offset_px, frame.offset_px, sprite.1.hash);
-        Ok(Some((frame.clone(), sprite.0.clone(), sprite.1.clone())))
+        Ok(Some((Rect::from(position, size), sprite.1.clone())))
     }
 
     pub fn play(&self, sequence_name: &str) -> anyhow::Result<()> {
@@ -773,7 +790,7 @@ impl CnvType for Animation {
                 // }
                 self.state
                     .borrow_mut()
-                    .set_frame(sequence_name.as_deref(), frame_no.max(0) as usize)
+                    .set_frame(context, sequence_name.as_deref(), frame_no.max(0) as usize)
                     .map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("SETFRAMENAME") => self
@@ -1321,7 +1338,11 @@ impl AnimationState {
             })?;
         let data = parse_ann(&data);
         self.current_frame = FrameIdentifier {
-            sequence_idx: data.sequences.len().saturating_sub(1),
+            sequence_idx: data
+                .sequences
+                .iter()
+                .position(|s| !s.frames.is_empty())
+                .unwrap_or_default(),
             frame_idx: 0,
         };
         self.file_data = Arc::new(AnimationFileData::Loaded(LoadedAnimation {
@@ -1582,14 +1603,19 @@ impl AnimationState {
 
     pub fn set_frame(
         &mut self,
+        context: RunnerContext,
         sequence_name: Option<&str>,
         frame_no: usize,
     ) -> anyhow::Result<()> {
         // SETFRAME ([STRING], INTEGER)
+        self.load_if_needed(context)?;
+        let AnimationFileData::Loaded(ref loaded_data) = *self.file_data else {
+            return Ok(());
+        };
         if let Some(_sequence_name) = sequence_name {
             todo!()
-        } else {
-            self.current_frame.frame_idx = frame_no;
+        } else if loaded_data.sprites.len() > frame_no {
+            self.sprite_idx_override = Some(frame_no);
         }
         Ok(())
     }
@@ -1697,7 +1723,7 @@ impl AnimationState {
     }
 
     pub fn get_frame_position(&self, context: RunnerContext) -> anyhow::Result<(isize, isize)> {
-        let (_, frame, sprite) = self.get_sprite_data(context)?;
+        let (_, frame, sprite) = self.get_frame_sprite_data(context)?;
         Ok((
             self.position.0 + frame.offset_px.0 as isize + sprite.0.offset_px.0 as isize,
             self.position.1 + frame.offset_px.1 as isize + sprite.0.offset_px.1 as isize,
@@ -1705,30 +1731,19 @@ impl AnimationState {
     }
 
     pub fn get_frame_size(&self, context: RunnerContext) -> anyhow::Result<(usize, usize)> {
-        let (_, _, sprite) = self.get_sprite_data(context)?;
+        let (_, _, sprite) = self.get_frame_sprite_data(context)?;
         Ok((sprite.0.size_px.0 as usize, sprite.0.size_px.1 as usize))
     }
 
     pub fn get_frame_rect(&self, context: RunnerContext) -> anyhow::Result<Rect> {
-        let (_, frame, sprite) = self.get_sprite_data(context)?;
-        let position = (
-            self.position.0 + frame.offset_px.0 as isize + sprite.0.offset_px.0 as isize,
-            self.position.1 + frame.offset_px.1 as isize + sprite.0.offset_px.1 as isize,
-        );
-        let size = (sprite.0.size_px.0 as isize, sprite.0.size_px.1 as isize);
-        Ok(Rect {
-            top_left_x: position.0,
-            top_left_y: position.1,
-            bottom_right_x: position.0 + size.0,
-            bottom_right_y: position.1 + size.1,
-        })
+        self.get_sprite_data(context).map(|d| d.0)
     }
 
     pub fn get_center_frame_position(
         &self,
         context: RunnerContext,
     ) -> anyhow::Result<(isize, isize)> {
-        let (_, frame, sprite) = self.get_sprite_data(context)?;
+        let (_, frame, sprite) = self.get_frame_sprite_data(context)?;
         Ok((
             self.position.0
                 + frame.offset_px.0 as isize
@@ -1773,7 +1788,7 @@ impl AnimationState {
         Ok((sequence, frame))
     }
 
-    fn get_sprite_data(
+    fn get_frame_sprite_data(
         &self,
         context: RunnerContext,
     ) -> anyhow::Result<(
@@ -1797,6 +1812,38 @@ impl AnimationState {
         Ok((sequence, frame, sprite))
     }
 
+    fn get_sprite_data(&self, context: RunnerContext) -> anyhow::Result<(Rect, SpriteData)> {
+        let AnimationFileData::Loaded(ref loaded_file) = *self.file_data else {
+            return Err(
+                RunnerError::NoAnimationDataLoaded(context.current_object.name.clone()).into(),
+            );
+        };
+        if let Some(sprite_idx_override) = self.sprite_idx_override {
+            let Some(sprite) = loaded_file.sprites.get(sprite_idx_override) else {
+                return Err(RunnerError::SpriteIndexNotFound {
+                    object_name: context.current_object.name.clone(),
+                    index: sprite_idx_override,
+                }
+                .into());
+            };
+            let position = add_tuples(self.position, pair_i32_to_isize(sprite.0.offset_px));
+            let size = pair_u32_to_usize(sprite.0.size_px);
+            return Ok((Rect::from(position, size), sprite.1.clone()));
+        };
+        let (_, frame) = self.get_frame_data(context.clone())?;
+        let Some(sprite) = loaded_file.sprites.get(frame.sprite_idx) else {
+            return Err(RunnerError::SpriteIndexNotFound {
+                object_name: context.current_object.name.clone(),
+                index: frame.sprite_idx,
+            }
+            .into());
+        };
+        let position = add_tuples(self.position, pair_i32_to_isize(sprite.0.offset_px));
+        let position = add_tuples(position, pair_i32_to_isize(frame.offset_px));
+        let size = pair_u32_to_usize(sprite.0.size_px);
+        Ok((Rect::from(position, size), sprite.1.clone()))
+    }
+
     pub fn step(&mut self, context: RunnerContext, seconds: f64) -> anyhow::Result<()> {
         let file_data = self.file_data.clone();
         let AnimationFileData::Loaded(ref loaded_data) = *file_data else {
@@ -1806,6 +1853,7 @@ impl AnimationState {
             return Ok(());
         }
         // eprintln!("Ticking animation {} with time {}, current frame: {:?}", animation.parent.name, duration, self.current_frame);
+        self.sprite_idx_override = None;
         let sequence = &loaded_data.sequences[self.current_frame.sequence_idx];
         let sequence_looping = sequence.looping;
         let sequence_length = sequence.frames.len();

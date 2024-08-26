@@ -301,10 +301,9 @@ impl Initable for Sequence {
                 } else {
                     let mut builder = CnvObjectBuilder::new(
                         context.current_object.parent.clone(),
-                        filename
-                            .strip_suffix(".ANN")
-                            .unwrap_or(&filename)
-                            .to_owned(),
+                        context.current_object.name.clone()
+                            + "_"
+                            + filename.strip_suffix(".ANN").unwrap_or(&filename),
                         0, // FIXME: storing self index is plain stupid
                     );
                     builder

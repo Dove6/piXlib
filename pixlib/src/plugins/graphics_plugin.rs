@@ -13,7 +13,7 @@ use bevy::{
 use pixlib_parser::runner::{classes::GeneralGraphics, CnvContent, ScenePath, ScriptEvent};
 
 use crate::{
-    util::{add_tuples, animation_data_to_handle, image_data_to_handle},
+    util::{animation_data_to_handle, image_data_to_handle},
     AppState,
 };
 
@@ -346,7 +346,7 @@ pub fn update_animations(
         else {
             continue;
         };
-        let Some((frame_definition, sprite_definition, sprite_data)) = frame_to_show else {
+        let Some((rect, sprite_data)) = frame_to_show else {
             *visibility = Visibility::Hidden;
             continue;
         };
@@ -355,21 +355,19 @@ pub fn update_animations(
         } else {
             Visibility::Hidden
         };
-        let total_offset = add_tuples(sprite_definition.offset_px, frame_definition.offset_px);
         sprite.flip_x = false;
         sprite.flip_y = false;
         sprite.anchor = Anchor::TopLeft;
-        let base_position = animation.get_base_position().unwrap();
         *transform = Transform::from_xyz(
-            base_position.0 as f32 + total_offset.0 as f32,
-            base_position.1 as f32 + total_offset.1 as f32,
+            rect.top_left_x as f32,
+            rect.top_left_y as f32,
             animation.get_priority().unwrap() as f32
                 + (*script_index as f32) / 100f32
                 + (*object_index as f32) / 100000f32,
         )
         .with_scale(Vec3::new(1f32, -1f32, 1f32));
         if !ident.0.is_some_and(|h| h == sprite_data.hash) {
-            *handle = animation_data_to_handle(&mut textures, &sprite_definition, &sprite_data);
+            *handle = animation_data_to_handle(&mut textures, rect, &sprite_data);
             ident.0 = Some(sprite_data.hash);
             // info!(
             //     "Updated animation {} with priority {} to position ({}, {})+({}, {})+({}, {})",

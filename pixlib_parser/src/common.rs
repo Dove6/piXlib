@@ -198,3 +198,25 @@ impl<T> RemoveSearchable<T> for Vec<T> {
         self.iter().position(predicate).map(|idx| self.remove(idx))
     }
 }
+
+pub fn add_tuples<TR, TL: Add<TR>>(
+    a: (TL, TL),
+    b: (TR, TR),
+) -> (
+    <TL as std::ops::Add<TR>>::Output,
+    <TL as std::ops::Add<TR>>::Output,
+) {
+    (a.0 + b.0, a.1 + b.1)
+}
+
+pub fn pair_u32_to_usize(pair: (u32, u32)) -> (usize, usize) {
+    (pair.0 as usize, pair.1 as usize)
+}
+
+pub fn pair_u32_to_isize(pair: (u32, u32)) -> (isize, isize) {
+    (pair.0 as isize, pair.1 as isize)
+}
+
+pub fn pair_i32_to_isize(pair: (i32, i32)) -> (isize, isize) {
+    (pair.0 as isize, pair.1 as isize)
+}

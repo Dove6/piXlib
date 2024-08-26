@@ -22,6 +22,7 @@ xxhash-rust = { version = "0.8", default-features = false, features = ["xxh3"] }
 keyboard-types = "0.7"
 rand = "0.8"
 libm = "0.2"
+log = "0.4"
 
 [build-dependencies]
 lalrpop = "0.20"

@@ -13,7 +13,10 @@ use std::ops::Add;
 
 use pixlib_parser::{
     common::{Issue, IssueHandler, IssueKind},
-    runner::common::{ImageData, ImageDefinition, SpriteData, SpriteDefinition},
+    runner::{
+        common::{ImageData, ImageDefinition, SpriteData},
+        Rect,
+    },
 };
 
 pub fn image_data_to_handle(
@@ -36,13 +39,13 @@ pub fn image_data_to_handle(
 
 pub fn animation_data_to_handle(
     textures: &mut Assets<Image>,
-    sprite_definition: &SpriteDefinition,
+    rect: Rect,
     sprite_data: &SpriteData,
 ) -> Handle<Image> {
     textures.add(Image::new(
         Extent3d {
-            width: sprite_definition.size_px.0,
-            height: sprite_definition.size_px.1,
+            width: rect.get_width() as u32,
+            height: rect.get_height() as u32,
             depth_or_array_layers: 1,
         },
         bevy::render::render_resource::TextureDimension::D2,
@@ -64,10 +67,13 @@ impl<I: Issue> IssueHandler<I> for IssuePrinter {
     }
 }
 
-pub fn add_tuples<T: Add>(
-    a: (T, T),
-    b: (T, T),
-) -> (<T as std::ops::Add>::Output, <T as std::ops::Add>::Output) {
+pub fn add_tuples<TR, TL: Add<TR>>(
+    a: (TL, TL),
+    b: (TR, TR),
+) -> (
+    <TL as std::ops::Add<TR>>::Output,
+    <TL as std::ops::Add<TR>>::Output,
+) {
     (a.0 + b.0, a.1 + b.1)
 }
 

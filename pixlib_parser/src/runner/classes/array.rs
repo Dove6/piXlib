@@ -100,9 +100,11 @@ impl CnvType for Array {
         context: RunnerContext,
     ) -> anyhow::Result<CnvValue> {
         match name {
-            CallableIdentifier::Method("ADD") => {
-                self.state.borrow_mut().add().map(|_| CnvValue::Null)
-            }
+            CallableIdentifier::Method("ADD") => self
+                .state
+                .borrow_mut()
+                .add(arguments)
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("ADDAT") => {
                 self.state.borrow_mut().add_at().map(|_| CnvValue::Null)
             }
@@ -354,9 +356,10 @@ impl Initable for Array {
 }
 
 impl ArrayState {
-    pub fn add(&mut self) -> anyhow::Result<()> {
+    pub fn add(&mut self, values: &[CnvValue]) -> anyhow::Result<()> {
         // ADD
-        todo!()
+        self.values.extend(values.iter().cloned());
+        Ok(())
     }
 
     pub fn add_at(&mut self) -> anyhow::Result<()> {
