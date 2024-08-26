@@ -36,22 +36,17 @@ pub struct SoundsPlugin;
 impl Plugin for SoundsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, create_pool)
-            // .add_systems(Update, update_bgm.run_if(in_state(AppState::SceneViewer)))
             .add_systems(
                 Update,
                 update_sounds.run_if(in_state(AppState::SceneViewer)),
             )
-            // .add_systems(
-            //     Update,
-            //     update_animations.run_if(in_state(AppState::SceneViewer)),
-            // )
             .add_systems(
                 Update,
                 check_for_state_transitions.run_if(in_state(AppState::SceneViewer)),
             )
             .add_systems(
                 Update,
-                (reset_pool, assign_pool)
+                (reset_pool_pausing_bgm, assign_pool)
                     .chain()
                     .run_if(in_state(AppState::SceneViewer).and_then(run_if_any_script_loaded)),
             )
@@ -165,6 +160,10 @@ pub fn create_pool(mut commands: Commands) {
     commands
         .spawn((SoundsPoolMarker::default(), SpatialBundle::default()))
         .with_children(|parent| {
+            parent.spawn(SoundsBundle {
+                marker: SoundsMarker(Some(SoundSource::BackgroundMusic)),
+                ..Default::default()
+            });
             for _ in 0..POOL_SIZE {
                 parent.spawn(SoundsBundle::default());
             }
@@ -183,6 +182,41 @@ fn run_if_any_script_loaded(mut reader: EventReader<PixlibScriptEvent>) -> bool 
     any_script_loaded
 }
 
+fn reset_pool_pausing_bgm(
+    mut pool_query: Query<&mut SoundsPoolMarker>,
+    mut query: Query<(
+        &mut SoundsMarker,
+        &mut LoadedSoundsIdentifier,
+        &mut SoundsInstanceHandle,
+    )>,
+    mut audio_instances: ResMut<Assets<AudioInstance>>,
+) {
+    let mut counter = 0;
+    for (mut marker, mut ident, mut handle) in query.iter_mut() {
+        if (*marker)
+            .as_ref()
+            .is_some_and(|s| *s == SoundSource::BackgroundMusic)
+        {
+            if let Some(ref handle) = **handle {
+                if let Some(instance) = audio_instances.get_mut(handle) {
+                    instance.pause(EASING);
+                }
+            }
+            continue;
+        }
+        counter += 1;
+        **marker = None;
+        ident.0 = None;
+        if let Some(handle) = handle.take() {
+            if let Some(mut instance) = audio_instances.remove(handle) {
+                instance.stop(EASING);
+            }
+        }
+    }
+    pool_query.single_mut().state = PoolState::Reset;
+    info!("Reset {} audio objects", counter);
+}
+
 fn reset_pool(
     mut pool_query: Query<&mut SoundsPoolMarker>,
     mut query: Query<(
@@ -195,7 +229,12 @@ fn reset_pool(
     let mut counter = 0;
     for (mut marker, mut ident, mut handle) in query.iter_mut() {
         counter += 1;
-        **marker = None;
+        if !(*marker)
+            .as_ref()
+            .is_some_and(|s| *s == SoundSource::BackgroundMusic)
+        {
+            **marker = None;
+        }
         ident.0 = None;
         if let Some(handle) = handle.take() {
             if let Some(mut instance) = audio_instances.remove(handle) {
@@ -212,21 +251,10 @@ fn assign_pool(
     mut query: Query<&mut SoundsMarker>,
     runner: NonSend<ScriptRunner>,
 ) {
-    let mut bgm_assigned = false;
     let mut sound_counter = 0;
     let mut animation_sfx_counter = 0;
     let mut sequence_counter = 0;
     let mut iter = query.iter_mut();
-    // info!("Current scene: {:?}", runner.get_current_scene());
-    if let Some(current_scene) = runner.get_current_scene() {
-        let CnvContent::Scene(ref current_scene) = &current_scene.content else {
-            panic!();
-        };
-        if current_scene.has_background_music() {
-            **iter.next().unwrap() = Some(SoundSource::BackgroundMusic);
-            bgm_assigned = true;
-        }
-    }
     for script in runner.scripts.borrow().iter() {
         for object in script
             .objects
@@ -234,7 +262,11 @@ fn assign_pool(
             .iter()
             .filter(|o| matches!(&o.content, CnvContent::Sound(_)))
         {
-            **iter.next().unwrap() = Some(SoundSource::Sound {
+            let mut next = iter.next().unwrap();
+            while next.0.is_some() {
+                next = iter.next().unwrap();
+            }
+            **next = Some(SoundSource::Sound {
                 script_path: script.path.clone(),
                 object_name: object.name.clone(),
             });
@@ -248,7 +280,11 @@ fn assign_pool(
             .iter()
             .filter(|o| matches!(&o.content, CnvContent::Animation(_)))
         {
-            **iter.next().unwrap() = Some(SoundSource::AnimationSfx {
+            let mut next = iter.next().unwrap();
+            while next.0.is_some() {
+                next = iter.next().unwrap();
+            }
+            **next = Some(SoundSource::AnimationSfx {
                 script_path: script.path.clone(),
                 object_name: object.name.clone(),
             });
@@ -262,7 +298,11 @@ fn assign_pool(
             .iter()
             .filter(|o| matches!(&o.content, CnvContent::Sequence(_)))
         {
-            **iter.next().unwrap() = Some(SoundSource::Sequence {
+            let mut next = iter.next().unwrap();
+            while next.0.is_some() {
+                next = iter.next().unwrap();
+            }
+            **next = Some(SoundSource::Sequence {
                 script_path: script.path.clone(),
                 object_name: object.name.clone(),
             });
@@ -271,11 +311,8 @@ fn assign_pool(
     }
     pool_query.single_mut().state = PoolState::Assigned;
     info!(
-        "Assigned {} background music, {} sounds, {} animation SFX and {} sequences",
-        if bgm_assigned { "a" } else { "no" },
-        sound_counter,
-        animation_sfx_counter,
-        sequence_counter
+        "Assigned {} sounds, {} animation SFX and {} sequences",
+        sound_counter, animation_sfx_counter, sequence_counter
     );
 }
 
