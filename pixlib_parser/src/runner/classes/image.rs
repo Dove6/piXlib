@@ -371,6 +371,7 @@ impl CnvType for Image {
                 .state
                 .borrow_mut()
                 .move_by(
+                    context,
                     arguments[0].to_int() as isize,
                     arguments[1].to_int() as isize,
                 )
@@ -845,8 +846,9 @@ impl ImageState {
         todo!()
     }
 
-    pub fn move_by(&mut self, x: isize, y: isize) -> anyhow::Result<()> {
+    pub fn move_by(&mut self, context: RunnerContext, x: isize, y: isize) -> anyhow::Result<()> {
         // MOVE
+        self.load_if_needed(context)?;
         self.position = (self.position.0 + x, self.position.1 + y);
         Ok(())
     }

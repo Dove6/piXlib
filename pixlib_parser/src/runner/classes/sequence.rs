@@ -683,10 +683,10 @@ impl SequenceState {
             .cloned()
         else {
             let currently_playing = self.currently_playing.take().unwrap();
-            println!(
-                "Sequence '{}' finished with parameter '{}'",
-                context.current_object.name, currently_playing.parameter
-            );
+            // println!(
+            //     "Sequence '{}' finished with parameter '{}'",
+            //     context.current_object.name, currently_playing.parameter
+            // );
             context
                 .runner
                 .internal_events
