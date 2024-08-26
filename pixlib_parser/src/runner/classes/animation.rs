@@ -926,9 +926,8 @@ impl Initable for Animation {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(Vec::new()),
                     callable: CallableIdentifier::Event("ONINIT").to_owned(),
-                    arguments: Vec::new(),
                 })
             });
         Ok(())
@@ -1300,9 +1299,8 @@ impl AnimationState {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(arguments),
                     callable: CallableIdentifier::Event("ONPAUSED").to_owned(),
-                    arguments,
                 });
             });
         Ok(())
@@ -1340,14 +1338,16 @@ impl AnimationState {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context
+                        .clone()
+                        .with_arguments(vec![CnvValue::String(sequence_name.to_owned())]),
                     callable: CallableIdentifier::Event("ONSTARTED").to_owned(),
-                    arguments: vec![CnvValue::String(sequence_name.to_owned())],
                 });
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context
+                        .clone()
+                        .with_arguments(vec![CnvValue::String(sequence_name.to_owned())]),
                     callable: CallableIdentifier::Event("ONFIRSTFRAME").to_owned(),
-                    arguments: vec![CnvValue::String(sequence_name.to_owned())],
                 })
             });
         self.is_visible = true;
@@ -1405,9 +1405,8 @@ impl AnimationState {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(arguments),
                     callable: CallableIdentifier::Event("ONRESUMED").to_owned(),
-                    arguments,
                 });
             });
         Ok(())
@@ -1542,9 +1541,10 @@ impl AnimationState {
                 .borrow_mut()
                 .use_and_drop_mut(|events| {
                     events.push_back(InternalEvent {
-                        object: context.current_object.clone(),
+                        context: context
+                            .clone()
+                            .with_arguments(vec![CnvValue::String(sequence.name.clone())]),
                         callable: CallableIdentifier::Event("ONFINISHED").to_owned(),
-                        arguments: vec![CnvValue::String(sequence.name.clone())],
                     })
                 });
         }
@@ -1722,9 +1722,10 @@ impl AnimationState {
                     .borrow_mut()
                     .use_and_drop_mut(|events| {
                         events.push_back(InternalEvent {
-                            object: context.current_object.clone(),
+                            context: context
+                                .clone()
+                                .with_arguments(vec![CnvValue::String(sequence_name.clone())]),
                             callable: CallableIdentifier::Event("ONFINISHED").to_owned(),
-                            arguments: vec![CnvValue::String(sequence_name.clone())],
                         })
                     });
             } else if self.current_frame.frame_idx != prev_frame_idx {
@@ -1741,9 +1742,10 @@ impl AnimationState {
                     .borrow_mut()
                     .use_and_drop_mut(|events| {
                         events.push_back(InternalEvent {
-                            object: context.current_object.clone(),
+                            context: context
+                                .clone()
+                                .with_arguments(vec![CnvValue::String(sequence_name.clone())]),
                             callable: CallableIdentifier::Event("ONFRAMECHANGED").to_owned(),
-                            arguments: vec![CnvValue::String(sequence_name.clone())],
                         })
                     });
             }

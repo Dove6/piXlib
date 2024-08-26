@@ -133,9 +133,8 @@ impl Sound {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(Vec::new()),
                     callable: CallableIdentifier::Event("ONFINISHED").to_owned(),
-                    arguments: Vec::new(),
                 })
             });
         Ok(())
@@ -313,9 +312,8 @@ impl Initable for Sound {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(Vec::new()),
                     callable: CallableIdentifier::Event("ONINIT").to_owned(),
-                    arguments: Vec::new(),
                 })
             });
         Ok(())
@@ -387,9 +385,8 @@ impl SoundState {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(Vec::new()),
                     callable: CallableIdentifier::Event("ONPAUSED").to_owned(),
-                    arguments: Vec::new(),
                 })
             });
         Ok(())
@@ -422,9 +419,8 @@ impl SoundState {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(Vec::new()),
                     callable: CallableIdentifier::Event("ONSTARTED").to_owned(),
-                    arguments: Vec::new(),
                 })
             });
         Ok(())
@@ -450,9 +446,8 @@ impl SoundState {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(Vec::new()),
                     callable: CallableIdentifier::Event("ONRESUMED").to_owned(),
-                    arguments: Vec::new(),
                 })
             });
         Ok(())
@@ -494,9 +489,8 @@ impl SoundState {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(Vec::new()),
                     callable: CallableIdentifier::Event("ONFINISHED").to_owned(),
-                    arguments: Vec::new(),
                 })
             });
         Ok(())

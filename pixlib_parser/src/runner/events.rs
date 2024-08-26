@@ -1,10 +1,13 @@
-use std::{cell::RefCell, collections::VecDeque, fmt::Display, sync::Arc};
+use std::{cell::RefCell, collections::VecDeque, fmt::Display};
+
+pub use keyboard_types::Code as KeyboardKey;
+
+use super::{common::SoundData, path::ScenePath, CallableIdentifierOwned, RunnerContext};
 
 #[derive(Debug, Clone)]
 pub struct InternalEvent {
-    pub object: Arc<CnvObject>,
+    pub context: RunnerContext,
     pub callable: CallableIdentifierOwned,
-    pub arguments: Vec<CnvValue>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -30,10 +33,6 @@ pub enum MouseEvent {
     RightButtonPressed,
     RightButtonReleased,
 }
-
-pub use keyboard_types::Code as KeyboardKey;
-
-use super::{common::SoundData, path::ScenePath, CallableIdentifierOwned, CnvObject, CnvValue};
 
 #[derive(Debug, Clone)]
 pub enum KeyboardEvent {

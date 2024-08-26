@@ -332,9 +332,8 @@ impl Initable for Sequence {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(Vec::new()),
                     callable: CallableIdentifier::Event("ONINIT").to_owned(),
-                    arguments: Vec::new(),
                 })
             });
         Ok(())
@@ -452,9 +451,10 @@ impl SequenceState {
                 .borrow_mut()
                 .use_and_drop_mut(|events| {
                     events.push_back(InternalEvent {
-                        object: context.current_object.clone(),
+                        context: context
+                            .clone()
+                            .with_arguments(vec![CnvValue::String(currently_playing.parameter)]),
                         callable: CallableIdentifier::Event("ONFINISHED").to_owned(),
-                        arguments: vec![CnvValue::String(currently_playing.parameter)],
                     })
                 });
         }
@@ -693,9 +693,10 @@ impl SequenceState {
                 .borrow_mut()
                 .use_and_drop_mut(|events| {
                     events.push_back(InternalEvent {
-                        object: context.current_object.clone(),
+                        context: context
+                            .clone()
+                            .with_arguments(vec![CnvValue::String(currently_playing.parameter)]),
                         callable: CallableIdentifier::Event("ONFINISHED").to_owned(),
-                        arguments: vec![CnvValue::String(currently_playing.parameter)],
                     })
                 });
             self.currently_playing = None;

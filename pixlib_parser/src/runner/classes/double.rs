@@ -386,9 +386,8 @@ impl Initable for DoubleVar {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(Vec::new()),
                     callable: CallableIdentifier::Event("ONINIT").to_owned(),
-                    arguments: Vec::new(),
                 })
             });
         Ok(())
@@ -606,15 +605,17 @@ impl DoubleVarState {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context
+                        .clone()
+                        .with_arguments(vec![CnvValue::Double(self.value)]),
                     callable: CallableIdentifier::Event("ONBRUTALCHANGED").to_owned(),
-                    arguments: vec![CnvValue::Double(self.value)],
                 });
                 if changed {
                     events.push_back(InternalEvent {
-                        object: context.current_object.clone(),
+                        context: context
+                            .clone()
+                            .with_arguments(vec![CnvValue::Double(self.value)]),
                         callable: CallableIdentifier::Event("ONCHANGED").to_owned(),
-                        arguments: vec![CnvValue::Double(self.value)],
                     });
                 }
             });

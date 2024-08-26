@@ -690,9 +690,11 @@ impl CnvRunner {
                         .borrow_mut()
                         .use_and_drop_mut(|internal_events| {
                             internal_events.push_back(InternalEvent {
-                                object: enabled_buttons[button_index].object.clone(),
+                                context: RunnerContext::new_minimal(
+                                    self,
+                                    &enabled_buttons[button_index].object,
+                                ),
                                 callable: CallableIdentifier::Event("ONACTION").to_owned(),
-                                arguments: Vec::new(),
                             })
                         });
                 }
@@ -729,9 +731,13 @@ impl CnvRunner {
                     .borrow_mut()
                     .use_and_drop_mut(|internal_events| {
                         internal_events.push_back(InternalEvent {
-                            object: Arc::clone(mouse_object),
+                            context: RunnerContext::new(
+                                self,
+                                mouse_object,
+                                mouse_object,
+                                &arguments,
+                            ),
                             callable: callable.to_owned(),
-                            arguments: arguments.clone(),
                         })
                     });
             }
@@ -806,14 +812,22 @@ impl CnvRunner {
                             .borrow_mut()
                             .use_and_drop_mut(|events| {
                                 events.push_back(InternalEvent {
-                                    object: Arc::clone(left),
+                                    context: RunnerContext::new(
+                                        self,
+                                        left,
+                                        left,
+                                        &[CnvValue::String(right.name.clone())],
+                                    ),
                                     callable: callable.to_owned(),
-                                    arguments: vec![CnvValue::String(right.name.clone())],
                                 });
                                 events.push_back(InternalEvent {
-                                    object: Arc::clone(right),
+                                    context: RunnerContext::new(
+                                        self,
+                                        right,
+                                        right,
+                                        &[CnvValue::String(left.name.clone())],
+                                    ),
                                     callable: callable.to_owned(),
-                                    arguments: vec![CnvValue::String(left.name.clone())],
                                 });
                             })
                     }
@@ -825,8 +839,11 @@ impl CnvRunner {
             .borrow_mut()
             .use_and_drop_mut(|events| events.pop_front())
         {
-            evt.object
-                .call_method((&evt.callable).into(), &evt.arguments, None)?;
+            evt.context.current_object.call_method(
+                (&evt.callable).into(),
+                &evt.context.arguments,
+                Some(evt.context.clone()),
+            )?;
         }
         Ok(())
     }

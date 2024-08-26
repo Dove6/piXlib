@@ -210,9 +210,8 @@ impl Initable for Keyboard {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(Vec::new()),
                     callable: CallableIdentifier::Event("ONINIT").to_owned(),
-                    arguments: Vec::new(),
                 })
             });
         Ok(())

@@ -205,6 +205,7 @@ impl ConditionState {
             ConditionOperator::Greater => Ok(left.to_dbl() > right.to_dbl()),
             ConditionOperator::GreaterEqual => Ok(left.to_dbl() >= right.to_dbl()),
         };
+        let evt_context = context.clone().with_arguments(Vec::new());
         match result {
             Ok(false) => {
                 context
@@ -213,9 +214,8 @@ impl ConditionState {
                     .borrow_mut()
                     .use_and_drop_mut(move |events| {
                         events.push_back(InternalEvent {
-                            object: context.current_object.clone(),
+                            context: evt_context,
                             callable: CallableIdentifier::Event("ONRUNTIMEFAILED").to_owned(),
-                            arguments: Vec::new(),
                         });
                     });
             }
@@ -226,9 +226,8 @@ impl ConditionState {
                     .borrow_mut()
                     .use_and_drop_mut(move |events| {
                         events.push_back(InternalEvent {
-                            object: context.current_object.clone(),
+                            context: evt_context,
                             callable: CallableIdentifier::Event("ONRUNTIMESUCCESS").to_owned(),
-                            arguments: Vec::new(),
                         });
                     });
             }

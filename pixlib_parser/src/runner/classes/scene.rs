@@ -204,9 +204,8 @@ impl Scene {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(Vec::new()),
                     callable: CallableIdentifier::Event("ONMUSICLOOPED").to_owned(),
-                    arguments: Vec::new(),
                 })
             });
         Ok(())
@@ -520,9 +519,8 @@ impl Initable for Scene {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(Vec::new()),
                     callable: CallableIdentifier::Event("ONINIT").to_owned(),
-                    arguments: Vec::new(),
                 })
             });
         Ok(())
@@ -626,15 +624,15 @@ impl SceneState {
         let Some(object) = context.runner.get_object(&object_name) else {
             return Err(RunnerError::ObjectNotFound { name: object_name }.into());
         };
+        let evt_context = RunnerContext::new(&context.runner, &object, &object, &arguments);
         context
             .runner
             .internal_events
             .borrow_mut()
             .use_and_drop_mut(move |events| {
                 events.push_back(InternalEvent {
-                    object,
+                    context: evt_context,
                     callable: CallableIdentifierOwned::Method(method_name),
-                    arguments,
                 })
             });
         Ok(())

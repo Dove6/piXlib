@@ -473,9 +473,8 @@ impl Initable for Button {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(Vec::new()),
                     callable: CallableIdentifier::Event("ONINIT").to_owned(),
-                    arguments: Vec::new(),
                 })
             });
         Ok(())
@@ -750,9 +749,8 @@ impl ButtonState {
                 .borrow_mut()
                 .use_and_drop_mut(|events| {
                     events.push_back(InternalEvent {
-                        object: context.current_object.clone(),
+                        context: context.clone().with_arguments(Vec::new()),
                         callable: CallableIdentifier::Event("ONFOCUSON").to_owned(),
-                        arguments: Vec::new(),
                     })
                 });
         } else if interaction == Interaction::None {
@@ -762,9 +760,8 @@ impl ButtonState {
                 .borrow_mut()
                 .use_and_drop_mut(|events| {
                     events.push_back(InternalEvent {
-                        object: context.current_object.clone(),
+                        context: context.clone().with_arguments(Vec::new()),
                         callable: CallableIdentifier::Event("ONFOCUSOFF").to_owned(),
-                        arguments: Vec::new(),
                     })
                 });
         }
@@ -775,9 +772,8 @@ impl ButtonState {
                 .borrow_mut()
                 .use_and_drop_mut(|events| {
                     events.push_back(InternalEvent {
-                        object: context.current_object.clone(),
+                        context: context.clone().with_arguments(Vec::new()),
                         callable: CallableIdentifier::Event("RELEASED").to_owned(),
-                        arguments: Vec::new(),
                     })
                 });
         } else if interaction == Interaction::Pressing {
@@ -787,9 +783,8 @@ impl ButtonState {
                 .borrow_mut()
                 .use_and_drop_mut(|events| {
                     events.push_back(InternalEvent {
-                        object: context.current_object.clone(),
+                        context: context.clone().with_arguments(Vec::new()),
                         callable: CallableIdentifier::Event("CLICKED").to_owned(),
-                        arguments: Vec::new(),
                     })
                 });
         }

@@ -234,9 +234,8 @@ impl Initable for Timer {
             .borrow_mut()
             .use_and_drop_mut(|events| {
                 events.push_back(InternalEvent {
-                    object: context.current_object.clone(),
+                    context: context.clone().with_arguments(Vec::new()),
                     callable: CallableIdentifier::Event("ONINIT").to_owned(),
-                    arguments: Vec::new(),
                 })
             });
         Ok(())
@@ -327,9 +326,10 @@ impl TimerState {
                 .borrow_mut()
                 .use_and_drop_mut(|events| {
                     events.push_back(InternalEvent {
-                        object: context.current_object.clone(),
+                        context: context
+                            .clone()
+                            .with_arguments(vec![CnvValue::Integer(self.current_ticks as i32)]),
                         callable: CallableIdentifier::Event("ONTICK").to_owned(),
-                        arguments: vec![CnvValue::Integer(self.current_ticks as i32)],
                     })
                 });
         }
