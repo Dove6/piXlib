@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: ["main"]
 
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -34,6 +37,9 @@ jobs:
         run: cargo clippy --all --features bevy/x11 -- -Dwarnings
   web:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./repo
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,18 +50,27 @@ jobs:
           sudo apt-get install g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0
           cargo install wasm-bindgen-cli
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "repo -> target"
       - name: Build debug
-        working-directory: ./repo
         run: cargo build --target wasm32-unknown-unknown --all --verbose -Zbuild-std=std,panic_abort
       - name: Generate files for debug
-        run: wasm-bindgen --no-typescript --target web --out-dir ./out/debug/ --out-name "pixlib" ./target/wasm32-unknown-unknown/debug/pixlib.wasm
-      - name: Summarize size of out dir for debug
-        run: du -h ./out
+        run: |
+          mkdir -p ../out/debug
+          wasm-bindgen --no-typescript --target web --out-dir ../out/debug/ --out-name "pixlib" ./target/wasm32-unknown-unknown/debug/pixlib.wasm
+      - name: Build release
+        run: cargo build --profile release-small --target wasm32-unknown-unknown --all --verbose -Zbuild-std=std,panic_abort
+      - name: Generate files for release
+        run: |
+          mkdir -p ../out/release
+          wasm-bindgen --no-typescript --target web --out-dir ../out/release/ --out-name "pixlib" ./target/wasm32-unknown-unknown/release-small/pixlib.wasm
       - name: Update gh-pages and push changes
-        working-directory: ./app
         run: |
           git config user.email "github-actions@github.com"
           git config user.name "github-actions"
+          git clean -xdf
           git checkout gh-pages
           cp -R ../out/* .
-          git commit -am "Update files" && git push || echo "No changes to commit"
+          test ! -d ./target
+          git add .
+          git commit -m "Update files" && git push || echo "No changes to commit"
