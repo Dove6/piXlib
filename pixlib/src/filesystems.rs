@@ -1,24 +1,24 @@
 use std::{
-    env::Args,
-    fs::File,
-    io::Read,
-    path::Path,
+    io::{Cursor, Read},
+    ops::Deref,
     sync::{Arc, RwLock},
 };
 
-use bevy::{ecs::system::Resource, log::info};
+use bevy::{asset::Handle, ecs::system::Resource, log::info};
 use cdfs::{DirectoryEntry, ISOError, ISO9660};
 use pixlib_parser::runner::FileSystem;
 use zip::{result::ZipError, ZipArchive};
 
+use crate::plugins::ui_plugin::Blob;
+
 #[derive(Default, Debug)]
 pub struct LayeredFileSystem {
-    components: Vec<Arc<RwLock<dyn FileSystem>>>,
+    layers: Vec<Arc<RwLock<dyn FileSystem>>>,
 }
 
 impl FileSystem for LayeredFileSystem {
     fn read_file(&mut self, filename: &str) -> std::io::Result<Vec<u8>> {
-        for filesystem in self.components.iter().rev() {
+        for filesystem in self.layers.iter().rev() {
             match filesystem.write().unwrap().read_file(filename) {
                 Ok(v) => return Ok(v),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
@@ -29,7 +29,7 @@ impl FileSystem for LayeredFileSystem {
     }
 
     fn write_file(&mut self, filename: &str, data: &[u8]) -> std::io::Result<()> {
-        for filesystem in self.components.iter().rev() {
+        for filesystem in self.layers.iter().rev() {
             match filesystem.write().unwrap().write_file(filename, data) {
                 Err(e) if e.kind() == std::io::ErrorKind::Unsupported => continue,
                 Err(e) => return Err(e),
@@ -41,26 +41,35 @@ impl FileSystem for LayeredFileSystem {
 }
 
 impl LayeredFileSystem {
-    pub fn new(base_fs: Arc<RwLock<dyn FileSystem>>) -> Self {
-        Self {
-            components: vec![base_fs],
+    pub fn new(main: Arc<RwLock<dyn FileSystem>>) -> Self {
+        Self { layers: vec![main] }
+    }
+
+    pub fn set_main(&mut self, main: Arc<RwLock<dyn FileSystem>>, clear_layers: bool) {
+        if !self.layers.is_empty() {
+            self.layers.remove(0);
         }
+        if clear_layers {
+            self.layers.clear();
+        }
+        self.layers.insert(0, main);
     }
 
     pub fn push_layer(&mut self, fs: Arc<RwLock<dyn FileSystem>>) {
-        self.components.push(fs);
+        self.layers.push(fs);
     }
 
     pub fn pop_layer(&mut self) -> Option<Arc<RwLock<dyn FileSystem>>> {
-        if self.components.len() == 1 {
-            return None;
+        if self.layers.len() > 1 {
+            self.layers.pop()
+        } else {
+            None
         }
-        self.components.pop()
     }
 }
 
 pub struct CompressedPatch {
-    handle: ZipArchive<File>,
+    handle: ZipArchive<Cursor<Vec<u8>>>,
 }
 
 impl std::fmt::Debug for CompressedPatch {
@@ -105,28 +114,107 @@ impl FileSystem for CompressedPatch {
 }
 
 impl CompressedPatch {
-    pub fn new(handle: File) -> Result<Self, ZipError> {
+    pub fn new(data: Vec<u8>) -> Result<Self, ZipError> {
         Ok(Self {
-            handle: ZipArchive::new(handle)?,
+            handle: ZipArchive::new(Cursor::new(data))?,
         })
     }
 }
 
-impl TryFrom<&Path> for CompressedPatch {
-    type Error = ZipError;
+#[derive(Debug, Clone)]
+pub struct PendingHandle {
+    handle: Handle<Blob>,
+    is_main: bool,
+    clear_layers_on_insert: bool,
+}
 
-    fn try_from(path: &Path) -> Result<Self, Self::Error> {
-        let file = File::open(path).map_err(ZipError::Io)?;
-        Self::new(file)
+impl PendingHandle {
+    pub fn new(handle: Handle<Blob>, is_main: bool, clear_layers_on_insert: bool) -> Self {
+        Self {
+            handle,
+            is_main,
+            clear_layers_on_insert,
+        }
+    }
+
+    pub fn is_main(&self) -> bool {
+        self.is_main
     }
 }
 
-#[derive(Resource)]
-pub struct InsertedDiskResource(pub Arc<RwLock<InsertedDisk>>);
+impl Deref for PendingHandle {
+    type Target = Handle<Blob>;
 
-#[derive(Default)]
+    fn deref(&self) -> &Self::Target {
+        &self.handle
+    }
+}
+
+#[derive(Resource, Default)]
+pub struct FileSystemResource {
+    pending_handles: Vec<PendingHandle>,
+    filesystem: Arc<RwLock<LayeredFileSystem>>,
+}
+
+impl FileSystemResource {
+    pub fn new(filesystem: Arc<RwLock<LayeredFileSystem>>) -> Self {
+        Self {
+            filesystem,
+            pending_handles: Vec::new(),
+        }
+    }
+
+    pub fn is_ready(&self) -> bool {
+        self.pending_handles.is_empty()
+    }
+
+    pub fn insert_handle(&mut self, handle: PendingHandle) {
+        self.pending_handles.push(handle);
+    }
+
+    pub fn get_pending_handle(&self) -> Option<PendingHandle> {
+        self.pending_handles.first().cloned()
+    }
+
+    pub fn set_as_failed(&mut self, handle: &Handle<Blob>) -> Result<(), ISOError> {
+        if !self.pending_handles.first().is_some_and(|h| **h == *handle) {
+            return Err(ISOError::InvalidFs("Unexpected handle"));
+        };
+        self.pending_handles.remove(0);
+        Ok(())
+    }
+
+    pub fn insert_loaded(
+        &mut self,
+        handle: &Handle<Blob>,
+        filesystem: Arc<RwLock<dyn FileSystem>>,
+    ) -> Result<(), ISOError> {
+        if !self.pending_handles.first().is_some_and(|h| **h == *handle) {
+            return Err(ISOError::InvalidFs("Unexpected handle"));
+        };
+        let pending_handle = self.pending_handles.remove(0);
+        if pending_handle.is_main {
+            self.filesystem
+                .write()
+                .unwrap()
+                .set_main(filesystem, pending_handle.clear_layers_on_insert);
+        } else {
+            self.filesystem.write().unwrap().push_layer(filesystem);
+        }
+        Ok(())
+    }
+}
+
+impl Deref for FileSystemResource {
+    type Target = Arc<RwLock<LayeredFileSystem>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.filesystem
+    }
+}
+
 pub struct InsertedDisk {
-    handle: Option<ISO9660<File>>,
+    handle: ISO9660<Cursor<Vec<u8>>>,
 }
 
 impl std::fmt::Debug for InsertedDisk {
@@ -139,9 +227,7 @@ impl std::fmt::Debug for InsertedDisk {
 
 impl FileSystem for InsertedDisk {
     fn read_file(&mut self, filename: &str) -> std::io::Result<Vec<u8>> {
-        let Some(handle) = &self.handle else {
-            return Err(std::io::Error::from(std::io::ErrorKind::Unsupported));
-        };
+        let handle = &self.handle;
         if let Ok(Some(DirectoryEntry::File(file))) =
             handle.open(&filename.replace('\\', "/").to_ascii_lowercase())
         {
@@ -160,28 +246,9 @@ impl FileSystem for InsertedDisk {
 }
 
 impl InsertedDisk {
-    pub fn insert(&mut self, handle: File) -> Result<(), ISOError> {
-        self.handle = Some(ISO9660::new(handle)?);
-        Ok(())
-    }
-
-    pub fn eject(&mut self) {
-        self.handle = None;
-    }
-
-    pub fn get(&self) -> Option<&ISO9660<File>> {
-        self.handle.as_ref()
-    }
-}
-
-impl TryFrom<Args> for InsertedDisk {
-    type Error = ISOError;
-
-    fn try_from(args: Args) -> Result<Self, Self::Error> {
-        let mut args = args.skip(1);
-        let path_to_iso = args.next().ok_or(ISOError::InvalidFs("Missing argument"))?;
+    pub fn new(data: Vec<u8>) -> Result<Self, ISOError> {
         Ok(Self {
-            handle: Some(ISO9660::new(File::open(path_to_iso)?)?),
+            handle: ISO9660::new(Cursor::new(data))?,
         })
     }
 }

@@ -930,7 +930,8 @@ impl ImageState {
         let script = context.current_object.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = filesystem
-            .borrow_mut()
+            .write()
+            .unwrap()
             .read_scene_asset(
                 Arc::clone(&script.runner.game_paths),
                 &script.path.with_file_path(filename),

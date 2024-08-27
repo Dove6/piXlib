@@ -1,9 +1,4 @@
-use std::{
-    any::Any,
-    collections::VecDeque,
-    sync::RwLock,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{any::Any, collections::VecDeque, sync::RwLock};
 
 use super::super::content::EventHandler;
 use super::super::initable::Initable;
@@ -530,10 +525,7 @@ impl MouseState {
                         x: self.position.0,
                         y: self.position.1,
                     });
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs_f64();
+                let now = Utc::now().timestamp_millis() as f64 / 1000.0;
                 if now - self.last_left_click_time_seconds <= DOUBLE_CLICK_MAX_INTERVAL_SECONDS {
                     self.events_out
                         .push_back(InternalMouseEvent::LeftButtonDoubleClicked {

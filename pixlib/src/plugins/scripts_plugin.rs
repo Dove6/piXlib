@@ -1,32 +1,33 @@
 use std::{
-    cell::RefCell,
     env,
     ops::{Deref, DerefMut},
-    path::PathBuf,
     sync::{Arc, RwLock},
 };
 
 use bevy::{
-    app::{App, Plugin, Update},
-    log::info,
+    app::{App, Plugin, Startup, Update},
+    asset::{AssetServer, Handle},
+    log::{error, info, warn},
     prelude::{in_state, DetectChanges, IntoSystemConfigs, NonSend, Res, ResMut},
 };
 use pixlib_parser::{
-    common::{DroppableRefMut, IssueManager},
+    common::IssueManager,
     runner::{CnvContent, CnvRunner, FileSystem, GamePaths, RunnerIssue, ScenePath, ScriptSource},
     scanner::parse_cnv,
 };
 
 use crate::{
-    filesystems::{CompressedPatch, InsertedDiskResource, LayeredFileSystem},
+    filesystems::{FileSystemResource, PendingHandle},
     resources::{ChosenScene, SceneDefinition},
     util::IssuePrinter,
     AppState,
 };
 
+use super::ui_plugin::Blob;
+
 #[derive(Debug)]
 pub struct ScriptsPlugin {
-    pub inserted_disk: Arc<RwLock<dyn FileSystem>>,
+    pub filesystem: Arc<RwLock<dyn FileSystem>>,
     pub window_resolution: (usize, usize),
 }
 
@@ -35,25 +36,16 @@ impl Plugin for ScriptsPlugin {
     fn build(&self, app: &mut App) {
         let mut runner_issue_manager: IssueManager<RunnerIssue> = Default::default();
         runner_issue_manager.set_handler(Box::new(IssuePrinter));
-        let layered_fs = Arc::new(RefCell::new(LayeredFileSystem::new(Arc::clone(
-            &self.inserted_disk,
-        ))));
-        layered_fs.borrow_mut().use_and_drop_mut(|l| {
-            for arg in env::args().skip(2) {
-                l.push_layer(Arc::new(RwLock::new(
-                    CompressedPatch::try_from(PathBuf::from(&arg).as_ref()).unwrap(),
-                )));
-            }
-        });
         app.insert_non_send_resource(ScriptRunner(
             CnvRunner::try_new(
-                layered_fs,
+                self.filesystem.clone(),
                 Arc::new(GamePaths::default()),
                 self.window_resolution,
                 runner_issue_manager,
             )
             .unwrap(),
         ))
+        .add_systems(Startup, read_args)
         .add_systems(Update, reload_main_script)
         .add_systems(
             Update,
@@ -83,12 +75,32 @@ fn reload_scene_script(script_runner: NonSend<ScriptRunner>, chosen_scene: Res<C
     script_runner.change_scene(&scene_name).unwrap();
 }
 
+fn read_args(asset_server: Res<AssetServer>, mut filesystem: ResMut<FileSystemResource>) {
+    let mut args_iter = env::args().skip(1);
+    if let Some(main_path) = args_iter.next() {
+        load_filesystem(&asset_server, &mut filesystem, main_path);
+    }
+    for arg in args_iter {
+        load_filesystem(&asset_server, &mut filesystem, arg);
+    }
+}
+
+fn load_filesystem(asset_server: &AssetServer, filesystem: &mut FileSystemResource, path: String) {
+    let is_main = path.to_uppercase().trim().ends_with(".ISO");
+    let handle: Handle<Blob> = asset_server.load(path);
+    filesystem.insert_handle(PendingHandle::new(handle, is_main, is_main));
+}
+
 fn reload_main_script(
-    inserted_disk: Res<InsertedDiskResource>,
+    filesystem: Res<FileSystemResource>,
     script_runner: NonSend<ScriptRunner>,
     mut chosen_scene: ResMut<ChosenScene>,
 ) {
-    if !inserted_disk.is_changed() {
+    if !filesystem.is_changed() {
+        return;
+    }
+    if !filesystem.is_ready() {
+        warn!("Filesystem not ready");
         return;
     }
     let game_paths = Arc::clone(&script_runner.game_paths);
@@ -99,10 +111,20 @@ fn reload_main_script(
     let root_script_path = ScenePath::new(".", &root_script_path);
     let contents = script_runner
         .filesystem
-        .borrow_mut()
-        .read_scene_asset(game_paths.clone(), &root_script_path)
-        .inspect_err(|e| eprint!("{}", e))
-        .unwrap();
+        .write()
+        .unwrap()
+        .read_scene_asset(game_paths.clone(), &root_script_path);
+    let contents = match contents {
+        Ok(v) => v,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            error!("Application definition file not found!");
+            return;
+        }
+        Err(e) => {
+            error!("Error accessing application definition file: {}", e);
+            return;
+        }
+    };
     let contents = parse_cnv(&contents);
     script_runner
         .0
@@ -133,7 +155,8 @@ fn reload_main_script(
         );
         let contents = script_runner
             .filesystem
-            .borrow_mut()
+            .write()
+            .unwrap()
             .read_scene_asset(game_paths.clone(), &application_script_path)
             .unwrap();
         let contents = parse_cnv(&contents);
@@ -170,7 +193,8 @@ fn reload_main_script(
             ScenePath::new(&episode_script_path, &(episode_name.clone() + ".cnv"));
         let contents = script_runner
             .filesystem
-            .borrow_mut()
+            .write()
+            .unwrap()
             .read_scene_asset(game_paths, &episode_script_path)
             .unwrap();
         let contents = parse_cnv(&contents);

@@ -8,26 +8,24 @@ cdfs = { git = "https://github.com/Dove6/cdfs.git", branch = "fix/threading" }
 pixlib_formats = { path = "../pixlib_formats" }
 pixlib_parser = { path = "../pixlib_parser" }
 codepage-strings = "1"
-bevy = { version = "0.13", default-features = false, features = [
+bevy = { version = "0.14", default-features = false, features = [
     "bevy_asset",
-    # "bevy_audio",
     "bevy_core_pipeline",
     "bevy_gilrs",
     "bevy_gizmos",
     "bevy_render",
     "bevy_sprite",
+    "bevy_state",
     "bevy_text",
     "bevy_ui",
     "bevy_winit",
     "default_font",
-    "multi-threaded",
-    # "bevy_ci_testing",
     "bmp",
-    # "file_watcher",
     "jpeg",
-    "dynamic_linking",
+    "webgl2",
+    "multi_threaded",
 ] }
-bevy_kira_audio = { version = "0.19", default-features = false, features = [
+bevy_kira_audio = { version = "0.20", default-features = false, features = [
     "wav",
 ] }
 regex = "1.10"
@@ -37,3 +35,12 @@ zip = { version = "2.1", default-features = false, features = [
 ] }
 log = "0.4"
 chrono = "0.4"
+thiserror = "1.0"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+bevy_web_file_drop = { git = "https://github.com/Dove6/bevy_web_file_drop.git", branch = "fix/bevy-0.14-asset-reader-trait" }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies.bevy]
+version = "0.14"
+default-features = false
+features = ["dynamic_linking"]

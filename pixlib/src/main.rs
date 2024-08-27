@@ -1,12 +1,7 @@
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
-use std::{
-    env,
-    sync::{Arc, RwLock},
-};
-
 use bevy::{
-    ecs::schedule::{OnExit, States},
+    asset::{AssetMetaCheck, AssetPlugin},
     math::Vec3,
     prelude::{
         default, App, Camera2dBundle, Commands, DespawnRecursiveExt, PluginGroup, Res, ResMut,
@@ -17,9 +12,15 @@ use bevy::{
     winit::WinitSettings,
     DefaultPlugins,
 };
+use bevy::{
+    prelude::AppExtStates,
+    state::state::{OnExit, States},
+};
 use bevy_kira_audio::AudioPlugin;
+#[cfg(target_family = "wasm")]
+use bevy_web_file_drop::WebFileDropPlugin;
 use chrono::Utc;
-use filesystems::{InsertedDisk, InsertedDiskResource};
+use filesystems::FileSystemResource;
 use pixlib_parser::{common::IssueManager, runner::ObjectBuilderError};
 use plugins::{
     cursor_plugin::CursorPlugin, events_plugin::EventsPlugin, graphics_plugin::GraphicsPlugin,
@@ -73,49 +74,54 @@ pub fn init() -> Result<(), SetLoggerError> {
 fn main() {
     let mut issue_manager: IssueManager<ObjectBuilderError> = Default::default();
     issue_manager.set_handler(Box::new(IssuePrinter));
-    let inserted_disk = Arc::new(RwLock::new(
-        InsertedDisk::try_from(env::args()).expect("Usage: pixlib path_to_iso [path_to_patch...]"),
-    ));
-    App::new()
-        .add_plugins((
-            DefaultPlugins
-                .set(WindowPlugin {
-                    primary_window: Some(Window {
-                        resolution: (WINDOW_SIZE.0 as f32, WINDOW_SIZE.1 as f32).into(),
-                        present_mode: PresentMode::AutoVsync,
-                        title: WINDOW_TITLE.to_owned(),
-                        ..default()
-                    }),
+    let filesystem_resource = FileSystemResource::default();
+    let filesystem = (*filesystem_resource).clone();
+    let mut app = App::new();
+    #[cfg(target_family = "wasm")]
+    app.add_plugins(WebFileDropPlugin);
+    app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    resolution: (WINDOW_SIZE.0 as f32, WINDOW_SIZE.1 as f32).into(),
+                    present_mode: PresentMode::AutoVsync,
+                    title: WINDOW_TITLE.to_owned(),
                     ..default()
-                })
-                .set(ImagePlugin::default_nearest()),
-            AudioPlugin,
-        ))
-        .insert_resource(WinitSettings::game())
-        .insert_resource(WindowConfiguration {
-            size: WINDOW_SIZE,
-            title: WINDOW_TITLE,
-        })
-        .insert_resource(InsertedDiskResource(inserted_disk.clone()))
-        .insert_resource(ChosenScene::default())
-        .insert_resource(ObjectBuilderIssueManager(issue_manager))
-        .init_state::<AppState>()
-        .add_systems(Startup, setup_camera)
-        .add_systems(OnExit(AppState::SceneChooser), cleanup_root)
-        .add_systems(OnExit(AppState::SceneViewer), cleanup_root)
-        .add_plugins((
-            EventsPlugin,
-            GraphicsPlugin,
-            InputsPlugin,
-            ScriptsPlugin {
-                inserted_disk,
-                window_resolution: WINDOW_SIZE,
-            },
-            SoundsPlugin,
-            CursorPlugin,
-        ))
-        .add_plugins(UiPlugin)
-        .run();
+                }),
+                ..default()
+            })
+            .set(ImagePlugin::default_nearest())
+            .set(AssetPlugin {
+                meta_check: AssetMetaCheck::Never,
+                ..default()
+            }),
+    )
+    .add_plugins(AudioPlugin)
+    .insert_resource(WinitSettings::game())
+    .insert_resource(WindowConfiguration {
+        size: WINDOW_SIZE,
+        title: WINDOW_TITLE,
+    })
+    .insert_resource(filesystem_resource)
+    .insert_resource(ChosenScene::default())
+    .insert_resource(ObjectBuilderIssueManager(issue_manager))
+    .init_state::<AppState>()
+    .add_systems(Startup, setup_camera)
+    .add_systems(OnExit(AppState::SceneChooser), cleanup_root)
+    .add_systems(OnExit(AppState::SceneViewer), cleanup_root)
+    .add_plugins((
+        EventsPlugin,
+        GraphicsPlugin,
+        InputsPlugin,
+        ScriptsPlugin {
+            filesystem,
+            window_resolution: WINDOW_SIZE,
+        },
+        SoundsPlugin,
+        CursorPlugin,
+    ))
+    .add_plugins(UiPlugin)
+    .run();
 }
 
 fn setup_camera(window_config: Res<WindowConfiguration>, mut commands: Commands) {

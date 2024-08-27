@@ -5,13 +5,15 @@ use std::{
     time::Duration,
 };
 
+use bevy::state::condition::in_state;
+use bevy::state::state::OnExit;
 use bevy::{
     app::{App, Plugin, Startup, Update},
     asset::{Assets, Handle},
     log::{error, info},
     prelude::{
-        in_state, BuildChildren, Bundle, Commands, Component, Condition, EventReader,
-        IntoSystemConfigs, NonSend, OnExit, Query, Res, ResMut, SpatialBundle,
+        BuildChildren, Bundle, Commands, Component, Condition, EventReader, IntoSystemConfigs,
+        NonSend, Query, Res, ResMut, SpatialBundle,
     },
 };
 use bevy_kira_audio::{
@@ -208,7 +210,7 @@ fn reset_pool_pausing_bgm(
         **marker = None;
         ident.0 = None;
         if let Some(handle) = handle.take() {
-            if let Some(mut instance) = audio_instances.remove(handle) {
+            if let Some(mut instance) = audio_instances.remove(&handle) {
                 instance.stop(EASING);
             }
         }
@@ -237,7 +239,7 @@ fn reset_pool(
         }
         ident.0 = None;
         if let Some(handle) = handle.take() {
-            if let Some(mut instance) = audio_instances.remove(handle) {
+            if let Some(mut instance) = audio_instances.remove(&handle) {
                 instance.stop(EASING);
             }
         }
@@ -400,7 +402,7 @@ fn update_sounds(
                         let new_handle: Handle<AudioInstance> =
                             audio.play(source).looped().paused().handle();
                         if let Some(handle) = handle.replace(new_handle) {
-                            if let Some(mut instance) = audio_instances.remove(handle) {
+                            if let Some(mut instance) = audio_instances.remove(&handle) {
                                 instance.stop(EASING);
                             }
                         }

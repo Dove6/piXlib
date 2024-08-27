@@ -85,7 +85,7 @@ fn redistribute_application_events(
 ) {
     for evt in runner.events_out.app.borrow_mut().drain(..) {
         if matches!(&evt, ApplicationEvent::ApplicationExited) {
-            exit_writer.send(AppExit);
+            exit_writer.send(AppExit::Success);
         }
         writer.send(PixlibApplicationEvent(evt));
     }

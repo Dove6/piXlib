@@ -35,6 +35,7 @@ pub use value::CnvValue;
 
 use std::collections::{HashSet, VecDeque};
 use std::fmt::Display;
+use std::sync::RwLock;
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use events::{IncomingEvents, OutgoingEvents};
@@ -173,7 +174,7 @@ pub struct CnvRunner {
     pub events_in: IncomingEvents,
     pub events_out: OutgoingEvents,
     pub internal_events: RefCell<VecDeque<InternalEvent>>,
-    pub filesystem: Arc<RefCell<dyn FileSystem>>,
+    pub filesystem: Arc<RwLock<dyn FileSystem>>,
     pub game_paths: Arc<GamePaths>,
     pub issue_manager: Arc<RefCell<IssueManager<RunnerIssue>>>,
     pub global_objects: RefCell<ObjectContainer>,
@@ -409,7 +410,7 @@ impl RunnerContext {
 #[allow(clippy::arc_with_non_send_sync)]
 impl CnvRunner {
     pub fn try_new(
-        filesystem: Arc<RefCell<dyn FileSystem>>,
+        filesystem: Arc<RwLock<dyn FileSystem>>,
         game_paths: Arc<GamePaths>,
         window_resolution: (usize, usize),
         issue_manager: IssueManager<RunnerIssue>,
@@ -1126,7 +1127,8 @@ impl CnvRunner {
         let scene_name = scene_object.name.clone();
         let scene_path = scene.get_script_path().unwrap();
         let contents = (*self.filesystem)
-            .borrow_mut()
+            .write()
+            .unwrap()
             .read_scene_asset(
                 self.game_paths.clone(),
                 &ScenePath::new(&scene_path, &(scene_name.clone() + ".cnv")),

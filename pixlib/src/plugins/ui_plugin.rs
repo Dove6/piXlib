@@ -1,19 +1,26 @@
-use std::fs::File;
+use std::sync::{Arc, RwLock};
 
+use bevy::color::Color;
+use bevy::log::error;
+use bevy::state::condition::in_state;
+use bevy::state::state::{NextState, OnEnter};
 use bevy::{
     app::{App, Plugin, Update},
+    asset::{
+        io::Reader, Asset, AssetApp, AssetLoader, AssetServer, Assets, AsyncReadExt, Handle,
+        LoadContext,
+    },
     ecs::{
         change_detection::DetectChanges,
         component::Component,
         query::{Changed, With},
-        schedule::NextState,
         system::{Commands, Query, Res, ResMut},
     },
     hierarchy::{BuildChildren, Children, Parent},
     input::ButtonInput,
     log::info,
-    prelude::{default, in_state, EventReader, IntoSystemConfigs, KeyCode, OnEnter},
-    render::color::Color,
+    prelude::{default, EventReader, IntoSystemConfigs, KeyCode},
+    reflect::TypePath,
     text::{Text, TextStyle},
     ui::{
         node_bundles::{ButtonBundle, NodeBundle, TextBundle},
@@ -22,33 +29,46 @@ use bevy::{
     },
     window::FileDragAndDrop,
 };
+use pixlib_parser::runner::FileSystem;
+use thiserror::Error;
 
+use crate::filesystems::{CompressedPatch, InsertedDisk, PendingHandle};
 use crate::{
-    filesystems::InsertedDiskResource,
+    filesystems::FileSystemResource,
     resources::{ChosenScene, RootEntityToDespawn},
     AppState,
 };
 
-const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
-const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
-const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
+const COLOR_RED: Color = Color::linear_rgb(1.0, 0.0, 0.0);
+const COLOR_BLACK: Color = Color::linear_rgb(0.0, 0.0, 0.0);
+const COLOR_WHITE: Color = Color::linear_rgb(1.0, 1.0, 1.0);
+
+const NORMAL_BUTTON: Color = Color::linear_rgb(0.15, 0.15, 0.15);
+const HOVERED_BUTTON: Color = Color::linear_rgb(0.25, 0.25, 0.25);
+const PRESSED_BUTTON: Color = Color::linear_rgb(0.35, 0.75, 0.35);
 
 #[derive(Debug, Default)]
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            (handle_dropped_iso, navigate_chooser, update_chooser_labels)
-                .run_if(in_state(AppState::SceneChooser)),
-        )
-        // .add_systems(Update, draw_cursor)
-        .add_systems(OnEnter(AppState::SceneChooser), setup_chooser)
-        .add_systems(
-            Update,
-            (detect_return_to_chooser).run_if(in_state(AppState::SceneViewer)),
-        );
+        app.init_asset::<Blob>()
+            .init_asset_loader::<BlobAssetLoader>()
+            .add_systems(
+                Update,
+                (
+                    handle_dropped_iso,
+                    navigate_chooser,
+                    update_chooser_labels,
+                    insert_disk_when_loaded,
+                )
+                    .run_if(in_state(AppState::SceneChooser)),
+            )
+            .add_systems(OnEnter(AppState::SceneChooser), setup_chooser)
+            .add_systems(
+                Update,
+                (detect_return_to_chooser).run_if(in_state(AppState::SceneViewer)),
+            );
     }
 }
 
@@ -103,7 +123,7 @@ pub fn setup_chooser(chosen_scene: Res<ChosenScene>, mut commands: Commands) {
                         "<",
                         TextStyle {
                             font_size: 40.0,
-                            color: Color::rgb(0.9, 0.9, 0.9),
+                            color: Color::linear_rgb(0.9, 0.9, 0.9),
                             ..default()
                         },
                     ));
@@ -133,7 +153,7 @@ pub fn setup_chooser(chosen_scene: Res<ChosenScene>, mut commands: Commands) {
                             .unwrap_or("(Empty list)".to_owned()),
                         TextStyle {
                             font_size: 40.0,
-                            color: Color::rgb(0.9, 0.9, 0.9),
+                            color: Color::linear_rgb(0.9, 0.9, 0.9),
                             ..default()
                         },
                     ));
@@ -161,7 +181,7 @@ pub fn setup_chooser(chosen_scene: Res<ChosenScene>, mut commands: Commands) {
                         ">",
                         TextStyle {
                             font_size: 40.0,
-                            color: Color::rgb(0.9, 0.9, 0.9),
+                            color: Color::linear_rgb(0.9, 0.9, 0.9),
                             ..default()
                         },
                     ));
@@ -189,15 +209,15 @@ pub fn navigate_chooser(
         match *interaction {
             Interaction::Hovered => {
                 *color = HOVERED_BUTTON.into();
-                border_color.0 = Color::WHITE;
+                border_color.0 = COLOR_WHITE;
             }
             Interaction::None => {
                 *color = NORMAL_BUTTON.into();
-                border_color.0 = Color::BLACK;
+                border_color.0 = COLOR_BLACK;
             }
             Interaction::Pressed => {
                 *color = PRESSED_BUTTON.into();
-                border_color.0 = Color::RED;
+                border_color.0 = COLOR_RED;
                 if chosen_scene.list.is_empty() {
                     return;
                 }
@@ -246,16 +266,68 @@ pub fn update_chooser_labels(
 }
 
 pub fn handle_dropped_iso(
+    asset_server: Res<AssetServer>,
     mut event_reader: EventReader<FileDragAndDrop>,
-    inserted_disk: Res<InsertedDiskResource>,
+    mut filesystem: ResMut<FileSystemResource>,
 ) {
     for event in event_reader.read() {
         info!("Drag and drop event: {:?}", event);
         if let FileDragAndDrop::DroppedFile { path_buf, .. } = event {
-            let mut guard = inserted_disk.0.as_ref().write().unwrap();
-            guard.insert(File::open(path_buf).unwrap()).unwrap();
+            #[cfg(target_family = "wasm")]
+            let path = String::from(path_buf.to_str().unwrap());
+            #[cfg(not(target_family = "wasm"))]
+            let path = bevy::asset::AssetPath::from_path(path_buf.as_path());
+            let handle: Handle<Blob> = asset_server.load(path);
+            let is_main = path_buf
+                .to_str()
+                .unwrap_or_default()
+                .to_uppercase()
+                .trim()
+                .ends_with(".ISO");
+            filesystem.insert_handle(PendingHandle::new(handle, is_main, is_main));
         }
     }
+}
+
+pub fn insert_disk_when_loaded(
+    asset_server: Res<AssetServer>,
+    mut blobs: ResMut<Assets<Blob>>,
+    mut filesystem: ResMut<FileSystemResource>,
+) {
+    let Some(pending_handle) = filesystem.get_pending_handle() else {
+        return;
+    };
+    match asset_server.load_state(&*pending_handle) {
+        bevy::asset::LoadState::Failed(e) => {
+            error!(
+                "Failed to load asset {}: {}",
+                (*pending_handle)
+                    .path()
+                    .map(|p| p.to_string())
+                    .unwrap_or_default(),
+                e
+            );
+            filesystem.set_as_failed(&pending_handle).unwrap();
+        }
+        bevy::asset::LoadState::Loaded => {}
+        _ => return,
+    }
+    let Some(loaded_asset) = blobs.remove(&*pending_handle) else {
+        info!("Asset not loaded yet for handle {:?}", pending_handle);
+        return;
+    };
+    let loaded_fs: Arc<RwLock<dyn FileSystem>> = if pending_handle.is_main() {
+        Arc::new(RwLock::new(
+            InsertedDisk::new(loaded_asset.into_inner()).unwrap(),
+        ))
+    } else {
+        Arc::new(RwLock::new(
+            CompressedPatch::new(loaded_asset.into_inner()).unwrap(),
+        ))
+    };
+    filesystem
+        .insert_loaded(&pending_handle, loaded_fs)
+        .unwrap();
 }
 
 pub fn detect_return_to_chooser(
@@ -264,5 +336,47 @@ pub fn detect_return_to_chooser(
 ) {
     if keyboard.pressed(KeyCode::Escape) {
         next_state.set(AppState::SceneChooser);
+    }
+}
+
+#[derive(Asset, TypePath, Debug)]
+pub struct Blob {
+    bytes: Vec<u8>,
+}
+
+impl Blob {
+    pub fn into_inner(self) -> Vec<u8> {
+        self.bytes
+    }
+}
+
+#[derive(Default)]
+struct BlobAssetLoader;
+
+/// Possible errors that can be produced by [`BlobAssetLoader`]
+#[non_exhaustive]
+#[derive(Debug, Error)]
+pub enum BlobAssetLoaderError {
+    /// An [IO](std::io) Error
+    #[error("Could not load file: {0}")]
+    Io(#[from] std::io::Error),
+}
+
+impl AssetLoader for BlobAssetLoader {
+    type Asset = Blob;
+    type Settings = ();
+    type Error = BlobAssetLoaderError;
+
+    async fn load<'a>(
+        &'a self,
+        reader: &'a mut Reader<'_>,
+        _settings: &'a (),
+        _load_context: &'a mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
+        info!("Loading Blob...");
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).await?;
+
+        Ok(Blob { bytes })
     }
 }

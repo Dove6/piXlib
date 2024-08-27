@@ -407,7 +407,8 @@ impl CanvasObserverState {
     ) -> anyhow::Result<()> {
         let filesystem = Arc::clone(&runner.filesystem);
         let data = filesystem
-            .borrow_mut()
+            .write()
+            .unwrap()
             .read_scene_asset(Arc::clone(&runner.game_paths), path)
             .map_err(|_| RunnerError::IoError {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
