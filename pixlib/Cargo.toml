@@ -20,8 +20,6 @@ bevy = { version = "0.14", default-features = false, features = [
     "bevy_ui",
     "bevy_winit",
     "default_font",
-    "bmp",
-    "jpeg",
     "webgl2",
     "multi_threaded",
 ] }

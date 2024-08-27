@@ -2,9 +2,9 @@ name: Rust
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,20 +13,49 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Install dependencies
-      run: sudo apt-get install g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0
-    - name: Build
-      run: cargo build --all --verbose --features bevy/x11
-    - name: Run tests
-      run: cargo test --all --verbose --features bevy/x11
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get install g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --all --verbose --features bevy/x11
+      - name: Run tests
+        run: cargo test --all --verbose --features bevy/x11
   format:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Install dependencies
-      run: sudo apt-get install g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0
-    - name: Check formatting
-      run: cargo fmt --all --check
-    - name: Check code quality
-      run: cargo clippy --all --features bevy/x11 -- -Dwarnings
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get install g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0
+      - uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Check code quality
+        run: cargo clippy --all --features bevy/x11 -- -Dwarnings
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ./repo
+          fetch-depth: 0
+      - name: Install dependencies
+        run: |
+          sudo apt-get install g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0
+          cargo install wasm-bindgen-cli
+      - uses: Swatinem/rust-cache@v2
+      - name: Build debug
+        working-directory: ./repo
+        run: cargo build --target wasm32-unknown-unknown --all --verbose -Zbuild-std=std,panic_abort
+      - name: Generate files for debug
+        run: wasm-bindgen --no-typescript --target web --out-dir ./out/debug/ --out-name "pixlib" ./target/wasm32-unknown-unknown/debug/pixlib.wasm
+      - name: Summarize size of out dir for debug
+        run: du -h ./out
+      - name: Update gh-pages and push changes
+        working-directory: ./app
+        run: |
+          git config user.email "github-actions@github.com"
+          git config user.name "github-actions"
+          git checkout gh-pages
+          cp -R ../out/* .
+          git commit -am "Update files" && git push || echo "No changes to commit"
