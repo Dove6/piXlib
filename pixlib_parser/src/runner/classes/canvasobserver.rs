@@ -382,10 +382,8 @@ impl CanvasObserverState {
     ) -> anyhow::Result<()> {
         // SETBACKGROUND
         let Some(object) = context.runner.get_object(object_name) else {
-            return Err(RunnerError::ObjectNotFound {
-                name: object_name.to_owned(),
-            }
-            .into());
+            self.background_data = ImageFileData::NotLoaded(object_name.to_owned());
+            return Ok(());
         };
         let CnvContent::Image(image) = &object.content else {
             return Err(RunnerError::ExpectedGraphicsObject.into());

@@ -120,13 +120,13 @@ impl CnvType for Episode {
             CallableIdentifier::Method("GETCURRENTSCENE") => self
                 .state
                 .borrow()
-                .get_current_scene()
-                .map(|_| CnvValue::Null),
+                .get_current_scene(context)
+                .map(|v| v.map(CnvValue::String).unwrap_or_default()),
             CallableIdentifier::Method("GETLATESTSCENE") => self
                 .state
                 .borrow()
                 .get_latest_scene()
-                .map(|_| CnvValue::Null),
+                .map(|v| v.map(CnvValue::String).unwrap_or_default()),
             CallableIdentifier::Method("GOTO") => self
                 .state
                 .borrow_mut()
@@ -212,14 +212,14 @@ impl EpisodeState {
         context.runner.change_scene(&goto_name)
     }
 
-    pub fn get_current_scene(&self) -> anyhow::Result<()> {
+    pub fn get_current_scene(&self, context: RunnerContext) -> anyhow::Result<Option<String>> {
         // GETCURRENTSCENE
-        todo!()
+        Ok(context.runner.get_current_scene().map(|s| s.name.clone()))
     }
 
-    pub fn get_latest_scene(&self) -> anyhow::Result<()> {
+    pub fn get_latest_scene(&self) -> anyhow::Result<Option<String>> {
         // GETLATESTSCENE
-        todo!() // this should return game scene ?not being menu?
+        Ok(self.previous_scene_name.clone())
     }
 
     pub fn go_to(&mut self, context: RunnerContext, scene_name: &str) -> anyhow::Result<()> {

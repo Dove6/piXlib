@@ -335,7 +335,7 @@ impl CnvType for Scene {
                     arguments[1].to_str(),
                     arguments.iter().skip(2).map(|v| v.to_owned()).collect(),
                 )
-                .map(|_| CnvValue::Null),
+                .map(|_| CnvValue::Null), // TODO: return something
             CallableIdentifier::Method("RUNCLONES") => {
                 self.state.borrow_mut().run_clones().map(|_| CnvValue::Null)
             }

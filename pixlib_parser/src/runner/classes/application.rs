@@ -158,7 +158,15 @@ impl CnvType for Application {
                 self.state.borrow_mut().restart().map(|_| CnvValue::Null)
             }
             CallableIdentifier::Method("RUN") => {
-                self.state.borrow_mut().run().map(|_| CnvValue::Null)
+                self.state
+                    .borrow_mut()
+                    .run(
+                        context,
+                        arguments[0].to_str(),
+                        arguments[1].to_str(),
+                        arguments.iter().skip(2).map(|v| v.to_owned()).collect(),
+                    )
+                    .map(|_| CnvValue::Null) // TODO: return something
             }
             CallableIdentifier::Method("RUNENV") => {
                 self.state.borrow_mut().run_env().map(|_| CnvValue::Null)
@@ -302,9 +310,29 @@ impl ApplicationState {
         todo!()
     }
 
-    pub fn run(&mut self) -> anyhow::Result<()> {
+    pub fn run(
+        &mut self,
+        context: RunnerContext,
+        object_name: String,
+        method_name: String,
+        arguments: Vec<CnvValue>,
+    ) -> anyhow::Result<()> {
         // RUN
-        todo!()
+        let Some(object) = context.runner.get_object(&object_name) else {
+            return Err(RunnerError::ObjectNotFound { name: object_name }.into());
+        };
+        let evt_context = RunnerContext::new(&context.runner, &object, &object, &arguments);
+        context
+            .runner
+            .internal_events
+            .borrow_mut()
+            .use_and_drop_mut(move |events| {
+                events.push_back(InternalEvent {
+                    context: evt_context,
+                    callable: CallableIdentifierOwned::Method(method_name),
+                })
+            });
+        Ok(())
     }
 
     pub fn run_env(&mut self) -> anyhow::Result<()> {

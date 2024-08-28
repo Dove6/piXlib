@@ -30,6 +30,7 @@ use bevy::{
     },
     window::FileDragAndDrop,
 };
+use pixlib_parser::common::LoggableToOption;
 use pixlib_parser::runner::FileSystem;
 use thiserror::Error;
 
@@ -332,18 +333,23 @@ pub fn insert_disk_when_loaded(
         info!("Asset not loaded yet for handle {:?}", pending_handle);
         return;
     };
-    let loaded_fs: Arc<RwLock<dyn FileSystem>> = if pending_handle.is_main() {
-        Arc::new(RwLock::new(
-            InsertedDisk::new(loaded_asset.into_inner()).unwrap(),
-        ))
+    let loaded_fs = if pending_handle.is_main() {
+        InsertedDisk::new(loaded_asset.into_inner())
+            .map(|l| -> Arc<RwLock<dyn FileSystem>> { Arc::new(RwLock::new(l)) })
+            .ok_or_error()
     } else {
-        Arc::new(RwLock::new(
-            CompressedPatch::new(loaded_asset.into_inner()).unwrap(),
-        ))
+        CompressedPatch::new(loaded_asset.into_inner())
+            .map(|l| -> Arc<RwLock<dyn FileSystem>> { Arc::new(RwLock::new(l)) })
+            .ok_or_error()
     };
-    filesystem
-        .insert_loaded(&pending_handle, loaded_fs)
-        .unwrap();
+    if let Some(loaded_fs) = loaded_fs {
+        filesystem
+            .insert_loaded(&pending_handle, loaded_fs)
+            .unwrap();
+    } else {
+        error!("Could not load filesystem");
+        filesystem.set_as_failed(&pending_handle).unwrap();
+    }
 }
 
 pub fn detect_return_to_chooser(

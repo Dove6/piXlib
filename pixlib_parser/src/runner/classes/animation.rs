@@ -1465,7 +1465,7 @@ impl AnimationState {
         let (sequence_idx, sequence) = loaded_data
             .sequences
             .iter()
-            .find_position(|s| s.name == sequence_name)
+            .find_position(|s| s.name.eq_ignore_ascii_case(sequence_name))
             .ok_or(RunnerError::SequenceNameNotFound {
                 object_name: context.current_object.name.clone(),
                 sequence_name: sequence_name.to_owned(),

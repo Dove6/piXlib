@@ -529,7 +529,8 @@ impl ArrayState {
 
     pub fn remove_all(&mut self) -> anyhow::Result<()> {
         // REMOVEALL
-        todo!()
+        self.values.clear();
+        Ok(())
     }
 
     pub fn remove_at(&mut self) -> anyhow::Result<()> {
