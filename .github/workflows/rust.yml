@@ -70,6 +70,7 @@ jobs:
           git config user.name "github-actions"
           git clean -xdf
           git checkout gh-pages
+          git pull
           cp -R ../out/* .
           test ! -d ./target
           git add .
