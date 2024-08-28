@@ -4,7 +4,11 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use bevy::{asset::Handle, ecs::system::Resource, log::info};
+use bevy::{
+    asset::Handle,
+    ecs::system::Resource,
+    log::{error, info},
+};
 use cdfs::{DirectoryEntry, ISOError, ISO9660};
 use pixlib_parser::runner::FileSystem;
 use zip::{result::ZipError, ZipArchive};
@@ -98,7 +102,7 @@ impl FileSystem for CompressedPatch {
                 ZipError::Io(io_error) => io_error,
                 _ => std::io::Error::from(std::io::ErrorKind::Other),
             })
-            .inspect_err(|e| eprintln!("{}", e))?;
+            .inspect_err(|e| error!("{}", e))?;
         if entry.is_file() {
             let mut vec = Vec::new();
             entry.read_to_end(&mut vec)?;

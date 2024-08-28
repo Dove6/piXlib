@@ -104,7 +104,7 @@ impl CnvType for Condition {
         arguments: &[CnvValue],
         context: RunnerContext,
     ) -> anyhow::Result<CnvValue> {
-        // eprintln!(
+        // log::trace!(
         //     "Calling method {:?} of condition {}",
         //     name, self.parent.name
         // );

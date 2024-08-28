@@ -1,11 +1,6 @@
-use std::{
-    ops::{Deref, DerefMut},
-    path::Path,
-    sync::Arc,
-};
+use std::{path::Path, sync::Arc};
 
 use bevy::ecs::{entity::Entity, system::Resource};
-use pixlib_parser::{common::IssueManager, runner::ObjectBuilderError};
 
 #[derive(Resource, Debug, Clone, PartialEq, Eq, Copy)]
 pub struct WindowConfiguration {
@@ -29,20 +24,3 @@ pub struct ChosenScene {
 
 #[derive(Resource, Debug, Clone, PartialEq, Eq)]
 pub struct RootEntityToDespawn(pub Option<Entity>);
-
-#[derive(Resource, Debug, Default)]
-pub struct ObjectBuilderIssueManager(pub IssueManager<ObjectBuilderError>);
-
-impl Deref for ObjectBuilderIssueManager {
-    type Target = IssueManager<ObjectBuilderError>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for ObjectBuilderIssueManager {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}

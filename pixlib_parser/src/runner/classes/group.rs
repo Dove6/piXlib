@@ -141,7 +141,7 @@ impl CnvType for Group {
             CallableIdentifier::Method("REMOVE") => self
                 .state
                 .borrow_mut()
-                .remove(&arguments[0].to_str())
+                .remove(context, &arguments[0].to_str())
                 .map(|_| CnvValue::Null),
             CallableIdentifier::Method("REMOVEALL") => {
                 self.state.borrow_mut().remove_all().map(|_| CnvValue::Null)
@@ -280,14 +280,23 @@ impl GroupState {
         todo!()
     }
 
-    pub fn remove(&mut self, name: &str) -> anyhow::Result<()> {
+    pub fn remove(&mut self, context: RunnerContext, name: &str) -> anyhow::Result<()> {
         // REMOVE
-        let index = self.objects.iter().position(|o| o.name == name).ok_or(
-            RunnerError::ObjectNotFound {
-                name: name.to_owned(),
-            },
-        )?;
-        self.objects.remove(index);
+        if self
+            .objects
+            .iter()
+            .position(|o| o.name == name)
+            .map(|i| self.objects.remove(i))
+            .is_none()
+        {
+            error!(
+                "{}",
+                RunnerError::GroupObjectNotFound {
+                    group_name: context.current_object.name.clone(),
+                    object_name: name.to_owned()
+                }
+            )
+        }
         Ok(())
     }
 
@@ -320,8 +329,8 @@ impl GroupState {
             let result = object.call_method(callable.clone(), arguments, Some(context.clone()));
             err_result = err_result.or(result
                 .inspect_err(|e| {
-                    eprintln!(
-                        "Error while calling {:?} on members of group {}: {:?}",
+                    error!(
+                        "Error while calling {:?} on members of group {}: {}",
                         callable, context.current_object.name, e
                     )
                 })

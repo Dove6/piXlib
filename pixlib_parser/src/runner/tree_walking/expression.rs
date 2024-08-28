@@ -1,4 +1,5 @@
 use crate::{
+    common::LoggableToOption,
     parser::ast::{Expression, IgnorableExpression, Invocation, Operation},
     runner::{CallableIdentifier, RunnerError},
 };
@@ -11,7 +12,7 @@ pub trait CnvExpression {
 
 impl CnvExpression for IgnorableExpression {
     fn calculate(&self, context: RunnerContext) -> anyhow::Result<CnvValue> {
-        // println!("IgnorableExpression::calculate: {:?}", self);
+        // log::trace!("IgnorableExpression::calculate: {:?}", self);
         if self.ignored {
             Ok(CnvValue::Null)
         } else {
@@ -34,7 +35,7 @@ fn substitute_behavior_arguments(identifier: &str, context: &RunnerContext) -> S
 
 impl CnvExpression for Expression {
     fn calculate(&self, context: RunnerContext) -> anyhow::Result<CnvValue> {
-        // println!("Expression::calculate: {:?} with context: {}", self, context);
+        // log::trace!("Expression::calculate: {:?} with context: {}", self, context);
         let result = match self {
             Expression::LiteralBool(b) => Ok(CnvValue::Bool(*b)),
             Expression::LiteralNull => Ok(CnvValue::Null),
@@ -81,14 +82,14 @@ impl CnvExpression for Expression {
                 Ok(CnvValue::Null)
             }
         };
-        // println!("    result: {:?}", result);
+        // log::trace!("    result: {:?}", result);
         result
     }
 }
 
 impl CnvExpression for Invocation {
     fn calculate(&self, context: RunnerContext) -> anyhow::Result<CnvValue> {
-        // println!("Invocation::calculate: {:?} with context {}", self, context);
+        // log::trace!("Invocation::calculate: {:?} with context {}", self, context);
         if self.parent.is_none() {
             Ok(CnvValue::Null) // TODO: match &self.name
         } else {
@@ -104,17 +105,23 @@ impl CnvExpression for Invocation {
                 .map(|e| e.calculate(context.clone()))
                 .collect::<anyhow::Result<Vec<_>>>()?;
             let arguments: Vec<_> = arguments.into_iter().collect();
-            // println!("Calling method: {:?} of: {:?}", self.name, self.parent);
+            // log::trace!("Calling method: {:?} of: {:?}", self.name, self.parent);
             let name = parent.to_str();
             context
                 .runner
                 .get_object(&name)
-                .ok_or(RunnerError::ObjectNotFound { name })?
-                .call_method(
-                    CallableIdentifier::Method(&self.name),
-                    &arguments,
-                    Some(context.with_arguments(arguments.clone())),
-                )
+                .ok_or(RunnerError::ObjectNotFound { name })
+                .ok_or_error()
+                .map(|o| {
+                    Ok(o.call_method(
+                        CallableIdentifier::Method(&self.name),
+                        &arguments,
+                        Some(context.with_arguments(arguments.clone())),
+                    )
+                    .ok_or_error()
+                    .unwrap_or_default())
+                })
+                .unwrap_or(Ok(CnvValue::Null))
         }
     }
 }

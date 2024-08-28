@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use bevy::color::Color;
 use bevy::log::error;
+use bevy::prelude::Visibility;
 use bevy::state::condition::in_state;
 use bevy::state::state::{NextState, OnEnter};
 use bevy::{
@@ -60,6 +61,7 @@ impl Plugin for UiPlugin {
                     handle_dropped_iso,
                     navigate_chooser,
                     update_chooser_labels,
+                    update_arrows_visibility,
                     insert_disk_when_loaded,
                 )
                     .run_if(in_state(AppState::SceneChooser)),
@@ -150,7 +152,7 @@ pub fn setup_chooser(chosen_scene: Res<ChosenScene>, mut commands: Commands) {
                             .list
                             .get(chosen_scene.index)
                             .map(|s| s.name.clone())
-                            .unwrap_or("(Empty list)".to_owned()),
+                            .unwrap_or("Waiting...".to_owned()),
                         TextStyle {
                             font_size: 40.0,
                             color: Color::linear_rgb(0.9, 0.9, 0.9),
@@ -244,23 +246,37 @@ pub fn navigate_chooser(
 
 pub fn update_chooser_labels(
     chosen_scene: Res<ChosenScene>,
-    scene_list_component_query: Query<(&SceneListComponent, &Children)>,
     button_query: Query<(&ButtonFunctionComponent, &Children)>,
     mut text_query: Query<&mut Text>,
 ) {
     if !chosen_scene.is_changed() || chosen_scene.list.is_empty() {
         return;
     }
-    for (_, children) in &scene_list_component_query {
-        for (button_function, button_children) in button_query.iter_many(children) {
-            if let ButtonFunctionComponent::Display { offset } = button_function {
-                let mut text = text_query.get_mut(button_children[0]).unwrap();
-                let displayed_index = chosen_scene.index + offset;
-                text.sections[0].value = chosen_scene.list
-                    [displayed_index % chosen_scene.list.len()]
+    for (button_function, button_children) in &button_query {
+        if let ButtonFunctionComponent::Display { offset } = button_function {
+            let mut text = text_query.get_mut(button_children[0]).unwrap();
+            let displayed_index = chosen_scene.index + offset;
+            text.sections[0].value = chosen_scene.list[displayed_index % chosen_scene.list.len()]
                 .name
                 .clone();
-            }
+        }
+    }
+}
+
+pub fn update_arrows_visibility(
+    chosen_scene: Res<ChosenScene>,
+    mut button_bundle_query: Query<(&ButtonFunctionComponent, &mut Visibility)>,
+) {
+    if !chosen_scene.is_changed() {
+        return;
+    }
+    for (button_function, mut visibility) in button_bundle_query.iter_mut() {
+        if !matches!(button_function, ButtonFunctionComponent::Display { .. }) {
+            *visibility = if chosen_scene.list.is_empty() {
+                Visibility::Hidden
+            } else {
+                Visibility::Visible
+            };
         }
     }
 }

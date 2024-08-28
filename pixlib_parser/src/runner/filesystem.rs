@@ -1,5 +1,7 @@
 use std::{io::ErrorKind, sync::Arc};
 
+use log::{info, trace};
+
 use super::path::{Path, ScenePath};
 
 pub trait FileSystem: std::fmt::Debug + Send + Sync {
@@ -13,26 +15,26 @@ impl dyn FileSystem {
         game_paths: Arc<GamePaths>,
         scene_path: &ScenePath,
     ) -> std::io::Result<Vec<u8>> {
-        println!(
+        info!(
             "read_scene_file({:?}, {:?})",
             game_paths.data_directory, scene_path,
         );
         let mut path = scene_path.file_path.clone();
-        println!("Trying path: {:?}", path);
+        trace!("Trying path: {:?}", path);
         match self.read_file(&path) {
             Ok(vec) => return Ok(vec),
             Err(e) if e.kind() == ErrorKind::NotFound => {}
             Err(e) => return Err(e),
         }
         path.prepend(&scene_path.dir_path);
-        println!("Trying path: {:?}", path);
+        trace!("Trying path: {:?}", path);
         match self.read_file(&path) {
             Ok(vec) => return Ok(vec),
             Err(e) if e.kind() == ErrorKind::NotFound => {}
             Err(e) => return Err(e),
         }
         path.prepend(&game_paths.data_directory);
-        println!("Trying path: {:?}", path);
+        trace!("Trying path: {:?}", path);
         match self.read_file(&path) {
             Ok(vec) => return Ok(vec),
             Err(e) if e.kind() == ErrorKind::NotFound => {}
@@ -46,33 +48,33 @@ impl dyn FileSystem {
         game_paths: Arc<GamePaths>,
         scene_path: &ScenePath,
     ) -> std::io::Result<Vec<u8>> {
-        println!(
+        info!(
             "read_sound_file(({:?}, {:?}), {:?})",
             game_paths.dialogues_directory, game_paths.data_directory, scene_path,
         );
         let mut path = scene_path.file_path.clone();
-        println!("Trying path: {:?}", path);
+        trace!("Trying path: {:?}", path);
         match self.read_file(&path) {
             Ok(vec) => return Ok(vec),
             Err(e) if e.kind() == ErrorKind::NotFound => {}
             Err(e) => return Err(e),
         }
         path.prepend(&game_paths.dialogues_directory);
-        println!("Trying path: {:?}", path);
+        trace!("Trying path: {:?}", path);
         match self.read_file(&path) {
             Ok(vec) => return Ok(vec),
             Err(e) if e.kind() == ErrorKind::NotFound => {}
             Err(e) => return Err(e),
         }
         let mut path = scene_path.file_path.with_prepended(&scene_path.dir_path);
-        println!("Trying path: {:?}", path);
+        trace!("Trying path: {:?}", path);
         match self.read_file(&path) {
             Ok(vec) => return Ok(vec),
             Err(e) if e.kind() == ErrorKind::NotFound => {}
             Err(e) => return Err(e),
         }
         path.prepend(&game_paths.data_directory);
-        println!("Trying path: {:?}", path);
+        trace!("Trying path: {:?}", path);
         match self.read_file(&path) {
             Ok(vec) => return Ok(vec),
             Err(e) if e.kind() == ErrorKind::NotFound => {}

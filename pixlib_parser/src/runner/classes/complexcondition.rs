@@ -133,7 +133,7 @@ impl CnvType for ComplexCondition {
         parent: Arc<CnvObject>,
         mut properties: HashMap<String, String>,
     ) -> Result<CnvContent, TypeParsingError> {
-        // eprintln!("Creating {} from properties: {:#?}", parent.name, properties);
+        // log::trace!("Creating {} from properties: {:#?}", parent.name, properties);
         let operand1 = properties
             .remove("CONDITION1")
             .and_then(discard_if_empty)

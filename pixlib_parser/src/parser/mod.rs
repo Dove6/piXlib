@@ -9,15 +9,12 @@ pub mod seq_parser;
 mod imperative_parser_test {
     use std::vec::IntoIter;
 
-    use crate::{
-        common::{Issue, IssueHandler, IssueManager},
-        lexer::CnvLexer,
-        scanner::CnvScanner,
-    };
+    use crate::{lexer::CnvLexer, scanner::CnvScanner};
 
     use super::*;
-    use ast::{Expression, ParserIssue};
+    use ast::Expression;
     use imperative_parser::*;
+    use log::info;
 
     #[test]
     fn test_syntex_sugar_for_parametrized_event_handler() {
@@ -30,12 +27,8 @@ mod imperative_parser_test {
                 .into_iter(),
         );
         let lexer = CnvLexer::new(scanner, Default::default(), Default::default());
-        let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
-        parser_issue_manager.set_handler(Box::new(IssuePrinter));
-        let result = CodeParser::new()
-            .parse(&Default::default(), &mut parser_issue_manager, lexer)
-            .unwrap();
-        println!("{:?}", result);
+        let result = CodeParser::new().parse(&Default::default(), lexer).unwrap();
+        info!("{:?}", result);
         let Expression::Invocation(invocation) = result.value else {
             panic!();
         };
@@ -48,14 +41,5 @@ mod imperative_parser_test {
             invocation.arguments,
             vec![Expression::Identifier("REKSIO17A".into())]
         );
-    }
-
-    #[derive(Debug)]
-    struct IssuePrinter;
-
-    impl<I: Issue> IssueHandler<I> for IssuePrinter {
-        fn handle(&mut self, issue: I) {
-            eprintln!("{:?}", issue);
-        }
     }
 }

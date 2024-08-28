@@ -1,5 +1,7 @@
 use std::{any::Any, cell::RefCell};
 
+use log::info;
+
 use super::super::content::EventHandler;
 use super::super::initable::Initable;
 use super::super::parsers::{discard_if_empty, parse_bool, parse_event_handler};
@@ -122,7 +124,7 @@ impl CnvType for StringVar {
         arguments: &[CnvValue],
         context: RunnerContext,
     ) -> anyhow::Result<CnvValue> {
-        // eprintln!(
+        // log::trace!(
         //     "Calling method {:?} with arguments [{}]",
         //     name,
         //     arguments.iter().join(", ")
@@ -496,7 +498,7 @@ impl StringVarState {
 
     pub fn reset_ini(&mut self, _context: RunnerContext) -> anyhow::Result<()> {
         // RESETINI
-        eprintln!("Skipping STRING^RESETINI() call");
+        info!("Skipping STRING^RESETINI() call");
         Ok(())
     }
 

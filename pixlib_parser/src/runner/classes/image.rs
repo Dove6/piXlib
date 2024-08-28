@@ -368,7 +368,7 @@ impl CnvType for Image {
         arguments: &[CnvValue],
         context: RunnerContext,
     ) -> anyhow::Result<CnvValue> {
-        // println!("Calling method: {:?} of object: {:?}", name, self);
+        // log::trace!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("CLEARCLIPPING") => self
                 .state

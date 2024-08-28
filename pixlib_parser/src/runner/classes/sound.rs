@@ -174,7 +174,7 @@ impl CnvType for Sound {
         arguments: &[CnvValue],
         context: RunnerContext,
     ) -> anyhow::Result<CnvValue> {
-        // println!("Calling method: {:?} of object: {:?}", name, self);
+        // log::trace!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("ISPLAYING") => {
                 self.state.borrow().is_playing().map(CnvValue::Bool)

@@ -234,7 +234,7 @@ impl CnvType for Button {
         arguments: &[CnvValue],
         context: RunnerContext,
     ) -> anyhow::Result<CnvValue> {
-        // println!("Calling method: {:?} of object: {:?}", name, self);
+        // log::trace!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("ACCENT") => {
                 self.state.borrow_mut().accent().map(|_| CnvValue::Null)
@@ -628,7 +628,7 @@ impl ButtonState {
         context: RunnerContext,
         mut interaction: Interaction,
     ) -> anyhow::Result<()> {
-        // println!(
+        // log::trace!(
         //     "{}.set_interaction({:?})",
         //     context.current_object.name, interaction
         // );
@@ -662,7 +662,7 @@ impl ButtonState {
                 normal_graphics.hide()
             }?
         } /*else {
-            println!(
+            log::trace!(
                 "Normal sprite not found for button {}",
                 context.current_object.name
             );
@@ -697,7 +697,7 @@ impl ButtonState {
                 on_hover_graphics.hide()
             }?
         } /*else {
-            println!(
+            log::trace!(
                 "Hovering sprite not found for button {}",
                 context.current_object.name
             );
@@ -732,7 +732,7 @@ impl ButtonState {
                 on_click_graphics.hide()
             }?
         } /*else {
-            println!(
+            log::trace!(
                 "Pressing sprite not found for button {}",
                 context.current_object.name
             );

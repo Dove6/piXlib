@@ -174,7 +174,7 @@ impl CnvType for Mouse {
         arguments: &[CnvValue],
         context: RunnerContext,
     ) -> anyhow::Result<CnvValue> {
-        // println!("Calling method: {:?} of object: {:?}", name, self);
+        // log::trace!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("CLICK") => self
                 .state

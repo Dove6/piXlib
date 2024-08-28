@@ -10,7 +10,7 @@ use bevy::state::state::OnExit;
 use bevy::{
     app::{App, Plugin, Startup, Update},
     asset::{Assets, Handle},
-    log::{error, info},
+    log::{info, warn},
     prelude::{
         BuildChildren, Bundle, Commands, Component, Condition, EventReader, IntoSystemConfigs,
         NonSend, Query, Res, ResMut, SpatialBundle,
@@ -444,7 +444,7 @@ fn update_sounds(
             };
         }
         if !any_marker_matched {
-            error!("No marker matched for event {}", evt.event);
+            warn!("No marker matched for event {}", evt.event);
         }
     }
 }

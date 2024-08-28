@@ -1,5 +1,7 @@
 use std::{any::Any, cell::RefCell};
 
+use log::info;
+
 use super::super::content::EventHandler;
 use super::super::initable::Initable;
 use super::super::parsers::{discard_if_empty, parse_bool, parse_event_handler, parse_i32};
@@ -448,7 +450,7 @@ impl IntegerVarState {
 
     pub fn reset_ini(&mut self, _context: RunnerContext) -> anyhow::Result<()> {
         // RESETINI
-        eprintln!("Skipping INTEGER^RESETINI() call");
+        info!("Skipping INTEGER^RESETINI() call");
         Ok(())
     }
 

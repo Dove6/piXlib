@@ -6,6 +6,8 @@ use std::{
     sync::{RwLockReadGuard, RwLockWriteGuard},
 };
 
+use log::{error, info, trace, warn};
+
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub struct Position {
     pub character: usize,
@@ -219,4 +221,130 @@ pub fn pair_u32_to_isize(pair: (u32, u32)) -> (isize, isize) {
 
 pub fn pair_i32_to_isize(pair: (i32, i32)) -> (isize, isize) {
     (pair.0 as isize, pair.1 as isize)
+}
+
+pub trait LoggableToOption<T> {
+    fn ok_or_trace(self) -> Option<T>;
+    fn ok_or_info(self) -> Option<T>;
+    fn ok_or_warn(self) -> Option<T>;
+    fn ok_or_error(self) -> Option<T>;
+}
+
+impl<TOk, TErr: Display> LoggableToOption<TOk> for Result<TOk, TErr> {
+    fn ok_or_trace(self) -> Option<TOk> {
+        match self {
+            Ok(value) => Some(value),
+            Err(e) => {
+                trace!("{}", e);
+                None
+            }
+        }
+    }
+
+    fn ok_or_info(self) -> Option<TOk> {
+        match self {
+            Ok(value) => Some(value),
+            Err(e) => {
+                info!("{}", e);
+                None
+            }
+        }
+    }
+
+    fn ok_or_warn(self) -> Option<TOk> {
+        match self {
+            Ok(value) => Some(value),
+            Err(e) => {
+                warn!("{}", e);
+                None
+            }
+        }
+    }
+
+    fn ok_or_error(self) -> Option<TOk> {
+        match self {
+            Ok(value) => Some(value),
+            Err(e) => {
+                error!("{}", e);
+                None
+            }
+        }
+    }
+}
+
+pub enum OkResult<TOk, TErr> {
+    NoError(TOk),
+    WithError(TOk, TErr),
+}
+
+use OkResult::{NoError, WithError};
+
+impl<TOk, TErr> OkResult<TOk, TErr> {
+    pub fn into_result(self) -> Result<TOk, TErr> {
+        self.into()
+    }
+
+    pub fn and_then<TOk2>(
+        self,
+        mut f: impl FnMut(TOk) -> OkResult<TOk2, TErr>,
+    ) -> OkResult<TOk2, TErr> {
+        match self {
+            NoError(v) => f(v),
+            WithError(v, e) => match f(v) {
+                NoError(w) => WithError(w, e),
+                WithError(w, _) => WithError(w, e),
+            },
+        }
+    }
+}
+
+impl<TOk, TErr> From<OkResult<TOk, TErr>> for Result<TOk, TErr> {
+    fn from(value: OkResult<TOk, TErr>) -> Self {
+        match value {
+            NoError(v) => Ok(v),
+            WithError(_, e) => Err(e),
+        }
+    }
+}
+
+impl<TOk, TErr: Display> LoggableToOption<TOk> for OkResult<TOk, TErr> {
+    fn ok_or_trace(self) -> Option<TOk> {
+        match self {
+            NoError(value) => Some(value),
+            WithError(value, e) => {
+                trace!("{}", e);
+                Some(value)
+            }
+        }
+    }
+
+    fn ok_or_info(self) -> Option<TOk> {
+        match self {
+            NoError(value) => Some(value),
+            WithError(value, e) => {
+                info!("{}", e);
+                Some(value)
+            }
+        }
+    }
+
+    fn ok_or_warn(self) -> Option<TOk> {
+        match self {
+            NoError(value) => Some(value),
+            WithError(value, e) => {
+                warn!("{}", e);
+                Some(value)
+            }
+        }
+    }
+
+    fn ok_or_error(self) -> Option<TOk> {
+        match self {
+            NoError(value) => Some(value),
+            WithError(value, e) => {
+                error!("{}", e);
+                Some(value)
+            }
+        }
+    }
 }

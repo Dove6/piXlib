@@ -1,4 +1,5 @@
 use codepage_strings::ConvertError;
+use log::trace;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take},
@@ -431,9 +432,9 @@ pub struct AnnFile<'a> {
 }
 
 pub fn parse_ann(data: &[u8]) -> AnnFile {
-    println!("Detected animation file.");
+    trace!("Detected animation file.");
     let (data, header) = header(data).unwrap();
-    println!("{:?}", header);
+    trace!("{:?}", header);
     let (data, sequences) = sequences(data, &header).unwrap();
     let (_, sprites) = sprites(data, &header).unwrap();
     AnnFile {

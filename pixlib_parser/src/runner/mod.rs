@@ -26,6 +26,7 @@ pub use events::{
 };
 pub use filesystem::{FileSystem, GamePaths};
 use itertools::Itertools;
+use log::{error, warn};
 pub use object::{CnvObject, ObjectBuildErrorKind, ObjectBuilderError};
 pub use path::ScenePath;
 pub use script::{CnvScript, ScriptSource};
@@ -40,25 +41,15 @@ use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use events::{IncomingEvents, OutgoingEvents};
 
+use crate::common::LoggableToOption;
 use crate::parser::seq_parser::SeqParserError;
 use crate::{
-    common::{DroppableRefMut, Issue, IssueHandler, IssueKind, IssueManager},
-    parser::declarative_parser::{
-        self, CnvDeclaration, DeclarativeParser, ParserFatal, ParserIssue,
-    },
+    common::{DroppableRefMut, Issue, IssueKind},
+    parser::declarative_parser::{self, CnvDeclaration, DeclarativeParser, ParserFatal},
     scanner::parse_cnv,
 };
 use classes::{GeneralButton, InternalMouseEvent, Mouse};
 use object::CnvObjectBuilder;
-
-#[derive(Debug)]
-struct IssuePrinter;
-
-impl<I: Issue> IssueHandler<I> for IssuePrinter {
-    fn handle(&mut self, issue: I) {
-        eprintln!("{:?}", issue);
-    }
-}
 
 trait SomeWarnable {
     fn warn_if_some(&self);
@@ -70,7 +61,7 @@ where
 {
     fn warn_if_some(&self) {
         if self.is_some() {
-            eprintln!("Unexpected value: {:?}", self.as_ref().unwrap());
+            warn!("Unexpected value: {:?}", self.as_ref().unwrap());
         }
     }
 }
@@ -91,6 +82,11 @@ pub enum RunnerError {
     MissingOperator { object_name: String },
     #[error("Object {name} not found")]
     ObjectNotFound { name: String },
+    #[error("Object {object_name} not found in group {group_name}")]
+    GroupObjectNotFound {
+        group_name: String,
+        object_name: String,
+    },
     #[error("Expected graphics object")]
     ExpectedGraphicsObject,
     #[error("Expected sound object")]
@@ -176,7 +172,6 @@ pub struct CnvRunner {
     pub internal_events: RefCell<VecDeque<InternalEvent>>,
     pub filesystem: Arc<RwLock<dyn FileSystem>>,
     pub game_paths: Arc<GamePaths>,
-    pub issue_manager: Arc<RefCell<IssueManager<RunnerIssue>>>,
     pub global_objects: RefCell<ObjectContainer>,
     pub window_rect: Rect,
     cursor_state: RefCell<CursorState>,
@@ -336,7 +331,6 @@ impl core::fmt::Debug for CnvRunner {
             .field("internal_events", &self.internal_events)
             .field("filesystem", &self.filesystem)
             .field("game_paths", &self.game_paths)
-            .field("issue_manager", &self.issue_manager)
             .field("global_objects", &self.global_objects)
             .finish()
     }
@@ -413,7 +407,6 @@ impl CnvRunner {
         filesystem: Arc<RwLock<dyn FileSystem>>,
         game_paths: Arc<GamePaths>,
         window_resolution: (usize, usize),
-        issue_manager: IssueManager<RunnerIssue>,
     ) -> anyhow::Result<Arc<Self>> {
         let runner = Arc::new(Self {
             scripts: RefCell::new(ScriptContainer::default()),
@@ -422,7 +415,6 @@ impl CnvRunner {
             events_out: OutgoingEvents::default(),
             internal_events: RefCell::new(VecDeque::new()),
             game_paths,
-            issue_manager: Arc::new(RefCell::new(issue_manager)),
             global_objects: RefCell::new(ObjectContainer::default()),
             window_rect: Rect {
                 top_left_x: 0,
@@ -444,76 +436,20 @@ impl CnvRunner {
         runner
             .global_objects
             .borrow_mut()
-            .use_and_drop_mut::<anyhow::Result<()>>(|objects| {
-                let mut range = 0usize..;
-                objects
-                    .push_object({
-                        let mut builder = CnvObjectBuilder::new(
-                            Arc::clone(&global_script),
-                            "RANDOM".to_owned(),
-                            range.next().unwrap(),
-                        );
-                        builder.add_property("TYPE".into(), "RAND".to_owned())?;
-                        builder.build().unwrap()
-                    })
-                    .unwrap();
-                objects
-                    .push_object({
-                        let mut builder = CnvObjectBuilder::new(
-                            Arc::clone(&global_script),
-                            "KEYBOARD".to_owned(),
-                            range.next().unwrap(),
-                        );
-                        builder.add_property("TYPE".into(), "KEYBOARD".to_owned())?;
-                        builder.build().unwrap()
-                    })
-                    .unwrap();
-                objects
-                    .push_object({
-                        let mut builder = CnvObjectBuilder::new(
-                            Arc::clone(&global_script),
-                            "MOUSE".to_owned(),
-                            range.next().unwrap(),
-                        );
-                        builder.add_property("TYPE".into(), "MOUSE".to_owned())?;
-                        builder.build().unwrap()
-                    })
-                    .unwrap();
-                objects
-                    .push_object({
-                        let mut builder = CnvObjectBuilder::new(
-                            Arc::clone(&global_script),
-                            "SYSTEM".to_owned(),
-                            range.next().unwrap(),
-                        );
-                        builder.add_property("TYPE".into(), "SYSTEM".to_owned())?;
-                        builder.build().unwrap()
-                    })
-                    .unwrap();
-                objects
-                    .push_object({
-                        let mut builder = CnvObjectBuilder::new(
-                            Arc::clone(&global_script),
-                            "CANVAS_OBSERVER".to_owned(),
-                            range.next().unwrap(),
-                        );
-                        builder.add_property("TYPE".into(), "CANVAS_OBSERVER".to_owned())?;
-                        builder.build().unwrap()
-                    })
-                    .unwrap();
-                objects
-                    .push_object({
-                        let mut builder = CnvObjectBuilder::new(
-                            Arc::clone(&global_script),
-                            "CANVASOBSERVER".to_owned(),
-                            range.next().unwrap(),
-                        );
-                        builder.add_property("TYPE".into(), "CANVASOBSERVER".to_owned())?;
-                        builder.build().unwrap()
-                    })
-                    .unwrap();
-                Ok(())
-            })?;
+            .use_and_drop_mut(|objects| {
+                for (name, type_name) in [
+                    ("RANDOM", "RAND"),
+                    ("KEYBOARD", "KEYBOARD"),
+                    ("MOUSE", "MOUSE"),
+                    ("SYSTEM", "SYSTEM"),
+                    ("CANVAS_OBSERVER", "CANVAS_OBSERVER"),
+                    ("CANVASOBSERVER", "CANVASOBSERVER"),
+                ] {
+                    create_object(&global_script, name, &[("TYPE", type_name)])
+                        .ok_or_error()
+                        .map(|o| objects.push_object(o).ok_or_error());
+                }
+            });
         Ok(runner)
     }
 
@@ -522,7 +458,7 @@ impl CnvRunner {
         let mut to_init = Vec::new();
         self.find_objects(|o| !*o.initialized.read().unwrap(), &mut to_init);
         for object in to_init {
-            object.init(None)?;
+            object.init(None).ok_or_error();
         }
         let mut finished_animations = HashSet::new();
         self.events_in
@@ -543,7 +479,7 @@ impl CnvRunner {
                                     unreachable!();
                                 };
                                 let was_playing = animation.is_playing()?;
-                                animation.step(seconds)?;
+                                animation.step(seconds).ok_or_error();
                                 if was_playing && !animation.is_playing()? {
                                     finished_animations.insert(animation_object.clone());
                                 }
@@ -583,7 +519,7 @@ impl CnvRunner {
             .borrow_mut()
             .use_and_drop_mut::<anyhow::Result<()>>(|events| {
                 while let Some(evt) = events.pop_front() {
-                    // eprintln!("Handling incoming mouse event: {:?}", evt);
+                    // log::trace!("Handling incoming mouse event: {:?}", evt);
                     Mouse::handle_incoming_event(evt)?;
                 }
                 Ok(())
@@ -598,7 +534,7 @@ impl CnvRunner {
                             match source {
                                 SoundSource::BackgroundMusic => {
                                     let Some(scene_object) = self.get_current_scene() else {
-                                        eprintln!("No current scene to handle event {:?}", evt);
+                                        warn!("No current scene to handle event {:?}", evt);
                                         continue;
                                     };
                                     let CnvContent::Scene(ref scene) = &scene_object.content else {
@@ -614,7 +550,7 @@ impl CnvRunner {
                                         .get_script(script_path)
                                         .and_then(|s| s.get_object(object_name))
                                     else {
-                                        eprintln!(
+                                        warn!(
                                             "Object {} / {} not found for event {:?}",
                                             script_path.to_str(),
                                             object_name,
@@ -635,7 +571,7 @@ impl CnvRunner {
                                         .get_script(script_path)
                                         .and_then(|s| s.get_object(object_name))
                                     else {
-                                        eprintln!(
+                                        warn!(
                                             "Object {} / {} not found for event {:?}",
                                             script_path.to_str(),
                                             object_name,
@@ -671,7 +607,7 @@ impl CnvRunner {
                 if !button.is_enabled()? {
                     return Ok(None);
                 }
-                let Some(rect) = button.get_rect()? else {
+                let Some(rect) = button.get_rect().ok_or_error().flatten() else {
                     return Ok(None);
                 };
                 Ok(Some(ButtonDescriptor {
@@ -732,7 +668,7 @@ impl CnvRunner {
             &mut mouse_objects,
         );
         Mouse::handle_outgoing_events(|mouse_event| {
-            // eprintln!("Handling internal mouse event: {:?}", mouse_event);
+            // log::trace!("Handling internal mouse event: {:?}", mouse_event);
             if let InternalMouseEvent::LeftButtonPressed { x, y } = &mouse_event {
                 if let Some(button_idx) =
                     self.find_relevant_button(enabled_buttons.as_ref(), (*x, *y))?
@@ -901,12 +837,15 @@ impl CnvRunner {
             .borrow_mut()
             .use_and_drop_mut(|events| events.pop_front())
         {
-            // println!("Internal event: {:?} with context {}", evt.callable, evt.context);
-            evt.context.current_object.call_method(
-                (&evt.callable).into(),
-                &evt.context.arguments,
-                Some(evt.context.clone().with_arguments(Vec::new())),
-            )?;
+            // log::trace!("Internal event: {:?} with context {}", evt.callable, evt.context);
+            evt.context
+                .current_object
+                .call_method(
+                    (&evt.callable).into(),
+                    &evt.context.arguments,
+                    Some(evt.context.clone().with_arguments(Vec::new())),
+                )
+                .ok_or_error();
         }
         Ok(())
     }
@@ -938,12 +877,7 @@ impl CnvRunner {
         parent_object: Option<Arc<CnvObject>>,
         source_kind: ScriptSource,
     ) -> anyhow::Result<()> {
-        let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
-        parser_issue_manager.set_handler(Box::new(IssuePrinter));
-        let mut issue_manager: IssueManager<ObjectBuilderError> = Default::default();
-        issue_manager.set_handler(Box::new(IssuePrinter));
-        let mut dec_parser =
-            DeclarativeParser::new(contents, Default::default(), parser_issue_manager).peekable();
+        let mut dec_parser = DeclarativeParser::new(contents, Default::default()).peekable();
         let mut objects: Vec<CnvObjectBuilder> = Vec::new();
         let mut name_to_object: HashMap<String, usize> = HashMap::new();
         let script = Arc::new(CnvScript::new(
@@ -984,7 +918,8 @@ impl CnvRunner {
                             .map(|suffix| property.clone() + "^" + &suffix)
                             .unwrap_or(property),
                         value,
-                    )?;
+                    )
+                    .ok_or_error();
                 }
             }
         }
@@ -994,13 +929,17 @@ impl CnvRunner {
         script
             .objects
             .borrow_mut()
-            .push_objects(objects.into_iter().map(|builder| match builder.build() {
-                Ok(built_object) => built_object,
-                Err(e) => {
-                    issue_manager.emit_issue(e);
-                    panic!();
-                }
-            }))?;
+            .push_objects(
+                objects
+                    .into_iter()
+                    .filter_map(|builder| match builder.build() {
+                        Ok(built_object) => Some(built_object),
+                        Err(e) => {
+                            error!("{}", e);
+                            None
+                        }
+                    }),
+            )?;
 
         let mut container = self.scripts.borrow_mut();
         container.push_script(script)?; // TODO: err if present
@@ -1041,7 +980,7 @@ impl CnvRunner {
     }
 
     pub fn get_object(&self, name: &str) -> Option<Arc<CnvObject>> {
-        // println!("Getting object: {:?}", name);
+        // log::trace!("Getting object: {:?}", name);
         self.scripts
             .borrow()
             .iter()
@@ -1152,9 +1091,20 @@ impl CnvRunner {
     }
 }
 
-pub enum BehaviorRunningError {
-    ScriptNotFound,
-    ObjectNotFound,
-    InvalidType,
-    RunnerError(RunnerError),
+fn create_object(
+    parent: &Arc<CnvScript>,
+    name: &str,
+    properties: &[(&str, &str)],
+) -> anyhow::Result<Arc<CnvObject>> {
+    let mut builder = CnvObjectBuilder::new(
+        parent.clone(),
+        name.to_owned(),
+        0, // FIXME: storing self index is plain stupid
+    );
+    for (property, value) in properties {
+        builder
+            .add_property((*property).to_owned(), (*value).to_owned())
+            .into_result()?;
+    }
+    Ok(builder.build()?)
 }

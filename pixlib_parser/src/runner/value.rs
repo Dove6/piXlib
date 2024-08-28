@@ -4,6 +4,8 @@ use std::{
     sync::Arc,
 };
 
+use log::error;
+
 use crate::runner::{content::CnvContent, CnvObject};
 
 use super::RunnerContext;
@@ -67,7 +69,7 @@ impl CnvValue {
             }
             CnvValue::String(s) => s
                 .parse()
-                .inspect_err(|e| eprintln!("{} for string->double {}", e, s))
+                .inspect_err(|e| error!("{} for string->double {}", e, s))
                 .unwrap(),
             CnvValue::Null => 0.0,
         }
@@ -98,13 +100,13 @@ impl CnvValue {
             CnvValue::String(s) => context
                 .runner
                 .get_object(s)
-                // .inspect(|v| eprintln!("Resolving {:?} through {}", &self, v.name))
+                // .inspect(|v| log::trace!("Resolving {:?} through {}", &self, v.name))
                 .as_ref()
                 .map(get_reference_value)
                 .transpose()
                 .unwrap()
                 .flatten()
-                // .inspect(|v| eprintln!("Resolved into {}", v))
+                // .inspect(|v| log::trace!("Resolved into {}", v))
                 .unwrap_or(CnvValue::String(trim_one_quotes_level(s).to_owned())), // TODO: modify with caution, the logic is very subtle
             _ => self,
         }
@@ -112,7 +114,7 @@ impl CnvValue {
 }
 
 fn get_reference_value(r: &Arc<CnvObject>) -> anyhow::Result<Option<CnvValue>> {
-    // println!("Resolving value: {:?}", r);
+    // log::trace!("Resolving value: {:?}", r);
     match &r.content {
         CnvContent::Expression(e) => e.calculate().map(Some),
         CnvContent::Integer(i) => i.get().map(|v| Some(CnvValue::Integer(v))),

@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use log::trace;
 use nom::{
     combinator::map_res,
     combinator::{flat_map, map},
@@ -97,15 +98,15 @@ pub fn element(input: &[u8]) -> IResult<&[u8], Element> {
 }
 
 pub fn parse_arr(data: &[u8]) -> ArrFile {
-    println!("Detected data array file.");
+    trace!("Detected data array file.");
     let (mut data, header) = header(data).unwrap();
-    println!("{:?}", header);
+    trace!("{:?}", header);
     let mut elements = Vec::<Element>::new();
     for _ in 0..header.size {
         let result = element(data).unwrap();
         data = result.0;
         elements.push(result.1);
     }
-    println!("{:?}", elements);
+    trace!("{:?}", elements);
     ArrFile { header, elements }
 }

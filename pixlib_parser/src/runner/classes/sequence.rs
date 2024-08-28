@@ -152,7 +152,7 @@ impl CnvType for Sequence {
         arguments: &[CnvValue],
         context: RunnerContext,
     ) -> anyhow::Result<CnvValue> {
-        // println!("Calling method: {:?} of object: {:?}", name, self);
+        // log::trace!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("GETEVENTNAME") => {
                 self.state.borrow().get_event_name().map(CnvValue::String)
@@ -287,40 +287,56 @@ impl Initable for Sequence {
         root_seq.append_animations_used(&mut animations_used)?;
         let mapping: HashMap<String, Arc<CnvObject>> = animations_used
             .into_iter()
-            .map(|filename| -> (String, Arc<CnvObject>) {
+            .map(|filename| {
+                let filename_without_extension = filename
+                    .to_uppercase()
+                    .strip_suffix(".ANN")
+                    .map(|s| s.to_owned())
+                    .unwrap_or(filename.clone());
+                let filename_with_extension = filename_without_extension.clone() + ".ANN";
+                (
+                    filename_without_extension,
+                    filename,
+                    filename_with_extension,
+                )
+            })
+            .map(|(filename_no_ext, filename, filename_with_ext)| -> (String, anyhow::Result<Arc<CnvObject>>) {
                 if let Some(object) = context.runner.find_object(|o| {
                     if let CnvContent::Animation(animation) = &o.content {
-                        animation
-                            .get_filename()
-                            .is_ok_and(|r| r.is_some_and(|f| f.eq_ignore_ascii_case(&filename)))
+                        animation.get_filename().is_ok_and(|r| {
+                            r.is_some_and(|f| {
+                                f.eq_ignore_ascii_case(&filename_with_ext)
+                            })
+                        })
                     } else {
                         false
                     }
                 }) {
-                    (filename.clone(), object)
+                    (filename.clone(), Ok(object))
                 } else {
-                    let mut builder = CnvObjectBuilder::new(
-                        context.current_object.parent.clone(),
-                        context.current_object.name.clone()
-                            + "_"
-                            + filename.strip_suffix(".ANN").unwrap_or(&filename),
-                        0, // FIXME: storing self index is plain stupid
+                    let name = context.current_object.name.clone()
+                        + "_"
+                        + &filename_no_ext;
+                    let mut created_object = create_object(
+                        &context.current_object.parent,
+                        &name,
+                        &[
+                            ("TYPE", "ANIMO"),
+                            (
+                                "FILENAME",
+                                &filename_with_ext,
+                            ),
+                        ],
                     );
-                    builder
-                        .add_property("TYPE".into(), "ANIMO".to_owned())
-                        .unwrap();
-                    builder
-                        .add_property("FILENAME".into(), filename.clone())
-                        .unwrap();
-                    let created_object = builder.build().unwrap();
-                    context
-                        .current_object
-                        .parent
-                        .add_object(created_object.clone())
-                        .unwrap();
+                    if let Ok(ok_object) = &created_object {
+                        if let Err(e) = context.current_object.parent.add_object(ok_object.clone()) {
+                            created_object = Err(e);
+                        };
+                    }
                     (filename.clone(), created_object)
                 }
             })
+            .filter_map(|(filename, object)| object.ok_or_error().map(|o| (filename, o)))
             .collect();
         self.state
             .borrow_mut()
@@ -472,10 +488,6 @@ impl SequenceState {
             .map_err(|_| RunnerError::IoError {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
             })?;
-        let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
-        parser_issue_manager.set_handler(Box::new(IssuePrinter));
-        let mut issue_manager: IssueManager<ObjectBuilderError> = Default::default();
-        issue_manager.set_handler(Box::new(IssuePrinter));
         let seq_parser = SeqParser::new(
             data.iter().enumerate().map(|(i, b)| {
                 Ok((
@@ -493,7 +505,6 @@ impl SequenceState {
                 ))
             }),
             Default::default(),
-            parser_issue_manager,
         )
         .peekable();
         let mut root_seq_name = path.file_path.to_str();
@@ -605,7 +616,7 @@ impl SequenceState {
     }
 
     pub fn handle_animation_finished(&mut self, context: RunnerContext) -> anyhow::Result<()> {
-        // println!(
+        // log::trace!(
         //     "{}.handle_animation_finished: {:#?}",
         //     context.current_object.name, self.currently_playing
         // );
@@ -635,7 +646,7 @@ impl SequenceState {
     }
 
     pub fn handle_sound_finished(&mut self, context: RunnerContext) -> anyhow::Result<()> {
-        // println!(
+        // log::trace!(
         //     "{}.handle_sound_finished: {:#?}",
         //     context.current_object.name, self.currently_playing
         // );
@@ -668,7 +679,7 @@ impl SequenceState {
     }
 
     fn step(&mut self, context: RunnerContext) -> anyhow::Result<()> {
-        // println!(
+        // log::trace!(
         //     "{}.step: {:#?}",
         //     context.current_object.name, self.currently_playing
         // );
@@ -684,7 +695,7 @@ impl SequenceState {
             .cloned()
         else {
             let currently_playing = self.currently_playing.take().unwrap();
-            // println!(
+            // log::trace!(
             //     "Sequence '{}' finished with parameter '{}'",
             //     context.current_object.name, currently_playing.parameter
             // );

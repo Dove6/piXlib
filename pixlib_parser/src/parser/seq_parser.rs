@@ -1,7 +1,8 @@
+use log::error;
 use thiserror::Error;
 
 use crate::{
-    common::{Bounds, IssueManager, Position, RemoveSearchable, Spanned},
+    common::{Bounds, Position, RemoveSearchable, Spanned},
     runner::RunnerError,
 };
 use std::{
@@ -11,7 +12,7 @@ use std::{
     sync::Arc,
 };
 
-use super::declarative_parser::{ParserError, ParserFatal, ParserIssue};
+use super::declarative_parser::{ParserError, ParserFatal};
 
 pub type ParserInput = Spanned<char, Position, std::io::Error>;
 type ParserOutput = Spanned<SeqDeclaration, Position, ParserFatal>;
@@ -381,20 +382,14 @@ impl Default for ParsingSettings {
 #[derive(Debug)]
 pub struct SeqParser<I: Iterator<Item = ParserInput>> {
     input: Peekable<I>,
-    issue_manager: IssueManager<ParserIssue>,
     settings: ParsingSettings,
     next_position: Position,
 }
 
 impl<I: Iterator<Item = ParserInput>> SeqParser<I> {
-    pub fn new(
-        input: I,
-        settings: ParsingSettings,
-        issue_manager: IssueManager<ParserIssue>,
-    ) -> Self {
+    pub fn new(input: I, settings: ParsingSettings) -> Self {
         Self {
             input: input.peekable(),
-            issue_manager,
             settings,
             next_position: Position::default(),
         }
@@ -428,7 +423,7 @@ impl LineState {
         self.start_position = None;
         self.next_position = None;
         self.had_non_whitespace = false;
-        // println!("Resetting line state: {}", &self.content);
+        // log::trace!("Resetting line state: {}", &self.content);
         self.content.clear();
     }
 
@@ -454,10 +449,7 @@ struct LineToSplit {
 }
 
 impl LineToSplit {
-    pub fn split(
-        self,
-        issue_manager: &mut IssueManager<ParserIssue>,
-    ) -> (Position, SeqDeclaration, Position) {
+    pub fn split(self) -> (Position, SeqDeclaration, Position) {
         let declaration = if let Some(colon_index) = self.colon_index {
             let property = if let Some(second_colon_index) = self.second_colon_index {
                 self.content[(colon_index + 1)..second_colon_index].to_owned()
@@ -502,16 +494,16 @@ impl LineToSplit {
                 }
             }
         } else if let Some(eq_index) = self.eq_index {
-            // println!("##### \"{}\", \"{}\"", self.content[..eq_index].to_uppercase(), &self.content[4..eq_index]);
+            // log::trace!("##### \"{}\", \"{}\"", self.content[..eq_index].to_uppercase(), &self.content[4..eq_index]);
             let offset = if !(self.content[..eq_index].to_uppercase().starts_with("NAME")  // TODO: strip_prefix
                 && self.content[4..eq_index].chars().all(|c| c.is_whitespace()))
             {
-                issue_manager.emit_issue(
+                error!(
+                    "{}",
                     ParserError::ExpectedKeyword {
                         position: self.start_position,
                         keyword: "NAME",
                     }
-                    .into(),
                 );
                 0
             } else {
@@ -530,12 +522,12 @@ impl LineToSplit {
             );
             SeqDeclaration::SequenceInitialization(name)
         } else {
-            issue_manager.emit_issue(
+            error!(
+                "{}",
                 ParserError::ExpectedCharacter {
                     position: self.next_position,
                     character: '=',
                 }
-                .into(),
             );
             SeqDeclaration::SequenceInitialization(self.content)
         };
@@ -552,7 +544,7 @@ impl<I: Iterator<Item = ParserInput>> Iterator for SeqParser<I> {
         while let Some(result) = self.next_if_char(|c| c != '\n' || !line_state.had_non_whitespace)
         {
             let (position, c, next_position) = result.unwrap();
-            // println!("Current char: {}", c);
+            // log::trace!("Current char: {}", c);
             line_state.start_position = line_state.start_position.or(Some(position));
             line_state.next_position = Some(self.next_position.assign(next_position));
             if !line_state.had_non_whitespace && !c.is_whitespace() {
@@ -566,7 +558,8 @@ impl<I: Iterator<Item = ParserInput>> Iterator for SeqParser<I> {
             }
             if line_state.content.len() >= self.settings.max_line_length {
                 self.skip_line();
-                self.issue_manager.emit_issue(
+                error!(
+                    "{}",
                     ParserError::LineTooLong {
                         bounds: Bounds::new(
                             line_state.start_position.unwrap_or_default(),
@@ -574,7 +567,6 @@ impl<I: Iterator<Item = ParserInput>> Iterator for SeqParser<I> {
                         ),
                         max_allowed_len: self.settings.max_line_length,
                     }
-                    .into(),
                 );
             }
         }
@@ -589,24 +581,28 @@ impl<I: Iterator<Item = ParserInput>> Iterator for SeqParser<I> {
             match c {
                 '=' => {
                     if line_to_split.eq_index.is_some() {
-                        let error = ParserError::UnexpectedCharacter {
-                            position: &line_to_split.start_position + i,
-                            character: c,
-                        };
-                        self.issue_manager.emit_issue(error.clone().into());
-                        return Some(Ok(line_to_split.split(&mut self.issue_manager)));
+                        error!(
+                            "{}",
+                            ParserError::UnexpectedCharacter {
+                                position: &line_to_split.start_position + i,
+                                character: c,
+                            }
+                        );
+                        return Some(Ok(line_to_split.split()));
                     } else {
                         line_to_split.eq_index = Some(i);
                     }
                 }
                 ':' if line_to_split.eq_index.is_none() => {
                     if line_to_split.second_colon_index.is_some() {
-                        let error = ParserError::UnexpectedCharacter {
-                            position: &line_to_split.start_position + i,
-                            character: c,
-                        };
-                        self.issue_manager.emit_issue(error.clone().into());
-                        return Some(Ok(line_to_split.split(&mut self.issue_manager)));
+                        error!(
+                            "{}",
+                            ParserError::UnexpectedCharacter {
+                                position: &line_to_split.start_position + i,
+                                character: c,
+                            }
+                        );
+                        return Some(Ok(line_to_split.split()));
                     } else if line_to_split.colon_index.is_some() {
                         line_to_split.second_colon_index = Some(i);
                     } else {
@@ -621,17 +617,15 @@ impl<I: Iterator<Item = ParserInput>> Iterator for SeqParser<I> {
                 _ => (),
             }
         }
-        Some(Ok(line_to_split.split(&mut self.issue_manager)))
+        Some(Ok(line_to_split.split()))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        common::{Issue, IssueHandler, IssueManager, Position},
-        runner::ObjectBuilderError,
-    };
+    use crate::common::Position;
+    use log::info;
     use test_case::test_case;
 
     #[test]
@@ -648,10 +642,6 @@ CHILDSEQ:MODE = RANDOM
 CHILDSEQ:ADD MYSEQ
         ";
 
-        let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
-        parser_issue_manager.set_handler(Box::new(IssuePrinter));
-        let mut issue_manager: IssueManager<ObjectBuilderError> = Default::default();
-        issue_manager.set_handler(Box::new(IssuePrinter));
         let seq_parser = SeqParser::new(
             input.char_indices().map(|(i, c)| {
                 Ok((
@@ -669,13 +659,12 @@ CHILDSEQ:ADD MYSEQ
                 ))
             }),
             Default::default(),
-            parser_issue_manager,
         )
         .peekable();
         let builder = SeqBuilder::new("MYSEQ".to_owned());
         match builder.build(seq_parser) {
             Err(err) => panic!("{:?}", err),
-            Ok(result) => println!("{:#?}", result),
+            Ok(result) => info!("{:#?}", result),
         }
     }
 
@@ -701,14 +690,5 @@ CHILDSEQ:ADD MYSEQ
     #[test_case("tilde", "~", Some(64))]
     fn test_seqevent_index_parser(_description: &str, value: &str, expected: Option<usize>) {
         assert_eq!(SeqBuilder::parse_index(value), expected);
-    }
-
-    #[derive(Debug)]
-    struct IssuePrinter;
-
-    impl<I: Issue> IssueHandler<I> for IssuePrinter {
-        fn handle(&mut self, issue: I) {
-            eprintln!("{:?}", issue);
-        }
     }
 }

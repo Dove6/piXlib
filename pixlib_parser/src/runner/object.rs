@@ -9,7 +9,7 @@ use lalrpop_util::ParseError;
 use thiserror::Error;
 
 use crate::{
-    common::{DroppableRefMut, Issue},
+    common::{DroppableRefMut, Issue, OkResult},
     parser::declarative_parser::ParserIssue,
     runner::{CnvScript, CnvValue, RunnerContext},
 };
@@ -20,6 +20,7 @@ use super::{
     parsers::{discard_if_empty, ProgramParsingError, TypeParsingError},
     CallableIdentifier, CnvContent,
 };
+use OkResult::{NoError, WithError};
 
 #[derive(Debug, Clone)]
 pub struct CnvObjectBuilder {
@@ -44,14 +45,17 @@ impl CnvObjectBuilder {
         &mut self,
         property: String,
         value: String,
-    ) -> Result<&mut Self, ObjectBuilderError> {
+    ) -> OkResult<&mut Self, ObjectBuilderError> {
         if let Some(old_value) = self.properties.insert(property.clone(), value) {
-            return Err(ObjectBuilderError::new(
-                self.name.clone(),
-                ObjectBuildErrorKind::PropertyAlreadyPresent(property, old_value),
-            ));
+            return WithError(
+                self,
+                ObjectBuilderError::new(
+                    self.name.clone(),
+                    ObjectBuildErrorKind::PropertyAlreadyPresent(property, old_value),
+                ),
+            );
         };
-        Ok(self)
+        NoError(self)
     }
 
     pub fn build(self) -> Result<Arc<CnvObject>, ObjectBuilderError> {
@@ -172,7 +176,7 @@ impl CnvObject {
         let context = context
             .map(|c| c.with_current_object(self.clone()))
             .unwrap_or(RunnerContext::new_minimal(&self.parent.runner, self));
-        // println!(
+        // log::trace!(
         //     "[1] Calling method: {:?} of: {:?} with context {} and arguments: {:?}",
         //     identifier, self.name, context, arguments
         // );
@@ -188,13 +192,13 @@ impl CnvObject {
         self.content
             .call_method(identifier.clone(), &arguments, context.clone())
         // .inspect(|v| {
-        //     println!(
+        //     log::trace!(
         //         "[2] Called method: {:?} of: {:?} with context {}, arguments: {:?} and result: {:?}",
         //         identifier, self.name, context, arguments, v
         //     )
         // })
         // .inspect_err(|e| {
-        //     eprintln!(
+        //     log::trace!(
         //         "[2] Called method: {:?} of: {:?} with context {}, arguments: {:?} and error: {}",
         //         identifier, self.name, context, arguments, e
         //     )

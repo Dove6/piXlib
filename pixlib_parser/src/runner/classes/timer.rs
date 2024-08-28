@@ -119,7 +119,7 @@ impl CnvType for Timer {
         arguments: &[CnvValue],
         context: RunnerContext,
     ) -> anyhow::Result<CnvValue> {
-        // println!("Calling method: {:?} of object: {:?}", name, self);
+        // log::trace!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("DISABLE") => {
                 self.state.borrow_mut().disable().map(|_| CnvValue::Null)
@@ -297,7 +297,7 @@ impl TimerState {
     // custom
 
     pub fn step(&mut self, context: RunnerContext, duration_ms: f64) -> anyhow::Result<()> {
-        // eprintln!("Stepping timer {} by {} ms", timer.parent.name, duration_ms);
+        // log::trace!("Stepping timer {} by {} ms", timer.parent.name, duration_ms);
         let CnvContent::Timer(timer) = &context.current_object.content else {
             panic!();
         };

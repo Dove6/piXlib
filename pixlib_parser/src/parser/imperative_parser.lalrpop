@@ -1,8 +1,9 @@
-use crate::common::{IssueManager, Position};
+use crate::common::Position;
 use crate::lexer::CnvToken;
 use super::ast;
+use log::error;
 
-grammar(settings: &ast::ParsingSettings, issue_manager: &mut IssueManager<ast::ParserIssue>);
+grammar(settings: &ast::ParsingSettings);
 
 pub Code: ast::IgnorableExpression = {
     <IgnorableExpression>,
@@ -18,10 +19,15 @@ Expression: ast::Expression = {
         None => p,
     },
     "@" <m:"identifier"> "(" <a:Arguments> ")" => ast::Expression::Invocation(Box::new(ast::Invocation { parent: None, name: m, arguments: a })),
-    "{" ";"? <(<Statement> ";"+)*> "}" => ast::Expression::Block(<>),
+    "{" ";"? <(<Statement> ";"+)*> BlockEnd => ast::Expression::Block(<>),
     "true" => ast::Expression::LiteralBool(true),
     "false" => ast::Expression::LiteralBool(false),
     "null" => ast::Expression::LiteralNull,
+}
+
+BlockEnd: () = {
+    "}" => (),
+    ! => error!("{:?}", <>),
 }
 
 Callable: ast::Expression = {
@@ -41,7 +47,7 @@ Arguments: Vec<ast::Expression> = {
     <mut v:(<Expression> ",")*> <pos:@L> <e:Expression?> =>? match e {
         None => {
             if !v.is_empty() {
-                issue_manager.emit_issue(ast::ParserError::ExpectedArgument(pos).into());
+                error!("{}", ast::ParserError::ExpectedArgument(pos));
             }
             Ok(v)
         },

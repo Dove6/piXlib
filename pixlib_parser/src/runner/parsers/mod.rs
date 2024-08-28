@@ -13,10 +13,10 @@ use regex::Regex;
 use thiserror::Error;
 
 use crate::{
-    common::{Issue, IssueHandler, IssueManager, Position},
+    common::Position,
     lexer::{CnvLexer, CnvToken},
     parser::{
-        ast::{self, Invocation, ParsedScript, ParserFatal, ParserIssue},
+        ast::{self, Invocation, ParsedScript, ParserFatal},
         imperative_parser::CodeParser,
     },
     scanner::CnvScanner,
@@ -191,25 +191,12 @@ pub fn parse_comma_separated(s: String) -> Result<Vec<String>, TypeParsingError>
     Ok(s.split(',').map(|s| s.trim().to_owned()).collect())
 }
 
-#[derive(Debug)]
-struct IssuePrinter;
-
-impl<I: Issue> IssueHandler<I> for IssuePrinter {
-    fn handle(&mut self, issue: I) {
-        eprintln!("{:?}", issue);
-    }
-}
-
 pub fn parse_program(s: String) -> Result<Arc<ParsedScript>, TypeParsingError> {
     let scanner = CnvScanner::<IntoIter<_>>::new(s.chars().map(Ok).collect::<Vec<_>>().into_iter());
     let lexer = CnvLexer::new(scanner, Default::default(), Default::default());
-    let mut parser_issue_manager: IssueManager<ParserIssue> = Default::default();
-    parser_issue_manager.set_handler(Box::new(IssuePrinter));
-    Ok(Arc::new(CodeParser::new().parse(
-        &Default::default(),
-        &mut parser_issue_manager,
-        lexer,
-    )?))
+    Ok(Arc::new(
+        CodeParser::new().parse(&Default::default(), lexer)?,
+    ))
 }
 
 pub fn parse_event_handler(s: String) -> Result<Arc<ParsedScript>, TypeParsingError> {

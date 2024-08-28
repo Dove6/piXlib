@@ -124,7 +124,7 @@ impl CnvType for Behavior {
         arguments: &[CnvValue],
         context: RunnerContext,
     ) -> anyhow::Result<CnvValue> {
-        // println!("Calling method: {:?} of object: {:?}", name, self);
+        // log::trace!("Calling method: {:?} of object: {:?}", name, self);
         let context = context.with_current_object(self.parent.clone());
         match name {
             CallableIdentifier::Method("BREAK") => {
@@ -269,7 +269,7 @@ impl BehaviorState {
         arguments: Vec<CnvValue>,
     ) -> anyhow::Result<CnvValue> {
         // RUN
-        // eprintln!(
+        // log::trace!(
         //     "Running behavior {} with arguments [{}]",
         //     context.current_object.name,
         //     arguments.iter().join(", ")

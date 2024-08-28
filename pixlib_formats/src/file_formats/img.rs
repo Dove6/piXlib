@@ -1,3 +1,4 @@
+use log::trace;
 use nom::{
     bytes::complete::tag,
     combinator::map_res,
@@ -93,9 +94,9 @@ pub struct ImgFile<'a> {
 }
 
 pub fn parse_img(data: &[u8]) -> ImgFile {
-    println!("Detected static image file.");
+    trace!("Detected static image file.");
     let (data, header) = header(data).unwrap();
-    println!("{:?}", header);
+    trace!("{:?}", header);
     let (_, image_data) = image_data(data, &header).unwrap();
     ImgFile { header, image_data }
 }

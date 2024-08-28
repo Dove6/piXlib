@@ -21,14 +21,12 @@ use bevy_kira_audio::AudioPlugin;
 use bevy_web_file_drop::WebFileDropPlugin;
 use chrono::Utc;
 use filesystems::FileSystemResource;
-use pixlib_parser::{common::IssueManager, runner::ObjectBuilderError};
 use plugins::{
     cursor_plugin::CursorPlugin, events_plugin::EventsPlugin, graphics_plugin::GraphicsPlugin,
     inputs_plugin::InputsPlugin, scripts_plugin::ScriptsPlugin, sounds_plugin::SoundsPlugin,
     ui_plugin::UiPlugin,
 };
-use resources::{ChosenScene, ObjectBuilderIssueManager, RootEntityToDespawn, WindowConfiguration};
-use util::IssuePrinter;
+use resources::{ChosenScene, RootEntityToDespawn, WindowConfiguration};
 
 const WINDOW_SIZE: (usize, usize) = (800, 600);
 const WINDOW_TITLE: &str = "piXlib";
@@ -72,8 +70,6 @@ pub fn init() -> Result<(), SetLoggerError> {
 
 #[allow(clippy::arc_with_non_send_sync)]
 fn main() {
-    let mut issue_manager: IssueManager<ObjectBuilderError> = Default::default();
-    issue_manager.set_handler(Box::new(IssuePrinter));
     let filesystem_resource = FileSystemResource::default();
     let filesystem = (*filesystem_resource).clone();
     let mut app = App::new();
@@ -104,7 +100,6 @@ fn main() {
     })
     .insert_resource(filesystem_resource)
     .insert_resource(ChosenScene::default())
-    .insert_resource(ObjectBuilderIssueManager(issue_manager))
     .init_state::<AppState>()
     .add_systems(Startup, setup_camera)
     .add_systems(OnExit(AppState::SceneChooser), cleanup_root)

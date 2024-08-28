@@ -1,6 +1,7 @@
+use log::error;
 use thiserror::Error;
 
-use crate::common::{Bounds, Issue, IssueKind, IssueManager, Position, Spanned};
+use crate::common::{Bounds, Issue, IssueKind, Position, Spanned};
 use std::iter::Peekable;
 
 pub type ParserInput = Spanned<char, Position, std::io::Error>;
@@ -8,6 +9,7 @@ type ParserOutput = Spanned<CnvDeclaration, Position, ParserFatal>;
 
 #[derive(Debug)]
 pub enum CnvDeclaration {
+    // TODO: add position info
     ObjectInitialization(String),
     PropertyAssignment {
         parent: String,
@@ -93,20 +95,14 @@ impl Issue for ParserIssue {
 #[derive(Debug)]
 pub struct DeclarativeParser<I: Iterator<Item = ParserInput>> {
     input: Peekable<I>,
-    issue_manager: IssueManager<ParserIssue>,
     settings: ParsingSettings,
     next_position: Position,
 }
 
 impl<I: Iterator<Item = ParserInput>> DeclarativeParser<I> {
-    pub fn new(
-        input: I,
-        settings: ParsingSettings,
-        issue_manager: IssueManager<ParserIssue>,
-    ) -> Self {
+    pub fn new(input: I, settings: ParsingSettings) -> Self {
         Self {
             input: input.peekable(),
-            issue_manager,
             settings,
             next_position: Position::default(),
         }
@@ -148,7 +144,7 @@ impl LineState {
         self.next_position = None;
         self.had_slash = false;
         self.had_non_whitespace = false;
-        // println!("Resetting line state: {}", &self.content);
+        // log::trace!("Resetting line state: {}", &self.content);
         self.content.clear();
     }
 
@@ -173,10 +169,7 @@ struct LineToSplit {
 }
 
 impl LineToSplit {
-    pub fn split(
-        self,
-        issue_manager: &mut IssueManager<ParserIssue>,
-    ) -> (Position, CnvDeclaration, Position) {
+    pub fn split(self) -> (Position, CnvDeclaration, Position) {
         let declaration = if let Some(colon_index) = self.colon_index {
             let property = if let Some(caret_index) = self.caret_index {
                 self.content[(colon_index + 1)..caret_index].to_owned()
@@ -208,18 +201,18 @@ impl LineToSplit {
                 value,
             }
         } else if let Some(eq_index) = self.eq_index {
-            // println!("##### \"{}\", \"{}\"", self.content[..eq_index].to_uppercase(), &self.content[6..eq_index]);
+            // log::trace!("##### \"{}\", \"{}\"", self.content[..eq_index].to_uppercase(), &self.content[6..eq_index]);
             let offset = if !(self.content[..eq_index]
                 .to_uppercase()
                 .starts_with("OBJECT")
                 && self.content[6..eq_index].chars().all(|c| c.is_whitespace()))
             {
-                issue_manager.emit_issue(
+                error!(
+                    "{}",
                     ParserError::ExpectedKeyword {
                         position: self.start_position,
                         keyword: "OBJECT",
                     }
-                    .into(),
                 );
                 0
             } else {
@@ -232,12 +225,12 @@ impl LineToSplit {
             name.drain(..(first_non_whitespace + offset));
             CnvDeclaration::ObjectInitialization(name)
         } else {
-            issue_manager.emit_issue(
+            error!(
+                "{}",
                 ParserError::ExpectedCharacter {
                     position: self.next_position,
                     character: '=',
                 }
-                .into(),
             );
             CnvDeclaration::ObjectInitialization(self.content)
         };
@@ -255,7 +248,7 @@ impl<I: Iterator<Item = ParserInput>> Iterator for DeclarativeParser<I> {
             .next_if_char(|c| c != '\n' || line_state.had_slash || !line_state.had_non_whitespace)
         {
             let (position, c, next_position) = result.unwrap();
-            // println!("Current char: {}", c);
+            // log::trace!("Current char: {}", c);
             line_state.start_position = line_state.start_position.or(Some(position));
             line_state.next_position = Some(self.next_position.assign(next_position));
             if !line_state.had_non_whitespace && !c.is_whitespace() && c != '/' {
@@ -277,7 +270,9 @@ impl<I: Iterator<Item = ParserInput>> Iterator for DeclarativeParser<I> {
             }
             if line_state.content.len() >= self.settings.max_line_length {
                 self.skip_line(line_state.had_slash);
-                self.issue_manager.emit_issue(
+
+                error!(
+                    "{}",
                     ParserError::LineTooLong {
                         bounds: Bounds::new(
                             line_state.start_position.unwrap_or_default(),
@@ -285,7 +280,6 @@ impl<I: Iterator<Item = ParserInput>> Iterator for DeclarativeParser<I> {
                         ),
                         max_allowed_len: self.settings.max_line_length,
                     }
-                    .into(),
                 );
             }
         }
@@ -301,36 +295,42 @@ impl<I: Iterator<Item = ParserInput>> Iterator for DeclarativeParser<I> {
             match c {
                 '=' => {
                     if line_to_split.eq_index.is_some() {
-                        let error = ParserError::UnexpectedCharacter {
-                            position: &line_to_split.start_position + i,
-                            character: c,
-                        };
-                        self.issue_manager.emit_issue(error.clone().into());
-                        return Some(Ok(line_to_split.split(&mut self.issue_manager)));
+                        error!(
+                            "{}",
+                            ParserError::UnexpectedCharacter {
+                                position: &line_to_split.start_position + i,
+                                character: c,
+                            }
+                        );
+                        return Some(Ok(line_to_split.split()));
                     } else {
                         line_to_split.eq_index = Some(i);
                     }
                 }
                 ':' if line_to_split.eq_index.is_none() => {
                     if line_to_split.colon_index.is_some() {
-                        let error = ParserError::UnexpectedCharacter {
-                            position: &line_to_split.start_position + i,
-                            character: c,
-                        };
-                        self.issue_manager.emit_issue(error.clone().into());
-                        return Some(Ok(line_to_split.split(&mut self.issue_manager)));
+                        error!(
+                            "{}",
+                            ParserError::UnexpectedCharacter {
+                                position: &line_to_split.start_position + i,
+                                character: c,
+                            }
+                        );
+                        return Some(Ok(line_to_split.split()));
                     } else {
                         line_to_split.colon_index = Some(i);
                     }
                 }
                 '^' if line_to_split.eq_index.is_none() => {
                     if line_to_split.colon_index.is_none() || line_to_split.caret_index.is_some() {
-                        let error = ParserError::UnexpectedCharacter {
-                            position: &line_to_split.start_position + i,
-                            character: c,
-                        };
-                        self.issue_manager.emit_issue(error.clone().into());
-                        return Some(Ok(line_to_split.split(&mut self.issue_manager)));
+                        error!(
+                            "{}",
+                            ParserError::UnexpectedCharacter {
+                                position: &line_to_split.start_position + i,
+                                character: c,
+                            }
+                        );
+                        return Some(Ok(line_to_split.split()));
                     } else {
                         line_to_split.caret_index = Some(i);
                     }
@@ -338,6 +338,6 @@ impl<I: Iterator<Item = ParserInput>> Iterator for DeclarativeParser<I> {
                 _ => (),
             }
         }
-        Some(Ok(line_to_split.split(&mut self.issue_manager)))
+        Some(Ok(line_to_split.split()))
     }
 }

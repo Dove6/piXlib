@@ -41,7 +41,6 @@ impl Plugin for ScriptsPlugin {
                 self.filesystem.clone(),
                 Arc::new(GamePaths::default()),
                 self.window_resolution,
-                runner_issue_manager,
             )
             .unwrap(),
         ))

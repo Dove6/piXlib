@@ -153,7 +153,7 @@ impl CnvType for CanvasObserver {
         arguments: &[CnvValue],
         context: RunnerContext,
     ) -> anyhow::Result<CnvValue> {
-        // println!("Calling method: {:?} of object: {:?}", name, self);
+        // log::trace!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("ADD") => {
                 self.state.write().unwrap().add().map(|_| CnvValue::Null)

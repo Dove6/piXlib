@@ -255,7 +255,7 @@ impl Animation {
     }
 
     pub fn get_frame_to_show(&self) -> anyhow::Result<Option<(Rect, SpriteData)>> {
-        // eprintln!("[ANIMO: {}] is_visible: {}", self.parent.name, self.is_visible);
+        // log::trace!("[ANIMO: {}] is_visible: {}", self.parent.name, self.is_visible);
         let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         self.state
             .borrow_mut()
@@ -307,7 +307,7 @@ impl Animation {
         let position = add_tuples(state.position, pair_i32_to_isize(sprite.0.offset_px));
         let position = add_tuples(position, pair_i32_to_isize(frame.offset_px));
         let size = pair_u32_to_usize(sprite.0.size_px);
-        // eprintln!("[ANIMO: {}] [current frame] position: {:?} + {:?}, hash: {:?}", self.parent.name, sprite.0.offset_px, frame.offset_px, sprite.1.hash);
+        // log::trace!("[ANIMO: {}] [current frame] position: {:?} + {:?}, hash: {:?}", self.parent.name, sprite.0.offset_px, frame.offset_px, sprite.1.hash);
         Ok(Some((Rect::from(position, size), sprite.1.clone())))
     }
 
@@ -506,7 +506,7 @@ impl CnvType for Animation {
         arguments: &[CnvValue],
         context: RunnerContext,
     ) -> anyhow::Result<CnvValue> {
-        // println!("Calling method: {:?} of object: {:?}", name, self);
+        // log::trace!("Calling method: {:?} of object: {:?}", name, self);
         match name {
             CallableIdentifier::Method("CLEARCLIPPING") => self
                 .state
@@ -1334,8 +1334,9 @@ impl AnimationState {
                 Arc::clone(&script.runner.game_paths),
                 &script.path.with_file_path(filename),
             )
-            .map_err(|_| RunnerError::IoError {
-                source: std::io::Error::from(std::io::ErrorKind::NotFound),
+            .map_err(|e| {
+                self.file_data = Arc::new(AnimationFileData::Empty);
+                RunnerError::IoError { source: e }
             })?;
         let data = parse_ann(&data);
         self.current_frame = FrameIdentifier {
@@ -1853,7 +1854,7 @@ impl AnimationState {
         if !self.is_playing || self.is_paused {
             return Ok(());
         }
-        // eprintln!("Ticking animation {} with time {}, current frame: {:?}", animation.parent.name, duration, self.current_frame);
+        // log::trace!("Ticking animation {} with time {}, current frame: {:?}", animation.parent.name, duration, self.current_frame);
         self.sprite_idx_override = None;
         let sequence = &loaded_data.sequences[self.current_frame.sequence_idx];
         let sequence_looping = sequence.looping;
@@ -1862,7 +1863,7 @@ impl AnimationState {
         self.current_frame_duration += seconds;
         let max_frame_duration = self.get_max_frame_duration()?;
         while self.current_frame_duration >= max_frame_duration {
-            // eprintln!("{} / {}", self.current_frame_duration, max_frame_duration);
+            // log::trace!("{} / {}", self.current_frame_duration, max_frame_duration);
             self.current_frame_duration -= max_frame_duration;
             let prev_frame_idx = self.current_frame.frame_idx;
             let finished = if self.is_reversed {
@@ -1918,7 +1919,7 @@ impl AnimationState {
                     .choose(&mut thread_rng())
                     .cloned()
                 {
-                    self.play_sfx(context.clone(), &sfx)?;
+                    self.play_sfx(context.clone(), &sfx).ok_or_error();
                 }
                 context
                     .runner
@@ -1934,7 +1935,7 @@ impl AnimationState {
                     });
             }
         }
-        // eprintln!("Moved animation {} to frame: {:?}", animation.parent.name, self.current_frame);
+        // log::trace!("Moved animation {} to frame: {:?}", animation.parent.name, self.current_frame);
         Ok(())
     }
 
@@ -1945,9 +1946,7 @@ impl AnimationState {
             .write()
             .unwrap()
             .read_sound(Arc::clone(&script.runner.game_paths), path)
-            .map_err(|_| RunnerError::IoError {
-                source: std::io::Error::from(std::io::ErrorKind::NotFound),
-            })?;
+            .map_err(|e| RunnerError::IoError { source: e })?;
         let converted_data: Arc<[u8]> = data.into();
         let sound_data = SoundData {
             hash: xxh3_64(&converted_data),

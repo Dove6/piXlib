@@ -206,7 +206,7 @@ pub fn update_background(
         };
         let result = canvas_observer.get_background_to_show();
         let Ok(background_data) = result else {
-            eprintln!(
+            error!(
                 "Error getting background image for scene {}: {:?}",
                 canvas_observer_object.name,
                 result.unwrap_err()
