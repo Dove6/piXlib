@@ -79,11 +79,22 @@ impl<'a> Iterator for CodewordIterator<'a> {
         if self.index >= self.data.len() {
             return None;
         }
-        if self.index == 0 {
-            let initial_literal = try_parse_initial_literal(self.data);
-            if initial_literal.is_some() {
-                return initial_literal;
+        if self.index == 0 && get_high_nibble(self.current_byte()) != 0b0000 {
+            let length = Into::<usize>::into(self.current_byte()) - 17;
+            if !self.try_increment_index() {
+                return Some(Err(self.create_not_enough_bytes_error(1, None)));
             }
+            let literals = &self.data[self.index..(self.index + length)];
+            if !self.try_increase_index(length) {
+                return Some(Err(self.create_not_enough_bytes_error(
+                    self.data.len() - self.index,
+                    Some(length),
+                )));
+            }
+            return Some(Ok(Codeword::Literals {
+                detailed_type: LiteralsType::Initial,
+                literals,
+            }));
         }
 
         let original_index = self.index;
@@ -273,28 +284,6 @@ impl<'a> Iterator for CodewordIterator<'a> {
     }
 }
 
-fn try_parse_initial_literal(
-    compressed_data: &[u8],
-) -> Option<Result<Codeword, DecompressionError>> {
-    if get_high_nibble(compressed_data[0]) == 0b0000 {
-        return None;
-    }
-    let literal_length = Into::<usize>::into(compressed_data[0]) - 17;
-    if literal_length >= compressed_data.len() {
-        return Some(Err(DecompressionError::new(
-            0,
-            super::DecompressionErrorKind::NotEnoughBytes {
-                actual_length: compressed_data.len() - 1,
-                required_length: Some(literal_length),
-            },
-        )));
-    }
-    Some(Ok(Codeword::Literals {
-        detailed_type: LiteralsType::Initial,
-        literals: &compressed_data[1..=literal_length],
-    }))
-}
-
 pub fn decode_lzw2(data: &[u8]) -> Vec<u8> {
     let decompressed_size: usize = u32::from_le_bytes(data[..4].try_into().unwrap())
         .try_into()
@@ -362,4 +351,19 @@ pub fn decode_lzw2(data: &[u8]) -> Vec<u8> {
 
 fn get_high_nibble(byte: u8) -> u8 {
     (byte & 0b11110000) >> 4
+}
+
+#[cfg(test)]
+mod test_lzw2_decoder {
+    use super::*;
+
+    #[test]
+    fn initial_literals_should_decompress_successfully() {
+        assert_eq!(
+            decode_lzw2(&[
+                0x02, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x13, 0x00, 0x00, 0x11, 0x00, 0x00
+            ]),
+            &[0x00, 0x00]
+        );
+    }
 }
