@@ -109,15 +109,19 @@ impl CnvType for Condition {
         //     name, self.parent.name
         // );
         match name {
-            CallableIdentifier::Method("BREAK") => {
-                self.state.borrow().break_run().map(|_| CnvValue::Null)
-            }
+            CallableIdentifier::Method("BREAK") => self
+                .state
+                .borrow()
+                .break_run(context, arguments[0].to_bool())
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("CHECK") => {
                 self.state.borrow().check(context).map(CnvValue::Bool)
             }
-            CallableIdentifier::Method("ONE_BREAK") => {
-                self.state.borrow().one_break().map(|_| CnvValue::Null)
-            }
+            CallableIdentifier::Method("ONE_BREAK") => self
+                .state
+                .borrow()
+                .one_break(context, arguments[0].to_bool())
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
                     .event_handlers
@@ -182,8 +186,12 @@ impl CnvType for Condition {
 }
 
 impl ConditionState {
-    pub fn break_run(&self) -> anyhow::Result<()> {
-        todo!()
+    pub fn break_run(&self, context: RunnerContext, _: bool) -> anyhow::Result<()> {
+        if self.check(context)? {
+            Err(RunnerError::ExecutionInterrupted { one: false }.into())
+        } else {
+            Ok(())
+        }
     }
 
     pub fn check(&self, context: RunnerContext) -> anyhow::Result<bool> {
@@ -241,7 +249,11 @@ impl ConditionState {
         result
     }
 
-    pub fn one_break(&self) -> anyhow::Result<()> {
-        todo!()
+    pub fn one_break(&self, context: RunnerContext, _: bool) -> anyhow::Result<()> {
+        if self.check(context)? {
+            Err(RunnerError::ExecutionInterrupted { one: true }.into())
+        } else {
+            Ok(())
+        }
     }
 }

@@ -131,6 +131,8 @@ pub enum RunnerError {
     },
     #[error("Missing filename to load")]
     MissingFilenameToLoad,
+    #[error("Execution interrupted (one: {one})")]
+    ExecutionInterrupted { one: bool },
 
     #[error("Script {path} not found")]
     ScriptNotFound { path: String },

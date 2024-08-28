@@ -26,7 +26,7 @@ Expression: ast::Expression = {
 }
 
 BlockEnd: () = {
-    "}" => (),
+    "}",
     ! => error!("{:?}", <>),
 }
 

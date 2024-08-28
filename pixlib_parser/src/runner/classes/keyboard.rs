@@ -122,7 +122,7 @@ impl CnvType for Keyboard {
                 .get_latest_keys()
                 .map(|_| CnvValue::Null),
             CallableIdentifier::Method("ISENABLED") => {
-                self.state.borrow_mut().is_enabled().map(|_| CnvValue::Null)
+                self.state.borrow().is_enabled().map(CnvValue::Bool)
             }
             CallableIdentifier::Method("ISKEYDOWN") => self
                 .state
@@ -132,7 +132,7 @@ impl CnvType for Keyboard {
             CallableIdentifier::Method("SETAUTOREPEAT") => self
                 .state
                 .borrow_mut()
-                .set_auto_repeat()
+                .set_auto_repeat(arguments[0].to_bool())
                 .map(|_| CnvValue::Null),
             CallableIdentifier::Event(event_name) => {
                 if let Some(code) = self
@@ -221,12 +221,14 @@ impl Initable for Keyboard {
 impl KeyboardState {
     pub fn disable(&mut self) -> anyhow::Result<()> {
         // DISABLE
-        todo!()
+        self.is_enabled = false;
+        Ok(())
     }
 
     pub fn enable(&mut self) -> anyhow::Result<()> {
         // ENABLE
-        todo!()
+        self.is_enabled = true;
+        Ok(())
     }
 
     pub fn get_latest_key(&mut self) -> anyhow::Result<()> {
@@ -239,9 +241,9 @@ impl KeyboardState {
         todo!()
     }
 
-    pub fn is_enabled(&mut self) -> anyhow::Result<()> {
+    pub fn is_enabled(&self) -> anyhow::Result<bool> {
         // ISENABLED
-        todo!()
+        Ok(self.is_enabled)
     }
 
     pub fn is_key_down(&mut self) -> anyhow::Result<()> {
@@ -249,8 +251,9 @@ impl KeyboardState {
         todo!()
     }
 
-    pub fn set_auto_repeat(&mut self) -> anyhow::Result<()> {
+    pub fn set_auto_repeat(&mut self, enabled: bool) -> anyhow::Result<()> {
         // SETAUTOREPEAT
-        todo!()
+        self.is_auto_repeat_enabled = enabled;
+        Ok(())
     }
 }

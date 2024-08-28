@@ -140,9 +140,9 @@ impl<I: Iterator<Item = LexerInput> + 'static> Iterator for CnvLexer<I> {
                 CnvToken::Bang,
                 self.next_position.assign(next_pos),
             ))),
-            Some(Ok((pos, ';', next_pos))) => Some(Ok((
+            Some(Ok((pos, ';', next_pos))) | Some(Ok((pos, ':', next_pos))) => Some(Ok((
                 pos,
-                CnvToken::Semicolon,
+                CnvToken::Semicolon, // TODO: a better way for handling typos?
                 self.next_position.assign(next_pos),
             ))),
             Some(Ok((pos, '(', next_pos))) => {

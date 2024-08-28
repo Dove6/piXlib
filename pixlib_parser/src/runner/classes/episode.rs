@@ -219,7 +219,7 @@ impl EpisodeState {
 
     pub fn get_latest_scene(&self) -> anyhow::Result<()> {
         // GETLATESTSCENE
-        todo!()
+        todo!() // this should return game scene ?not being menu?
     }
 
     pub fn go_to(&mut self, context: RunnerContext, scene_name: &str) -> anyhow::Result<()> {

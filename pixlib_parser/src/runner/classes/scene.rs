@@ -362,7 +362,7 @@ impl CnvType for Scene {
             CallableIdentifier::Method("SETMUSICVOLUME") => self
                 .state
                 .borrow_mut()
-                .set_music_volume()
+                .set_music_volume(arguments[0].to_int() as usize)
                 .map(|_| CnvValue::Null),
             CallableIdentifier::Method("STARTMUSIC") => self
                 .state
@@ -655,9 +655,10 @@ impl SceneState {
         todo!()
     }
 
-    pub fn set_music_volume(&mut self) -> anyhow::Result<()> {
+    pub fn set_music_volume(&mut self, volume_permilles: usize) -> anyhow::Result<()> {
         // SETMUSICVOLUME
-        todo!()
+        self.music_volume_permilles = volume_permilles;
+        Ok(())
     }
 
     pub fn start_music(&mut self, context: RunnerContext) -> anyhow::Result<()> {

@@ -113,13 +113,21 @@ impl CnvExpression for Invocation {
                 .ok_or(RunnerError::ObjectNotFound { name })
                 .ok_or_error()
                 .map(|o| {
-                    Ok(o.call_method(
+                    match o.call_method(
                         CallableIdentifier::Method(&self.name),
                         &arguments,
                         Some(context.with_arguments(arguments.clone())),
-                    )
-                    .ok_or_error()
-                    .unwrap_or_default())
+                    ) {
+                        Err(e)
+                            if matches!(
+                                e.downcast_ref::<RunnerError>(),
+                                Some(RunnerError::ExecutionInterrupted { .. })
+                            ) =>
+                        {
+                            Err(e)
+                        }
+                        other => Ok(other.ok_or_error().unwrap_or_default()),
+                    }
                 })
                 .unwrap_or(Ok(CnvValue::Null))
         }

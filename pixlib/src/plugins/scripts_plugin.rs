@@ -75,11 +75,7 @@ fn reload_scene_script(script_runner: NonSend<ScriptRunner>, chosen_scene: Res<C
 }
 
 fn read_args(asset_server: Res<AssetServer>, mut filesystem: ResMut<FileSystemResource>) {
-    let mut args_iter = env::args().skip(1);
-    if let Some(main_path) = args_iter.next() {
-        load_filesystem(&asset_server, &mut filesystem, main_path);
-    }
-    for arg in args_iter {
+    for arg in env::args().skip(1) {
         load_filesystem(&asset_server, &mut filesystem, arg);
     }
 }

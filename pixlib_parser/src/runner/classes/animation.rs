@@ -1478,7 +1478,7 @@ impl AnimationState {
         self.is_paused = false;
         self.is_reversed = false;
         if let Some(sfx) = sequence.frames[0].sfx.choose(&mut thread_rng()).cloned() {
-            self.play_sfx(context.clone(), &sfx)?;
+            self.play_sfx(context.clone(), &sfx).ok_or_error();
         }
         context
             .runner

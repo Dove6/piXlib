@@ -361,7 +361,8 @@ impl CanvasObserverState {
 
     pub fn refresh(&mut self) -> anyhow::Result<()> {
         // REFRESH
-        todo!()
+        warn!("Skipping CANVAS_OBSERVER^REFRESH() call");
+        Ok(())
     }
 
     pub fn remove(&mut self) -> anyhow::Result<()> {
