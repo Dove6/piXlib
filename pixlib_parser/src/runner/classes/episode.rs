@@ -85,6 +85,10 @@ impl Episode {
     pub fn get_scene_list(&self) -> Vec<String> {
         self.scenes.clone()
     }
+
+    pub fn get_starting_scene(&self) -> Option<String> {
+        self.start_with.clone().or(self.scenes.first().cloned())
+    }
 }
 
 impl CnvType for Episode {

@@ -7,8 +7,8 @@ use std::{
 use bevy::{
     app::{App, Plugin, Startup, Update},
     asset::{AssetServer, Handle},
-    log::{error, info, warn},
-    prelude::{in_state, DetectChanges, IntoSystemConfigs, NonSend, Res, ResMut},
+    log::{error, trace, warn},
+    prelude::{in_state, DetectChanges, IntoSystemConfigs, NextState, NonSend, Res, ResMut},
 };
 use pixlib_parser::{
     common::IssueManager,
@@ -94,6 +94,7 @@ fn reload_main_script(
     filesystem: Res<FileSystemResource>,
     script_runner: NonSend<ScriptRunner>,
     mut chosen_scene: ResMut<ChosenScene>,
+    mut next_state: ResMut<NextState<AppState>>,
 ) {
     if !filesystem.is_changed() {
         return;
@@ -171,14 +172,12 @@ fn reload_main_script(
     };
     //#endregion
 
-    let episode_list = application.get_episode_list();
-    if episode_list.is_empty() {
+    let episode_name = application.get_starting_episode().unwrap_or_else(|| {
         panic!(
             "Invalid application object {} - no episodes defined",
             application_name
-        );
-    }
-    let episode_name = episode_list[0].clone();
+        )
+    });
     let Some(episode_object) = script_runner.get_object(&episode_name) else {
         panic!("Cannot find defined episode object {}", episode_name); // TODO: check if == 1, not >= 1
     };
@@ -225,7 +224,19 @@ fn reload_main_script(
         chosen_scene.list.push(SceneDefinition { name: scene_name });
     }
     chosen_scene.list.sort();
-    info!(
+    let scene_name = episode.get_starting_scene().unwrap_or_else(|| {
+        panic!(
+            "Invalid episode object {} - no scenes defined",
+            episode_name
+        )
+    });
+    chosen_scene.index = chosen_scene
+        .list
+        .iter()
+        .position(|s| s.name == scene_name)
+        .unwrap_or_default();
+    next_state.set(AppState::SceneViewer);
+    trace!(
         "scenes: {:?}",
         chosen_scene
             .list

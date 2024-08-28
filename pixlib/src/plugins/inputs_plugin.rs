@@ -41,14 +41,14 @@ pub fn queue_timer_input(time: Res<Time>, runner: NonSend<ScriptRunner>) {
 
 pub fn queue_mouse_input(
     buttons: Res<ButtonInput<MouseButton>>,
-    q_windows: Query<&Window, With<PrimaryWindow>>,
+    window: Query<&Window, With<PrimaryWindow>>,
     runner: NonSend<ScriptRunner>,
 ) {
     let mut in_events = runner.events_in.mouse.borrow_mut();
-    let cursor_position = q_windows
-        .single()
-        .cursor_position()
-        .unwrap_or(Vec2::new(0f32, 0f32));
+    let Ok(window) = window.get_single() else {
+        return;
+    };
+    let cursor_position = window.cursor_position().unwrap_or(Vec2::new(0f32, 0f32));
     in_events.push_back(MouseEvent::MovedTo {
         x: cursor_position.x as isize,
         y: cursor_position.y as isize,

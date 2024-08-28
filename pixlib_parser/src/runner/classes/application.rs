@@ -92,6 +92,10 @@ impl Application {
         self.episodes.clone()
     }
 
+    pub fn get_starting_episode(&self) -> Option<String> {
+        self.start_with.clone().or(self.episodes.first().cloned())
+    }
+
     pub fn get_script_path(&self) -> Option<String> {
         self.path.clone()
     }

@@ -25,7 +25,9 @@ fn update_cursor(
     mut reader: EventReader<PixlibCursorEvent>,
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
 ) {
-    let mut window = windows.single_mut();
+    let Ok(mut window) = windows.get_single_mut() else {
+        return;
+    };
     for evt in reader.read() {
         match &evt.0 {
             CursorEvent::CursorLocked => window.cursor.grab_mode = CursorGrabMode::Locked,
