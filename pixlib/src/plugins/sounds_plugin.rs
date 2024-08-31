@@ -394,13 +394,17 @@ fn update_sounds(
                     if !ident.is_some_and(|h| h == sound_data.hash) {
                         let source = audio_sources.add(AudioSource {
                             sound: StaticSoundData::from_cursor(
-                                Cursor::new(sound_data.data.clone()),
+                                Cursor::new(sound_data.data.as_ref().clone()),
                                 Default::default(),
                             )
                             .unwrap(),
                         });
-                        let new_handle: Handle<AudioInstance> =
-                            audio.play(source).looped().paused().handle();
+                        let new_handle: Handle<AudioInstance> = audio
+                            .play(source)
+                            .looped()
+                            .paused()
+                            .with_volume(0.2)
+                            .handle();
                         if let Some(handle) = handle.replace(new_handle) {
                             if let Some(mut instance) = audio_instances.remove(&handle) {
                                 instance.stop(EASING);

@@ -5,7 +5,7 @@ use log::{info, trace};
 use super::path::{Path, ScenePath};
 
 pub trait FileSystem: std::fmt::Debug + Send + Sync {
-    fn read_file(&mut self, filename: &str) -> std::io::Result<Vec<u8>>;
+    fn read_file(&mut self, filename: &str) -> std::io::Result<Arc<Vec<u8>>>;
     fn write_file(&mut self, filename: &str, data: &[u8]) -> std::io::Result<()>;
 }
 
@@ -14,7 +14,7 @@ impl dyn FileSystem {
         &mut self,
         game_paths: Arc<GamePaths>,
         scene_path: &ScenePath,
-    ) -> std::io::Result<Vec<u8>> {
+    ) -> std::io::Result<Arc<Vec<u8>>> {
         info!(
             "read_scene_file({:?}, {:?})",
             game_paths.data_directory, scene_path,
@@ -47,7 +47,7 @@ impl dyn FileSystem {
         &mut self,
         game_paths: Arc<GamePaths>,
         scene_path: &ScenePath,
-    ) -> std::io::Result<Vec<u8>> {
+    ) -> std::io::Result<Arc<Vec<u8>>> {
         info!(
             "read_sound_file(({:?}, {:?}), {:?})",
             game_paths.dialogues_directory, game_paths.data_directory, scene_path,
@@ -88,8 +88,8 @@ impl dyn FileSystem {
 pub struct DummyFileSystem;
 
 impl FileSystem for DummyFileSystem {
-    fn read_file(&mut self, _: &str) -> std::io::Result<Vec<u8>> {
-        Ok(Vec::new())
+    fn read_file(&mut self, _: &str) -> std::io::Result<Arc<Vec<u8>>> {
+        Ok(Arc::new(Vec::new()))
     }
 
     fn write_file(&mut self, _: &str, _: &[u8]) -> std::io::Result<()> {

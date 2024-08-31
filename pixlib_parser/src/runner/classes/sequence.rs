@@ -535,10 +535,9 @@ impl SequenceState {
             .map_err(|_| RunnerError::IoError {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
             })?;
-        let converted_data: Arc<[u8]> = data.into();
         let sound_data = SoundData {
-            hash: xxh3_64(&converted_data),
-            data: converted_data,
+            hash: xxh3_64(&data),
+            data,
         };
         self.current_sound = SoundFileData::Loaded(LoadedSound {
             filename: Some(path.file_path.to_str()),

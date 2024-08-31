@@ -61,7 +61,7 @@ pub struct LoadedSound {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SoundData {
     pub hash: u64,
-    pub data: Arc<[u8]>, // RGBA8888
+    pub data: Arc<Vec<u8>>, // RGBA8888
 }
 
 #[derive(Debug, Clone, Default)]
@@ -87,7 +87,7 @@ pub struct ImageDefinition {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImageData {
     pub hash: u64,
-    pub data: Arc<[u8]>, // RGBA8888
+    pub data: Arc<Vec<u8>>, // RGBA8888
 }
 
 #[derive(Debug, Clone)]
@@ -131,7 +131,7 @@ pub struct SpriteDefinition {
 #[derive(Clone, Debug)]
 pub struct SpriteData {
     pub hash: u64,
-    pub data: Arc<[u8]>, // RGBA8888
+    pub data: Arc<Vec<u8>>, // RGBA8888
 }
 
 impl PartialEq for SpriteData {

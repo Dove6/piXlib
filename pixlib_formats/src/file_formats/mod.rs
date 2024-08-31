@@ -45,7 +45,7 @@ pub enum CompressionType {
 }
 
 impl<'a> ImageData<'a> {
-    pub fn to_rgba8888(&self, format: ColorFormat, compression: CompressionType) -> Arc<[u8]> {
+    pub fn to_rgba8888(&self, format: ColorFormat, compression: CompressionType) -> Arc<Vec<u8>> {
         let has_alpha = !self.alpha.is_empty();
         let color_data = match compression {
             CompressionType::None => self.color.to_owned(),
@@ -66,7 +66,8 @@ impl<'a> ImageData<'a> {
             assert!(alpha_data.len() * 2 == color_data.len());
         }
         let target_length = color_data.len() * 2;
-        let mut data = vec![255; target_length];
+        let mut wrapped_data = Arc::new(vec![255; target_length]);
+        let data = Arc::get_mut(&mut wrapped_data).unwrap();
         match format {
             ColorFormat::Rgb565 => {
                 for i in 0..(color_data.len() / 2) {
@@ -99,7 +100,7 @@ impl<'a> ImageData<'a> {
                 }
             }
         }
-        data.into()
+        wrapped_data
     }
 }
 

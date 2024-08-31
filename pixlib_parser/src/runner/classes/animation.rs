@@ -1947,10 +1947,9 @@ impl AnimationState {
             .unwrap()
             .read_sound(Arc::clone(&script.runner.game_paths), path)
             .map_err(|e| RunnerError::IoError { source: e })?;
-        let converted_data: Arc<[u8]> = data.into();
         let sound_data = SoundData {
-            hash: xxh3_64(&converted_data),
-            data: converted_data,
+            hash: xxh3_64(&data),
+            data,
         };
         self.current_sfx = SoundFileData::Loaded(LoadedSound {
             filename: Some(path.file_path.to_str()),

@@ -21,7 +21,7 @@ pub struct LayeredFileSystem {
 }
 
 impl FileSystem for LayeredFileSystem {
-    fn read_file(&mut self, filename: &str) -> std::io::Result<Vec<u8>> {
+    fn read_file(&mut self, filename: &str) -> std::io::Result<Arc<Vec<u8>>> {
         for filesystem in self.layers.iter().rev() {
             match filesystem.write().unwrap().read_file(filename) {
                 Ok(v) => return Ok(v),
@@ -85,7 +85,7 @@ impl std::fmt::Debug for CompressedPatch {
 }
 
 impl FileSystem for CompressedPatch {
-    fn read_file(&mut self, filename: &str) -> std::io::Result<Vec<u8>> {
+    fn read_file(&mut self, filename: &str) -> std::io::Result<Arc<Vec<u8>>> {
         let sought_name = self
             .handle
             .file_names()
@@ -104,9 +104,10 @@ impl FileSystem for CompressedPatch {
             })
             .inspect_err(|e| error!("{}", e))?;
         if entry.is_file() {
-            let mut vec = Vec::new();
-            entry.read_to_end(&mut vec)?;
-            Ok(vec)
+            let mut wrapped_vec = Arc::new(Vec::new());
+            let vec = Arc::get_mut(&mut wrapped_vec).unwrap();
+            entry.read_to_end(vec)?;
+            Ok(wrapped_vec)
         } else {
             Err(std::io::Error::from(std::io::ErrorKind::NotFound))
         }
@@ -230,15 +231,16 @@ impl std::fmt::Debug for InsertedDisk {
 }
 
 impl FileSystem for InsertedDisk {
-    fn read_file(&mut self, filename: &str) -> std::io::Result<Vec<u8>> {
+    fn read_file(&mut self, filename: &str) -> std::io::Result<Arc<Vec<u8>>> {
         let handle = &self.handle;
         if let Ok(Some(DirectoryEntry::File(file))) =
             handle.open(&filename.replace('\\', "/").to_ascii_lowercase())
         {
-            let mut buffer = Vec::new();
-            let bytes_read = file.read().read_to_end(&mut buffer).unwrap();
+            let mut wrapped_buffer = Arc::new(Vec::new());
+            let buffer = Arc::get_mut(&mut wrapped_buffer).unwrap();
+            let bytes_read = file.read().read_to_end(buffer).unwrap();
             info!("Read file {:?} ({} bytes)", filename, bytes_read);
-            Ok(buffer)
+            Ok(wrapped_buffer)
         } else {
             Err(std::io::Error::from(std::io::ErrorKind::NotFound))
         }
