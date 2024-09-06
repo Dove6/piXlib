@@ -3302,7 +3302,6 @@ dependencies = [
  "cdfs",
  "chrono",
  "env_logger",
- "glob",
  "goldenfile",
  "itertools 0.12.1",
  "keyboard-types",

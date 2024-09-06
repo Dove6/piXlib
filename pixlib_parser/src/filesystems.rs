@@ -5,10 +5,7 @@ use std::{
 };
 
 use cdfs::{DirectoryEntry, ISOError, ISO9660};
-#[cfg(not(target_family = "wasm"))]
-use glob::{glob_with, GlobError, MatchOptions, Pattern, PatternError};
 use log::{error, info, trace};
-use thiserror::Error;
 use zip::{result::ZipError, ZipArchive};
 
 use crate::runner::{FileSystem, Path};
@@ -114,41 +111,9 @@ pub struct GameDirectory {
     base_path: Path,
 }
 
-#[derive(Debug, Error)]
-pub enum GameDirectoryError {
-    #[cfg(not(target_family = "wasm"))]
-    #[error("Incorrect glob pattern: {0}")]
-    GlobPattern(PatternError),
-    #[cfg(not(target_family = "wasm"))]
-    #[error("Error while iterating over glob results: {0}")]
-    GlobIteration(GlobError),
-    #[error("I/O error: {0}")]
-    Io(std::io::Error),
-}
-
-#[cfg(not(target_family = "wasm"))]
-impl From<PatternError> for GameDirectoryError {
-    fn from(value: PatternError) -> Self {
-        Self::GlobPattern(value)
-    }
-}
-
-#[cfg(not(target_family = "wasm"))]
-impl From<GlobError> for GameDirectoryError {
-    fn from(value: GlobError) -> Self {
-        Self::GlobIteration(value)
-    }
-}
-
-impl From<std::io::Error> for GameDirectoryError {
-    fn from(value: std::io::Error) -> Self {
-        Self::Io(value)
-    }
-}
-
 #[cfg(not(target_family = "wasm"))]
 impl GameDirectory {
-    pub fn new(base_path: &str) -> Result<Self, GameDirectoryError> {
+    pub fn new(base_path: &str) -> std::io::Result<Self> {
         let res = GameDirectory {
             base_path: Path::from(base_path),
         };
@@ -156,31 +121,44 @@ impl GameDirectory {
         Ok(res)
     }
 
+    #[cfg(not(target_os = "windows"))]
     fn get_matching_path(path: &str) -> std::io::Result<PathBuf> {
-        let mut iter = glob_with(
-            &Pattern::escape(path),
-            MatchOptions {
-                case_sensitive: false,
-                ..MatchOptions::default()
-            },
-        )
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?
-        .inspect(|r| {
-            if let Err(e) = r {
-                error!("Error glob-matching path: {e}")
+        let path = Path::from(path);
+        let mut built_path = String::from(if path.starts_with('/') { "/" } else { "." });
+        let segment_count = path.split('/').count();
+        for (i, segment) in path
+            .split('/')
+            .enumerate()
+            .skip_while(|(_, s)| s.is_empty())
+        {
+            trace!("Matching path segment {segment}, currently built path is {built_path}");
+            let Some(continuation) = std::fs::read_dir(&built_path)?
+                .find(|r| {
+                    r.as_ref().is_ok_and(|e| {
+                        e.file_name().eq_ignore_ascii_case(segment)
+                            && (i == segment_count - 1 || e.file_type().is_ok_and(|t| t.is_dir()))
+                    })
+                })
+                .transpose()?
+            else {
+                return Err(std::io::Error::from(std::io::ErrorKind::NotFound));
+            };
+            if built_path == "." {
+                built_path.clear();
+            } else if built_path != "/" {
+                built_path.push('/');
             }
-        })
-        .filter_map(|r| r.ok());
-        let result = iter
-            .next()
-            .ok_or(std::io::Error::from(std::io::ErrorKind::NotFound));
-        if iter.next().is_some() {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Ambiguous glob",
-            ))
+            built_path.push_str(continuation.file_name().to_str().unwrap());
+        }
+        Ok(PathBuf::from(built_path))
+    }
+
+    #[cfg(target_os = "windows")]
+    fn get_matching_path(path: &str) -> std::io::Result<PathBuf> {
+        if std::fs::exists(path)? {
+            Ok(PathBuf::from(path))
         } else {
-            result
+            Err(std::io::Error::from(std::io::ErrorKind::NotFound))
         }
     }
 }

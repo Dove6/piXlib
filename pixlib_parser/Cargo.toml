@@ -29,9 +29,6 @@ zip = { version = "2.1", default-features = false, features = [
     "time",
 ] }
 
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
-glob = "0.3"
-
 [build-dependencies]
 lalrpop = "0.20"
 

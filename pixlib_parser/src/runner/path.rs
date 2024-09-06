@@ -47,8 +47,6 @@ pub struct Path {
 lazy_static! {
     static ref MULTIPLE_SLASH_REGEX: Regex =
         Regex::new(r"/+").expect("The regex for multiple slashes should be defined correctly.");
-    static ref START_SLASH_REGEX: Regex =
-        Regex::new(r"^/").expect("The regex for a slash at the start should be defined correctly.");
     static ref END_SLASH_REGEX: Regex =
         Regex::new(r"/$").expect("The regex for a slash at the end should be defined correctly.");
     static ref SAME_DIR_REGEX: Regex =
@@ -69,13 +67,19 @@ lazy_static! {
     static ref PARENT_DIR_START_END_REGEX: Regex =
         Regex::new(r"^([^/]{3,}|[^/\.]|\.[^/\.]|[^/\.]\.)/\.\.$")
             .expect("The regex for parent dir at the end should be defined correctly.");
+    static ref ROOT_PARENT_PATH_REGEX: Regex = Regex::new(r"^(/\.\.)+")
+        .expect("The regex for a slash at the start should be defined correctly.");
 }
 
 fn canonicalize_str(path_str: &str) -> String {
     let result = path_str.to_uppercase().replace('\\', "/");
     let result = MULTIPLE_SLASH_REGEX.replace_all(&result, "/");
-    let result = START_SLASH_REGEX.replace(&result, "");
-    let result = END_SLASH_REGEX.replace(&result, "");
+    let result = if result.len() > 1 {
+        // edge case: "/""
+        END_SLASH_REGEX.replace(&result, "")
+    } else {
+        result
+    };
     let result = SAME_DIR_START_REGEX.replace(&result, "");
     let result = SAME_DIR_END_REGEX.replace(&result, "");
     let mut result = SAME_DIR_REGEX.replace_all(&result, "/").to_string();
@@ -85,6 +89,7 @@ fn canonicalize_str(path_str: &str) -> String {
     let result = PARENT_DIR_START_REGEX.replace(&result, "");
     let result = PARENT_DIR_END_REGEX.replace(&result, "");
     let result = PARENT_DIR_START_END_REGEX.replace(&result, ".");
+    let result = ROOT_PARENT_PATH_REGEX.replace(&result, "/");
     result.to_string()
 }
 
@@ -125,6 +130,10 @@ impl Path {
 
     pub fn append(&mut self, path_str: &str) {
         let mut canonicalized_suffix = canonicalize_str(path_str);
+        if canonicalized_suffix.starts_with('/') {
+            self.buffer = canonicalized_suffix;
+            return;
+        }
         let appended_path_parent_path_segment_count = iter_segments(&canonicalized_suffix)
             .take_while(|s| *s == "..")
             .count();
@@ -153,6 +162,9 @@ impl Path {
     }
 
     pub fn prepend(&mut self, path_str: &str) {
+        if self.buffer.starts_with('/') {
+            return;
+        }
         let mut canonicalized_prefix = canonicalize_str(path_str);
         let parent_path_segment_count = iter_segments(&self.buffer)
             .take_while(|s| *s == "..")
@@ -223,7 +235,7 @@ mod tests {
     #[test_case("multiple slashes", "A////B//C/D", "A/B/C/D")]
     #[test_case("multiple backslashes", "A\\\\\\\\B\\\\C\\D", "A/B/C/D")]
     #[test_case("multiple mixed", "A/\\\\/B//C\\D", "A/B/C/D")]
-    #[test_case("slash at the start", "/A/B/C", "A/B/C")]
+    #[test_case("slash at the start (root)", "/A/B/C", "/A/B/C")]
     #[test_case("slash at the end", "A/B/C/", "A/B/C")]
     fn test_slashes_are_canonicalized_correctly(
         _description: &str,
@@ -290,6 +302,7 @@ mod tests {
         "A/B/C/../D/../E/..",
         "A/B"
     )]
+    #[test_case("multiple parent dirs after root dir", "/../../..", "/")]
     fn test_parent_dir_pattern_is_removed_correctly(
         _description: &str,
         path_str: &str,
@@ -344,6 +357,14 @@ mod tests {
         "../../d/e",
         "A/D/E"
     )]
+    #[test_case("dirs without root and dirs from root", "a/b/c", "/d/e/f", "/D/E/F")]
+    #[test_case("dirs from root and dirs from root", "/a/b/c", "/d/e/f", "/D/E/F")]
+    #[test_case(
+        "dirs from root and dirs without root",
+        "/a/b/c",
+        "d/e/f",
+        "/A/B/C/D/E/F"
+    )]
     fn test_appending_path_works_correctly(
         _description: &str,
         original_path: &str,
@@ -378,6 +399,24 @@ mod tests {
         "../../d/e",
         "a/b/c",
         "A/D/E"
+    )]
+    #[test_case(
+        "prepending dirs without root with dirs from root",
+        "a/b/c",
+        "/d/e/f",
+        "/D/E/F/A/B/C"
+    )]
+    #[test_case(
+        "prepending dirs from root with dirs from root",
+        "/a/b/c",
+        "/d/e/f",
+        "/A/B/C"
+    )]
+    #[test_case(
+        "prepending dirs from root with dirs without root",
+        "/a/b/c",
+        "d/e/f",
+        "/A/B/C"
     )]
     fn test_prepending_path_works_correctly(
         _description: &str,

@@ -83,6 +83,7 @@ impl FileSystem for VirtualFilesystem {
             .find(|(k, _)| k.as_ref().eq_ignore_ascii_case(filename))
             .map(|(_, v)| v)
         {
+            file.rewind()?;
             file.set_len(0)?;
             file.write_all(data)
         } else {
