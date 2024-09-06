@@ -1,5 +1,6 @@
 use std::{any::Any, cell::RefCell};
 
+use log::trace;
 use pixlib_formats::file_formats::{
     arr::{parse_arr, serialize_arr, ElementData},
     DecodedStr,
@@ -368,6 +369,7 @@ impl ArrayState {
     pub fn add(&mut self, values: &[CnvValue]) -> anyhow::Result<()> {
         // ADD
         self.values.extend(values.iter().cloned());
+        trace!("Current array values: {:?}", self.values);
         Ok(())
     }
 
@@ -480,7 +482,10 @@ impl ArrayState {
             .map_err(|_| RunnerError::IoError {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
             })?;
-        let data = parse_arr(&data);
+        let data = parse_arr(&data).ok_or_error();
+        let Some(data) = data else {
+            Err(RunnerError::CouldNotLoadFile(filename.to_owned()))?
+        };
         self.values = data
             .into_iter()
             .map(|e| match e {
@@ -591,6 +596,7 @@ impl ArrayState {
 
     pub fn save(&mut self, context: RunnerContext, filename: &str) -> anyhow::Result<()> {
         // SAVE
+        trace!("Saving array with values: {:?}", self.values);
         let script = context.current_object.parent.as_ref();
         let filesystem = Arc::clone(&script.runner.filesystem);
         let data = serialize_arr(
@@ -607,7 +613,7 @@ impl ArrayState {
                 .collect::<Vec<_>>(),
         )
         .map_err(|e| RunnerError::IoError { source: e })?;
-        return Ok(filesystem
+        filesystem
             .write()
             .unwrap()
             .write_scene_asset(
@@ -615,7 +621,8 @@ impl ArrayState {
                 &script.path.with_file_path(filename),
                 &data,
             )
-            .map_err(|e| RunnerError::IoError { source: e })?);
+            .map_err(|e| RunnerError::IoError { source: e })?;
+        Ok(())
     }
 
     pub fn save_ini(&mut self) -> anyhow::Result<()> {

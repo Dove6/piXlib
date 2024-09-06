@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-cdfs = { git = "https://github.com/Dove6/cdfs.git", branch = "fix/threading" }
 pixlib_formats = { path = "../pixlib_formats" }
 pixlib_parser = { path = "../pixlib_parser" }
 codepage-strings = "1"
@@ -27,10 +26,6 @@ bevy_kira_audio = { version = "0.20", default-features = false, features = [
     "wav",
 ] }
 regex = "1.10"
-zip = { version = "2.1", default-features = false, features = [
-    "deflate",
-    "time",
-] }
 log = "0.4"
 chrono = "0.4"
 thiserror = "1.0"

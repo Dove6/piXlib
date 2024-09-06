@@ -234,7 +234,7 @@ impl CnvType for Application {
             .map(parse_datetime)
             .transpose()?;
         let path = properties.remove("PATH").and_then(discard_if_empty);
-        let start_with = properties.remove("STARTWITH").and_then(discard_if_empty);
+        let start_with = properties.remove("STARTWITH").and_then(discard_if_empty); // TODO: err if not in EPISODES
         let version = properties.remove("VERSION").and_then(discard_if_empty);
         Ok(CnvContent::Application(Self::from_initial_properties(
             parent,

@@ -28,7 +28,7 @@ pub use filesystem::{FileSystem, GamePaths};
 use itertools::Itertools;
 use log::{error, warn};
 pub use object::{CnvObject, ObjectBuildErrorKind, ObjectBuilderError};
-pub use path::ScenePath;
+pub use path::{Path, ScenePath};
 pub use script::{CnvScript, ScriptSource};
 use thiserror::Error;
 pub use tree_walking::{CnvExpression, CnvStatement};
@@ -144,6 +144,20 @@ pub enum RunnerError {
     EpisodeScriptAlreadyLoaded,
     #[error("Scene script is loaded already")]
     SceneScriptAlreadyLoaded,
+    #[error("Application definition file not found")]
+    ApplicationDefinitionNotFound,
+    #[error("Missing application object")]
+    MissingApplicationObject,
+    #[error("Application {0} defines no episodes")]
+    NoEpisodesInApplication(String),
+    #[error("Expected object {object_name} to have type {expected}, but it has type {actual}")]
+    UnexpectedType {
+        object_name: String,
+        expected: String,
+        actual: String,
+    },
+    #[error("Could not load file {0}")]
+    CouldNotLoadFile(String),
 
     #[error("Parser error: {0}")]
     ParserError(ParserFatal),
@@ -901,20 +915,25 @@ impl CnvRunner {
                         .warn_if_some();
                 }
                 CnvDeclaration::PropertyAssignment {
-                    parent,
+                    name,
                     property,
                     property_key,
                     value,
                 } => {
-                    let Some(obj) = name_to_object
-                        .get(parent.trim())
-                        .and_then(|i| objects.get_mut(*i))
-                    else {
-                        panic!(
+                    let obj_index = name_to_object.get(name.trim()).copied().unwrap_or_else(|| {
+                        warn!(
                             "Expected {} element to be in dict, the element list is: {:?}",
-                            &parent, &objects
+                            &name, &objects
                         );
-                    };
+                        objects.push(CnvObjectBuilder::new(
+                            Arc::clone(&script),
+                            name.trim().to_owned(),
+                            objects.len(),
+                        ));
+                        name_to_object.insert(name.trim().to_owned(), objects.len() - 1);
+                        objects.len() - 1
+                    });
+                    let obj = objects.get_mut(obj_index).unwrap();
                     obj.add_property(
                         property_key
                             .map(|suffix| property.clone() + "^" + &suffix)
@@ -1090,6 +1109,112 @@ impl CnvRunner {
             .borrow()
             .get_scene_script()
             .and_then(|s| s.parent_object.as_ref().cloned())
+    }
+
+    pub fn reload_application(self: &Arc<Self>) -> anyhow::Result<()> {
+        self.internal_events
+            .borrow_mut()
+            .use_and_drop_mut(|events| events.clear());
+        self.scripts.borrow_mut().remove_all_scripts();
+        //#region Loading application.def
+        let root_script_path = self.game_paths.game_definition_filename.clone();
+        let root_script_path = ScenePath::new(".", &root_script_path);
+        let contents = self
+            .filesystem
+            .write()
+            .unwrap()
+            .read_scene_asset(self.game_paths.clone(), &root_script_path)
+            .map_err(|e| {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    RunnerError::ApplicationDefinitionNotFound
+                } else {
+                    RunnerError::IoError { source: e }
+                }
+            })?;
+        let contents = parse_cnv(&contents);
+        self.load_script(
+            root_script_path,
+            contents.as_parser_input(),
+            None,
+            ScriptSource::Root,
+        )?;
+        //#endregion
+
+        let application_object = self
+            .find_object(|o| matches!(&o.content, CnvContent::Application(_)))
+            .ok_or(RunnerError::MissingApplicationObject)?; // TODO: check if == 1, not >= 1
+        let application_name = application_object.name.clone();
+        let CnvContent::Application(ref application) = &application_object.content else {
+            return Err(RunnerError::UnexpectedType {
+                object_name: application_name.clone(),
+                expected: "APPLICATION".to_owned(),
+                actual: application_object.content.get_type_id().to_owned(),
+            })?;
+        };
+
+        //#region Loading application script
+        if let Some(application_script_path) = application.get_script_path() {
+            let application_script_path = ScenePath::new(
+                &application_script_path,
+                &(application_name.clone() + ".cnv"),
+            );
+            let contents = self
+                .filesystem
+                .write()
+                .unwrap()
+                .read_scene_asset(self.game_paths.clone(), &application_script_path)?;
+            let contents = parse_cnv(&contents);
+            self.load_script(
+                application_script_path,
+                contents.as_parser_input(),
+                Some(Arc::clone(&application_object)),
+                ScriptSource::Application,
+            )?;
+        };
+        //#endregion
+
+        let episode_name =
+            application
+                .get_starting_episode()
+                .ok_or(RunnerError::NoEpisodesInApplication(
+                    application_name.clone(),
+                ))?;
+        let episode_object = self
+            .get_object(&episode_name)
+            .ok_or(RunnerError::ObjectNotFound {
+                name: episode_name.clone(),
+            })?;
+        let CnvContent::Episode(ref episode) = &episode_object.content else {
+            return Err(RunnerError::UnexpectedType {
+                object_name: episode_name.clone(),
+                expected: "EPISODE".to_owned(),
+                actual: episode_object.content.get_type_id().to_owned(),
+            })?;
+        };
+
+        //#region Loading the first episode script
+        if let Some(episode_script_path) = episode.get_script_path() {
+            let episode_script_path =
+                ScenePath::new(&episode_script_path, &(episode_name.clone() + ".cnv"));
+            let contents = self
+                .filesystem
+                .write()
+                .unwrap()
+                .read_scene_asset(self.game_paths.clone(), &episode_script_path)?;
+            let contents = parse_cnv(&contents);
+            self.load_script(
+                episode_script_path,
+                contents.as_parser_input(),
+                Some(Arc::clone(&episode_object)),
+                ScriptSource::Episode,
+            )?;
+        };
+        //#endregion
+        if let Some(starting_scene) = episode.get_starting_scene() {
+            self.change_scene(&starting_scene)
+        } else {
+            Ok(())
+        }
     }
 }
 

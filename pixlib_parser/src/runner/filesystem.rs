@@ -94,6 +94,7 @@ impl dyn FileSystem {
             game_paths.data_directory, scene_path,
         );
         let mut path = scene_path.flatten();
+        trace!("Flattened path: {}", path.as_ref());
         path.prepend(&game_paths.data_directory);
         trace!("Saving at path: {:?}", path);
         self.write_file(&path, data)

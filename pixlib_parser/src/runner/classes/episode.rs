@@ -181,7 +181,7 @@ impl CnvType for Episode {
             .and_then(discard_if_empty)
             .map(parse_comma_separated)
             .transpose()?;
-        let start_with = properties.remove("STARTWITH").and_then(discard_if_empty);
+        let start_with = properties.remove("STARTWITH").and_then(discard_if_empty); // TODO: err if not in SCENES
         let version = properties.remove("VERSION").and_then(discard_if_empty);
         Ok(CnvContent::Episode(Episode::from_initial_properties(
             parent,

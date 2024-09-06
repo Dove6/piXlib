@@ -31,10 +31,11 @@ use bevy::{
     window::FileDragAndDrop,
 };
 use pixlib_parser::common::LoggableToOption;
+use pixlib_parser::filesystems::{CompressedPatch, InsertedDisk};
 use pixlib_parser::runner::FileSystem;
 use thiserror::Error;
 
-use crate::filesystems::{CompressedPatch, InsertedDisk, PendingHandle};
+use crate::filesystems::PendingHandle;
 use crate::{
     filesystems::FileSystemResource,
     resources::{ChosenScene, RootEntityToDespawn},

@@ -96,7 +96,7 @@ fn remove_first_n_segments(path_str: &mut String, n: usize) {
     if n == 0 {
         return;
     }
-    if let Some((split_position, _)) = path_str.match_indices('/').nth(n) {
+    if let Some((split_position, _)) = path_str.match_indices('/').nth(n - 1) {
         path_str.drain(..(split_position + 1));
     } else {
         path_str.clear();
@@ -108,7 +108,7 @@ fn remove_last_n_segments(path_str: &mut String, n: usize) {
     if n == 0 {
         return;
     }
-    if let Some((split_position, _)) = path_str.rmatch_indices('/').nth(n) {
+    if let Some((split_position, _)) = path_str.rmatch_indices('/').nth(n - 1) {
         path_str.drain(split_position..);
     } else {
         path_str.clear();
@@ -332,6 +332,18 @@ mod tests {
     #[test_case("parent dir and a dirname", "..", "a", "../A")]
     #[test_case("same dir and parent dir", ".", "..", "..")]
     #[test_case("parent dir and same dir", "..", ".", "..")]
+    #[test_case(
+        "multiple dirnames and one more parent dirs",
+        "a/b/c",
+        "../../../../d/e",
+        "../D/E"
+    )]
+    #[test_case(
+        "multiple dirnames and one less parent dirs",
+        "a/b/c",
+        "../../d/e",
+        "A/D/E"
+    )]
     fn test_appending_path_works_correctly(
         _description: &str,
         original_path: &str,
@@ -355,6 +367,18 @@ mod tests {
     #[test_case("prepending parent dir with a dirname", "..", "a", ".")]
     #[test_case("prepending parent dir with same dir", "..", ".", "..")]
     #[test_case("prepending same dir with parent dir", ".", "..", "..")]
+    #[test_case(
+        "prepending multiple parent dirs with one less dirnames",
+        "../../../../d/e",
+        "a/b/c",
+        "../D/E"
+    )]
+    #[test_case(
+        "prepending multiple parent dirs with one more dirnames",
+        "../../d/e",
+        "a/b/c",
+        "A/D/E"
+    )]
     fn test_prepending_path_works_correctly(
         _description: &str,
         original_path: &str,

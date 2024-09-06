@@ -12,7 +12,7 @@ pub enum CnvDeclaration {
     // TODO: add position info
     ObjectInitialization(String),
     PropertyAssignment {
-        parent: String,
+        name: String,
         property: String,
         property_key: Option<String>,
         value: String,
@@ -195,7 +195,7 @@ impl LineToSplit {
             let mut parent = self.content;
             parent.truncate(colon_index);
             CnvDeclaration::PropertyAssignment {
-                parent,
+                name: parent,
                 property,
                 property_key,
                 value,

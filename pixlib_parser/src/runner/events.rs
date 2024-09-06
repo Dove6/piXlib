@@ -18,7 +18,7 @@ pub struct IncomingEvents {
     pub multimedia: RefCell<VecDeque<MultimediaEvents>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TimerEvent {
     Elapsed { seconds: f64 },
 }
@@ -34,12 +34,12 @@ pub enum MouseEvent {
     RightButtonReleased,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum KeyboardEvent {
     KeyPressed { key_code: keyboard_types::Code },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MultimediaEvents {
     SoundFinishedPlaying(SoundSource),
 }
@@ -55,24 +55,24 @@ pub struct OutgoingEvents {
     pub cursor: RefCell<VecDeque<CursorEvent>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ScriptEvent {
     ScriptLoaded { path: ScenePath },
     ScriptUnloaded { path: ScenePath },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FileEvent {
     FileRead { path: ScenePath },
     FileWritten { path: ScenePath },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ObjectEvent {
     ObjectCreated { name: String },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ApplicationEvent {
     ApplicationExited,
 }
@@ -94,7 +94,7 @@ pub enum SoundSource {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SoundEvent {
     SoundLoaded {
         source: SoundSource,
@@ -135,7 +135,7 @@ impl Display for SoundEvent {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GraphicsEvent {
     GraphicsHidden,
     GraphicsShown,
@@ -144,7 +144,7 @@ pub enum GraphicsEvent {
     FrameChanged,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CursorEvent {
     CursorLocked,
     CursorFreed,

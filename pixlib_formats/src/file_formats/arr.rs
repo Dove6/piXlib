@@ -99,24 +99,25 @@ pub fn element_data(tag_type: ElementType) -> impl Fn(&[u8]) -> IResult<&[u8], E
 pub type ArrFile = Vec<ElementData>;
 
 pub fn element(input: &[u8]) -> IResult<&[u8], ElementData> {
-    flat_map(element_type, |data_type| element_data(data_type))(input)
+    flat_map(element_type, element_data)(input)
 }
 
-pub fn parse_arr(data: &[u8]) -> ArrFile {
+pub fn parse_arr(data: &[u8]) -> Result<ArrFile, nom::Err<nom::error::Error<&[u8]>>> {
     trace!("Detected data array file.");
-    let (mut data, header) = header(data).unwrap();
+    let (mut data, header) = header(data)?;
     trace!("{:?}", header);
     let mut elements = Vec::<ElementData>::new();
     for _ in 0..header.size {
-        let result = element(data).unwrap();
+        let result = element(data)?;
         data = result.0;
         elements.push(result.1);
     }
     trace!("{:?}", elements);
-    elements
+    Ok(elements)
 }
 
 pub fn serialize_arr(arr: &[ElementData]) -> std::io::Result<Arc<Vec<u8>>> {
+    trace!("Serializing ARR with elements: {:?}", arr);
     let total_size = 4 + arr
         .iter()
         .map(|e| match e {
@@ -137,7 +138,7 @@ pub fn serialize_arr(arr: &[ElementData]) -> std::io::Result<Arc<Vec<u8>>> {
             ElementData::String(s) => {
                 cur.write_i32::<LE>(2)?;
                 cur.write_u32::<LE>(s.total_length() as u32)?;
-                cur.write(&s.clone().to_bytes().map_err(|e| std::io::Error::other(e))?)?;
+                cur.write_all(&s.clone().to_bytes().map_err(std::io::Error::other)?)?;
             }
             ElementData::Boolean(b) => {
                 cur.write_i32::<LE>(3)?;
@@ -153,6 +154,7 @@ pub fn serialize_arr(arr: &[ElementData]) -> std::io::Result<Arc<Vec<u8>>> {
 }
 
 #[cfg(test)]
+#[allow(clippy::approx_constant)]
 mod test_arr_serialization {
     use super::*;
 
@@ -164,7 +166,8 @@ mod test_arr_serialization {
                 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, b'h', b'i', 0x02, 0x00, 0x00, 0x00, 0x03, 0x00,
                 0x00, 0x00, b'h', b'\0', b'k', 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
                 0x04, 0x00, 0x00, 0x00, 0xA8, 0x7A, 0x00, 0x00,
-            ]),
+            ])
+            .unwrap(),
             &[
                 ElementData::Integer(-1),
                 ElementData::String(DecodedStr("hi".to_owned(), None)),
