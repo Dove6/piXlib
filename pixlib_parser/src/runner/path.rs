@@ -24,6 +24,10 @@ impl ScenePath {
         }
     }
 
+    pub fn flatten(&self) -> Path {
+        self.dir_path.with_appended(&self.file_path)
+    }
+
     pub fn to_str(&self) -> String {
         self.dir_path.with_appended(&self.file_path).to_str()
     }

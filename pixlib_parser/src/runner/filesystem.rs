@@ -82,6 +82,22 @@ impl dyn FileSystem {
         }
         Err(std::io::Error::from(std::io::ErrorKind::NotFound))
     }
+
+    pub fn write_scene_asset(
+        &mut self,
+        game_paths: Arc<GamePaths>,
+        scene_path: &ScenePath,
+        data: &[u8],
+    ) -> std::io::Result<()> {
+        info!(
+            "write_scene_file({:?}, {:?})",
+            game_paths.data_directory, scene_path,
+        );
+        let mut path = scene_path.flatten();
+        path.prepend(&game_paths.data_directory);
+        trace!("Saving at path: {:?}", path);
+        self.write_file(&path, data)
+    }
 }
 
 #[derive(Debug)]

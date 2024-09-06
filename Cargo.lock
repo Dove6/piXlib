@@ -3164,6 +3164,7 @@ dependencies = [
 name = "pixlib_formats"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
  "codepage-strings",
  "lazy_static",
  "log",

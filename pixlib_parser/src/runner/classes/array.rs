@@ -1,5 +1,10 @@
 use std::{any::Any, cell::RefCell};
 
+use pixlib_formats::file_formats::{
+    arr::{parse_arr, serialize_arr, ElementData},
+    DecodedStr,
+};
+
 use super::super::{
     content::EventHandler,
     initable::Initable,
@@ -162,9 +167,11 @@ impl CnvType for Array {
             CallableIdentifier::Method("INSERTAT") => {
                 self.state.borrow_mut().insert_at().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("LOAD") => {
-                self.state.borrow_mut().load().map(|_| CnvValue::Null)
-            }
+            CallableIdentifier::Method("LOAD") => self
+                .state
+                .borrow_mut()
+                .load(context, &arguments[0].to_str())
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("LOADINI") => {
                 self.state.borrow_mut().load_ini().map(|_| CnvValue::Null)
             }
@@ -230,9 +237,11 @@ impl CnvType for Array {
                 .borrow_mut()
                 .rotate_right()
                 .map(|_| CnvValue::Null),
-            CallableIdentifier::Method("SAVE") => {
-                self.state.borrow_mut().save().map(|_| CnvValue::Null)
-            }
+            CallableIdentifier::Method("SAVE") => self
+                .state
+                .borrow_mut()
+                .save(context, &arguments[0].to_str())
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SAVEINI") => {
                 self.state.borrow_mut().save_ini().map(|_| CnvValue::Null)
             }
@@ -457,9 +466,31 @@ impl ArrayState {
         todo!()
     }
 
-    pub fn load(&mut self) -> anyhow::Result<()> {
+    pub fn load(&mut self, context: RunnerContext, filename: &str) -> anyhow::Result<()> {
         // LOAD
-        todo!()
+        let script = context.current_object.parent.as_ref();
+        let filesystem = Arc::clone(&script.runner.filesystem);
+        let data = filesystem
+            .write()
+            .unwrap()
+            .read_scene_asset(
+                Arc::clone(&script.runner.game_paths),
+                &script.path.with_file_path(filename),
+            )
+            .map_err(|_| RunnerError::IoError {
+                source: std::io::Error::from(std::io::ErrorKind::NotFound),
+            })?;
+        let data = parse_arr(&data);
+        self.values = data
+            .into_iter()
+            .map(|e| match e {
+                ElementData::Integer(i) => CnvValue::Integer(i),
+                ElementData::String(s) => CnvValue::String(s.0),
+                ElementData::Boolean(b) => CnvValue::Bool(b),
+                ElementData::FixedPoint(d) => CnvValue::Double(d),
+            })
+            .collect();
+        Ok(())
     }
 
     pub fn load_ini(&mut self) -> anyhow::Result<()> {
@@ -558,9 +589,33 @@ impl ArrayState {
         todo!()
     }
 
-    pub fn save(&mut self) -> anyhow::Result<()> {
+    pub fn save(&mut self, context: RunnerContext, filename: &str) -> anyhow::Result<()> {
         // SAVE
-        todo!()
+        let script = context.current_object.parent.as_ref();
+        let filesystem = Arc::clone(&script.runner.filesystem);
+        let data = serialize_arr(
+            &self
+                .values
+                .iter()
+                .map(|v| match v {
+                    CnvValue::Integer(i) => ElementData::Integer(*i),
+                    CnvValue::Double(d) => ElementData::FixedPoint(*d),
+                    CnvValue::Bool(b) => ElementData::Boolean(*b),
+                    CnvValue::String(s) => ElementData::String(DecodedStr(s.clone(), None)),
+                    CnvValue::Null => ElementData::String(DecodedStr("NULL".to_owned(), None)),
+                })
+                .collect::<Vec<_>>(),
+        )
+        .map_err(|e| RunnerError::IoError { source: e })?;
+        return Ok(filesystem
+            .write()
+            .unwrap()
+            .write_scene_asset(
+                Arc::clone(&script.runner.game_paths),
+                &script.path.with_file_path(filename),
+                &data,
+            )
+            .map_err(|e| RunnerError::IoError { source: e })?);
     }
 
     pub fn save_ini(&mut self) -> anyhow::Result<()> {

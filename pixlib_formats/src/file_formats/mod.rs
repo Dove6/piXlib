@@ -117,7 +117,7 @@ impl DecodedStr {
     }
 
     pub fn total_length(&self) -> usize {
-        self.0.len() + self.1.as_ref().map(Vec::<u8>::len).unwrap_or(0)
+        self.0.len() + self.1.as_ref().map(|v| v.len() + 1).unwrap_or(0)
     }
 
     pub fn is_totally_empty(&self) -> bool {
@@ -138,6 +138,16 @@ impl DecodedStr {
             None
         };
         Self::from_bytes(&src[..null_index]).map(|s| s.with_rest(rest))
+    }
+
+    pub fn to_bytes(self) -> Result<Vec<u8>, ConvertError> {
+        STRING_ENCODING.encode(self.0).map(|mut v| {
+            if let Some(suffix) = self.1 {
+                v.push(b'\0');
+                v.extend(suffix);
+            }
+            v
+        })
     }
 }
 
