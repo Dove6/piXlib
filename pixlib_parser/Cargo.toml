@@ -28,7 +28,7 @@ zip = { version = "2.1", default-features = false, features = [
     "deflate",
     "time",
 ] }
-image = "0.25"
+image = { version = "0.25", default-features = false, features = ["rayon"] }
 
 [build-dependencies]
 lalrpop = "0.20"
