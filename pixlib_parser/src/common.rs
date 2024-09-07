@@ -307,12 +307,12 @@ impl<TOk, TErr> From<OkResult<TOk, TErr>> for Result<TOk, TErr> {
     }
 }
 
-impl<TOk, TErr: Display> LoggableToOption<TOk> for OkResult<TOk, TErr> {
+impl<TOk, TErr: std::fmt::Debug> LoggableToOption<TOk> for OkResult<TOk, TErr> {
     fn ok_or_trace(self) -> Option<TOk> {
         match self {
             NoError(value) => Some(value),
             WithError(value, e) => {
-                trace!("{}", e);
+                trace!("{:?}", e);
                 Some(value)
             }
         }
@@ -322,7 +322,7 @@ impl<TOk, TErr: Display> LoggableToOption<TOk> for OkResult<TOk, TErr> {
         match self {
             NoError(value) => Some(value),
             WithError(value, e) => {
-                info!("{}", e);
+                info!("{:?}", e);
                 Some(value)
             }
         }
@@ -332,7 +332,7 @@ impl<TOk, TErr: Display> LoggableToOption<TOk> for OkResult<TOk, TErr> {
         match self {
             NoError(value) => Some(value),
             WithError(value, e) => {
-                warn!("{}", e);
+                warn!("{:?}", e);
                 Some(value)
             }
         }
@@ -342,7 +342,7 @@ impl<TOk, TErr: Display> LoggableToOption<TOk> for OkResult<TOk, TErr> {
         match self {
             NoError(value) => Some(value),
             WithError(value, e) => {
-                error!("{}", e);
+                error!("{:?}", e);
                 Some(value)
             }
         }

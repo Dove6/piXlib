@@ -9,14 +9,12 @@ use bevy::{
     },
     sprite::{Anchor, Sprite},
 };
+use pixlib_formats::Rect;
 use std::ops::Add;
 
 use pixlib_parser::{
     common::{Issue, IssueHandler, IssueKind},
-    runner::{
-        common::{ImageData, ImageDefinition, SpriteData},
-        Rect,
-    },
+    runner::common::{ImageData, ImageDefinition, SpriteData},
 };
 
 pub fn image_data_to_handle(

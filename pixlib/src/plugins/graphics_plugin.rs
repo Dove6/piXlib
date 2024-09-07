@@ -4,34 +4,20 @@ use bevy::{
     log::{error, info},
     math::Vec3,
     prelude::{
-        in_state, BuildChildren, Bundle, Commands, Component, Condition, Entity, EventReader,
-        Image, IntoSystemConfigs, NonSend, OnExit, Query, Res, ResMut, SpatialBundle, Transform,
-        Visibility, With,
+        in_state, BuildChildren, Bundle, Commands, Component, Condition, EventReader, Image,
+        IntoSystemConfigs, NonSend, OnExit, Query, ResMut, SpatialBundle, Transform, Visibility,
     },
-    render::view::screenshot::ScreenshotManager,
     sprite::{Anchor, Sprite, SpriteBundle},
-    window::PrimaryWindow,
 };
-use lazy_static::lazy_static;
-use regex::Regex;
 
-use pixlib_parser::{
-    common::LoggableToOption,
-    runner::{
-        classes::GeneralGraphics, CnvContent, FileSystem, GraphicsEvent, ScenePath, ScriptEvent,
-    },
-};
+use pixlib_parser::runner::{classes::GeneralGraphics, CnvContent, ScenePath, ScriptEvent};
 
 use crate::{
-    filesystems::FileSystemResource,
     util::{animation_data_to_handle, image_data_to_handle},
     AppState,
 };
 
-use super::{
-    events_plugin::{PixlibGraphicsEvent, PixlibScriptEvent},
-    scripts_plugin::ScriptRunner,
-};
+use super::{events_plugin::PixlibScriptEvent, scripts_plugin::ScriptRunner};
 
 const POOL_SIZE: usize = 50;
 
@@ -43,12 +29,7 @@ impl Plugin for GraphicsPlugin {
         app.add_systems(Startup, create_pool)
             .add_systems(
                 Update,
-                (
-                    update_background,
-                    update_images,
-                    update_animations,
-                    take_screenshot,
-                )
+                (update_background, update_images, update_animations)
                     .run_if(in_state(AppState::SceneViewer)),
             )
             .add_systems(
@@ -226,7 +207,7 @@ pub fn update_background(
             *visibility = Visibility::Hidden;
             continue;
         };
-        let Some((image_definition, image_data)) = background_data else {
+        let Some((_, image_definition, image_data)) = background_data else {
             *visibility = Visibility::Hidden;
             continue;
         };
@@ -393,39 +374,5 @@ pub fn update_animations(
             //     frame_definition.offset_px.1,
             // );
         }
-    }
-}
-
-lazy_static! {
-    static ref IMG_EXTENSION_REGEX: Regex =
-        Regex::new(r"\.img$").expect("The regex for .img extension should be defined correctly.");
-}
-
-fn take_screenshot(
-    mut reader: EventReader<PixlibGraphicsEvent>,
-    main_window: Query<Entity, With<PrimaryWindow>>,
-    mut screenshot_manager: ResMut<ScreenshotManager>,
-    filesystem: Res<FileSystemResource>,
-) {
-    if !filesystem.is_ready() {
-        return;
-    }
-    for path in reader.read().filter_map(|e| {
-        if let GraphicsEvent::ScreenshotTaken(s) = &e.0 {
-            Some(s.clone())
-        } else {
-            None
-        }
-    }) {
-        let filesystem = (*filesystem).clone();
-        screenshot_manager
-            .take_screenshot(main_window.single(), move |image| {
-                (*filesystem)
-                    .write()
-                    .unwrap()
-                    .write_file(&IMG_EXTENSION_REGEX.replace(&path, ".png"), &image.data)
-                    .ok_or_error();
-            })
-            .ok_or_error();
     }
 }

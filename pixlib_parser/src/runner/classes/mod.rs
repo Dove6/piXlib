@@ -120,6 +120,7 @@ pub trait GeneralGraphics {
     fn is_visible(&self) -> anyhow::Result<bool>;
     fn get_rect(&self) -> anyhow::Result<Option<Rect>>;
     fn get_priority(&self) -> anyhow::Result<isize>;
+    fn get_pixel_data(&self) -> anyhow::Result<Arc<Vec<u8>>>;
 }
 
 pub trait GeneralButton {

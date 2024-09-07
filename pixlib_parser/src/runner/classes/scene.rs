@@ -728,7 +728,9 @@ impl SceneState {
             .map_err(|_| RunnerError::IoError {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
             })?;
-        let data = parse_img(&data);
+        let data = parse_img(&data)
+            .ok_or_error()
+            .ok_or(RunnerError::CouldNotLoadFile(path.to_str()))?;
         let converted_data = data
             .image_data
             .to_rgba8888(data.header.color_format, data.header.compression_type);

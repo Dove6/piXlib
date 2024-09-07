@@ -1,5 +1,6 @@
 use lazy_static::lazy_static;
-use pixlib_formats::file_formats::img::parse_img;
+use pixlib_formats::file_formats::img::{parse_img, serialize_img};
+use pixlib_formats::file_formats::{ColorFormat, CompressionType};
 use std::any::Any;
 use std::sync::RwLock;
 use xxhash_rust::xxh3::xxh3_64;
@@ -111,26 +112,24 @@ impl CanvasObserver {
         Ok(())
     }
 
-    pub fn get_background_to_show(&self) -> anyhow::Result<Option<(ImageDefinition, ImageData)>> {
-        let runner = &self.parent.parent.runner;
+    pub fn get_background_to_show(
+        &self,
+    ) -> anyhow::Result<Option<(Rect, ImageDefinition, ImageData)>> {
+        let context = RunnerContext::new_minimal(&self.parent.parent.runner, &self.parent);
         let mut state = GLOBAL_CANVAS_OBSERVER_STATE.write().unwrap();
-        if let ImageFileData::NotLoaded(filename) = &state.background_data {
-            let Some(current_scene) = runner.get_current_scene() else {
-                return Ok(None);
-            };
-            let CnvContent::Scene(current_scene) = &current_scene.content else {
-                unreachable!();
-            };
-            let path = ScenePath::new(&current_scene.get_script_path().unwrap(), filename);
-            state.load_background(runner, &path)?;
-        } else if let ImageFileData::Empty = &state.background_data {
+        state.load_background_if_needed(context)?;
+        if matches!(state.background_data, ImageFileData::Empty) {
             return Ok(None);
         }
         let ImageFileData::Loaded(loaded_background) = &state.background_data else {
             unreachable!();
         };
         let image = &loaded_background.image;
-        Ok(Some((image.0.clone(), image.1.clone())))
+        let rect = Rect::from(
+            (image.0.offset_px.0 as isize, image.0.offset_px.1 as isize),
+            (image.0.size_px.0 as usize, image.0.size_px.1 as usize),
+        );
+        Ok(Some((rect, image.0.clone(), image.1.clone())))
     }
 }
 
@@ -375,14 +374,28 @@ impl CanvasObserverState {
 
     pub fn save(&mut self, context: RunnerContext, filename: &str) -> anyhow::Result<()> {
         // SAVE
+        self.load_background_if_needed(context.clone())?;
+        let background = if let ImageFileData::Loaded(loaded_background) = &self.background_data {
+            let image = &loaded_background.image;
+            let rect = Rect::from(
+                (image.0.offset_px.0 as isize, image.0.offset_px.1 as isize),
+                (image.0.size_px.0 as usize, image.0.size_px.1 as usize),
+            );
+            Some((rect, image.1.data.clone()))
+        } else {
+            None
+        };
+        let (rect, data) = context.runner.get_screenshot(background)?;
         context
             .runner
-            .events_out
-            .graphics
-            .borrow_mut()
-            .use_and_drop_mut(|events| {
-                events.push_back(GraphicsEvent::ScreenshotTaken(filename.to_owned()))
-            });
+            .filesystem
+            .write()
+            .unwrap()
+            .write_scene_asset(
+                context.runner.game_paths.clone(),
+                &context.current_object.parent.path.with_file_path(filename),
+                &serialize_img(&data, rect, CompressionType::None, ColorFormat::Rgb565)?,
+            )?;
         Ok(())
     }
 
@@ -423,7 +436,9 @@ impl CanvasObserverState {
             .map_err(|_| RunnerError::IoError {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
             })?;
-        let data = parse_img(&data);
+        let data = parse_img(&data)
+            .ok_or_error()
+            .ok_or(RunnerError::CouldNotLoadFile(path.to_str()))?;
         let converted_data = data
             .image_data
             .to_rgba8888(data.header.color_format, data.header.compression_type);
@@ -441,5 +456,20 @@ impl CanvasObserverState {
             ),
         });
         Ok(())
+    }
+
+    fn load_background_if_needed(&mut self, context: RunnerContext) -> anyhow::Result<()> {
+        if let ImageFileData::NotLoaded(filename) = &self.background_data {
+            let Some(current_scene) = context.runner.get_current_scene() else {
+                return Ok(());
+            };
+            let CnvContent::Scene(current_scene) = &current_scene.content else {
+                unreachable!();
+            };
+            let path = ScenePath::new(&current_scene.get_script_path().unwrap(), filename);
+            self.load_background(&context.runner, &path)
+        } else {
+            Ok(())
+        }
     }
 }

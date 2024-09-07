@@ -230,6 +230,12 @@ impl GeneralGraphics for Image {
     fn get_priority(&self) -> anyhow::Result<isize> {
         self.state.borrow().get_priority()
     }
+
+    fn get_pixel_data(&self) -> anyhow::Result<Arc<Vec<u8>>> {
+        self.get_image_to_show()?
+            .map(|r| r.1.data)
+            .ok_or(RunnerError::NoImageDataLoaded(self.parent.name.clone()).into())
+    }
 }
 
 impl GeneralButton for Image {
@@ -939,7 +945,9 @@ impl ImageState {
             .map_err(|_| RunnerError::IoError {
                 source: std::io::Error::from(std::io::ErrorKind::NotFound),
             })?;
-        let data = parse_img(&data);
+        let data = parse_img(&data)
+            .ok_or_error()
+            .ok_or(RunnerError::CouldNotLoadFile(filename.to_owned()))?;
         let converted_data = data
             .image_data
             .to_rgba8888(data.header.color_format, data.header.compression_type);

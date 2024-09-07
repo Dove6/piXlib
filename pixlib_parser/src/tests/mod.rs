@@ -12,15 +12,16 @@ use goldenfile::{
     differs::{binary_diff, Differ},
     Mint,
 };
-use pixlib_formats::file_formats::arr::parse_arr;
+use pixlib_formats::file_formats::{arr::parse_arr, img::parse_img};
 use runner::*;
 use test_case::test_case;
 
 static OUTPUT_DIR_PATH: &str = "output";
 
 #[test_case("basic_structure", &["OUT.ARR"])]
+#[test_case("basic_image", &["OUT.IMG"])]
 fn run_snapshot_test(dir_path: &str, snapshot_files: &[&str]) {
-    env_logger::init();
+    env_logger::try_init().ok_or_error();
     let test_dir_path = PathBuf::from_iter([env!("CARGO_MANIFEST_DIR"), "src/tests", dir_path]);
 
     let mut original_snapshots = Mint::new(test_dir_path.join(OUTPUT_DIR_PATH));
@@ -41,7 +42,7 @@ fn run_snapshot_test(dir_path: &str, snapshot_files: &[&str]) {
     let filesystem = Arc::new(RwLock::new(LayeredFileSystem {
         layers: vec![main_fs, golden_fs],
     }));
-    let runner = CnvRunner::try_new(filesystem, Default::default(), Default::default()).unwrap();
+    let runner = CnvRunner::try_new(filesystem, Default::default(), (800, 600)).unwrap();
     runner.reload_application().unwrap();
     while !runner
         .events_out
@@ -51,6 +52,13 @@ fn run_snapshot_test(dir_path: &str, snapshot_files: &[&str]) {
         .any(|e| *e == ApplicationEvent::ApplicationExited)
     {
         runner.events_out.app.borrow_mut().clear();
+        runner
+            .events_in
+            .timer
+            .borrow_mut()
+            .push_back(TimerEvent::Elapsed {
+                seconds: 1.0 / 16.0,
+            });
         runner.step().unwrap();
     }
 }
@@ -96,6 +104,8 @@ fn choose_differ(filename: &str) -> Differ {
     let ext = filename[filename.rfind('.').unwrap_or(0)..].to_ascii_lowercase();
     match ext.as_ref() {
         ".arr" => Box::new(arr_diff),
+        ".img" => Box::new(img_diff),
+        ".png" => Box::new(png_diff),
         _ => Box::new(binary_diff),
     }
 }
@@ -115,6 +125,87 @@ fn try_arr_diff(old: &std::path::Path, new: &std::path::Path) -> Result<(), ()> 
             .ok_or_error()
             .ok_or(())?,
     );
+    Ok(())
+}
+
+fn img_diff(old: &std::path::Path, new: &std::path::Path) {
+    if try_img_diff(old, new).is_err() {
+        binary_diff(old, new);
+    }
+}
+
+fn try_img_diff(old: &std::path::Path, new: &std::path::Path) -> Result<(), ()> {
+    let old = std::fs::read(old).unwrap();
+    let new = std::fs::read(new).unwrap();
+    let old = parse_img(&old).ok_or_error().ok_or(())?;
+    let new = parse_img(&new).ok_or_error().ok_or(())?;
+    assert_eq!(
+        (old.header.width_px, old.header.height_px),
+        (new.header.width_px, new.header.height_px),
+        "Differing dimensions"
+    );
+    assert_eq!(
+        (old.header.x_position_px, old.header.y_position_px),
+        (new.header.x_position_px, new.header.y_position_px),
+        "Differing position"
+    );
+    if old.header.compression_type == new.header.compression_type {
+        assert_eq!(
+            old.header.color_size_bytes, new.header.color_size_bytes,
+            "Differing color size"
+        );
+        assert_eq!(
+            old.header.alpha_size_bytes, new.header.alpha_size_bytes,
+            "Differing alpha size"
+        );
+    }
+    let old_decoded = old
+        .image_data
+        .to_rgba8888(old.header.color_format, old.header.compression_type);
+    let new_decoded = new
+        .image_data
+        .to_rgba8888(new.header.color_format, new.header.compression_type);
+    for (i, (old_pixel, new_pixel)) in old_decoded.chunks(4).zip(new_decoded.chunks(4)).enumerate()
+    {
+        let x = i % old.header.width_px as usize;
+        let y = i / old.header.width_px as usize;
+        assert_eq!(
+            old_pixel, new_pixel,
+            "Differing pixel value at (x: {x}, y: {y})"
+        );
+    }
+    assert_eq!(
+        old.header.compression_type, new.header.compression_type,
+        "Differing compression type"
+    );
+    assert_eq!(
+        old.header.color_format, new.header.color_format,
+        "Differing color format"
+    );
+    Ok(())
+}
+
+fn png_diff(old: &std::path::Path, new: &std::path::Path) {
+    if try_png_diff(old, new).is_err() {
+        binary_diff(old, new);
+    }
+}
+
+fn try_png_diff(old: &std::path::Path, new: &std::path::Path) -> Result<(), ()> {
+    let old = image::open(old).ok_or_error().ok_or(())?.into_rgba8();
+    let new = image::open(new).ok_or_error().ok_or(())?.into_rgba8();
+    assert_eq!(
+        (old.width(), old.height()),
+        (new.width(), new.height()),
+        "Differing dimensions"
+    );
+    for (x, y, pixel) in old.enumerate_pixels() {
+        assert_eq!(
+            pixel,
+            new.get_pixel(x, y),
+            "Differing pixel value at (x: {x}, y: {y})"
+        );
+    }
     Ok(())
 }
 

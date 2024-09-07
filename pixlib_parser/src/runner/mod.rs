@@ -25,10 +25,12 @@ pub use events::{
     TimerEvent,
 };
 pub use filesystem::{FileSystem, GamePaths};
+use image::{ImageBuffer, Pixel, Rgba};
 use itertools::Itertools;
 use log::{error, warn};
 pub use object::{CnvObject, ObjectBuildErrorKind, ObjectBuilderError};
 pub use path::{Path, ScenePath};
+use pixlib_formats::Rect;
 pub use script::{CnvScript, ScriptSource};
 use thiserror::Error;
 pub use tree_walking::{CnvExpression, CnvStatement};
@@ -48,7 +50,7 @@ use crate::{
     parser::declarative_parser::{self, CnvDeclaration, DeclarativeParser, ParserFatal},
     scanner::parse_cnv,
 };
-use classes::{GeneralButton, InternalMouseEvent, Mouse};
+use classes::{GeneralButton, GeneralGraphics, InternalMouseEvent, Mouse};
 use object::CnvObjectBuilder;
 
 trait SomeWarnable {
@@ -208,72 +210,6 @@ impl Default for CursorState {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Rect {
-    pub top_left_x: isize,
-    pub top_left_y: isize,
-    pub bottom_right_x: isize,
-    pub bottom_right_y: isize,
-}
-
-impl Rect {
-    pub fn from(position: (isize, isize), size: (usize, usize)) -> Self {
-        Self {
-            top_left_x: position.0,
-            top_left_y: position.1,
-            bottom_right_x: position.0 + size.0 as isize,
-            bottom_right_y: position.1 + size.1 as isize,
-        }
-    }
-
-    pub fn intersect(&self, other: &Self) -> Option<Self> {
-        let intersection = Self {
-            top_left_x: self.top_left_x.max(other.top_left_x),
-            top_left_y: self.top_left_y.max(other.top_left_y),
-            bottom_right_x: self.bottom_right_x.min(other.bottom_right_x),
-            bottom_right_y: self.bottom_right_y.min(other.bottom_right_y),
-        };
-        if intersection.bottom_right_x < intersection.top_left_x
-            || intersection.bottom_right_y < intersection.top_left_y
-        {
-            None
-        } else {
-            Some(intersection)
-        }
-    }
-
-    pub fn has_inside(&self, x: isize, y: isize) -> bool {
-        x.clamp(self.top_left_x, self.bottom_right_x) == x
-            && y.clamp(self.top_left_y, self.bottom_right_y) == y
-    }
-
-    pub fn get_width(&self) -> usize {
-        (self.bottom_right_x - self.top_left_x) as usize
-    }
-
-    pub fn get_height(&self) -> usize {
-        (self.bottom_right_y - self.top_left_y) as usize
-    }
-
-    pub fn get_center(&self) -> (isize, isize) {
-        (
-            self.top_left_x + self.get_width() as isize / 2,
-            self.top_left_y + self.get_height() as isize / 2,
-        )
-    }
-}
-
-impl From<(isize, isize, isize, isize)> for Rect {
-    fn from(value: (isize, isize, isize, isize)) -> Self {
-        Self {
-            top_left_x: value.0,
-            top_left_y: value.1,
-            bottom_right_x: value.2,
-            bottom_right_y: value.3,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ObjectIndex {
     pub script_idx: usize,
@@ -317,6 +253,36 @@ impl PartialOrd for ButtonDescriptor {
 }
 
 impl Ord for ButtonDescriptor {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match other.priority.cmp(&self.priority) {
+            core::cmp::Ordering::Equal => self.object_index.cmp(&other.object_index),
+            ord => ord,
+        }
+    }
+}
+
+struct GraphicsDescriptor {
+    pub priority: isize,
+    pub object_index: ObjectIndex,
+    pub object: Arc<CnvObject>,
+    pub rect: Rect,
+}
+
+impl PartialEq for GraphicsDescriptor {
+    fn eq(&self, other: &Self) -> bool {
+        self.priority == other.priority && self.object_index == other.object_index
+    }
+}
+
+impl Eq for GraphicsDescriptor {}
+
+impl PartialOrd for GraphicsDescriptor {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for GraphicsDescriptor {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match other.priority.cmp(&self.priority) {
             core::cmp::Ordering::Equal => self.object_index.cmp(&other.object_index),
@@ -884,6 +850,98 @@ impl CnvRunner {
             }
         }
         Ok(result_index)
+    }
+
+    pub fn get_screenshot(
+        &self,
+        background: Option<(Rect, Arc<Vec<u8>>)>,
+    ) -> anyhow::Result<(Rect, Vec<u8>)> {
+        let mut visible_graphics = Vec::new();
+        self.filter_map_objects(
+            |id, o| {
+                let graphics: &dyn GeneralGraphics = match &o.content {
+                    CnvContent::Animation(a) => a,
+                    CnvContent::Image(i) => i,
+                    _ => return Ok(None),
+                };
+                if !graphics.is_visible()? {
+                    return Ok(None);
+                }
+                let Some(rect) = graphics.get_rect().ok_or_error().flatten() else {
+                    return Ok(None);
+                };
+                Ok(Some(GraphicsDescriptor {
+                    priority: graphics.get_priority()?,
+                    object_index: id,
+                    object: o.clone(),
+                    rect,
+                }))
+            },
+            &mut visible_graphics,
+        )?;
+        visible_graphics.sort();
+        visible_graphics.reverse();
+        let mut visible_graphics: Vec<_> = visible_graphics
+            .into_iter()
+            .filter_map(|graphics| {
+                let graphics_rect = graphics.rect;
+                graphics_rect.intersect(&self.window_rect)?;
+                let graphics: &dyn GeneralGraphics = match &graphics.object.content {
+                    CnvContent::Animation(a) => a,
+                    CnvContent::Image(i) => i,
+                    _ => unreachable!(),
+                };
+                let graphics = graphics.get_pixel_data().ok_or_error()?.clone();
+                Some((graphics_rect, graphics))
+            })
+            .collect();
+        if let Some(background) = background {
+            visible_graphics.insert(0, background);
+        };
+        let mut screenshot: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_pixel(
+            self.window_rect.get_width() as u32,
+            self.window_rect.get_height() as u32,
+            Rgba([0xFF, 0xFF, 0xFF, 0xFF]),
+        );
+        for (graphics_rect, graphics) in visible_graphics.into_iter() {
+            let Some(fitting_rect) = graphics_rect.intersect(&self.window_rect) else {
+                unreachable!();
+            };
+            let graphics: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_raw(
+                graphics_rect.get_width() as u32,
+                graphics_rect.get_height() as u32,
+                (*graphics).clone(),
+            )
+            .unwrap();
+            let graphics_offset: (u32, u32) = (
+                (fitting_rect.top_left_x - graphics_rect.top_left_x) as u32,
+                (fitting_rect.top_left_y - graphics_rect.top_left_y) as u32,
+            );
+            let graphics_limit: (u32, u32) = (
+                (graphics_offset.0 as usize + fitting_rect.get_width()) as u32,
+                (graphics_offset.1 as usize + fitting_rect.get_height()) as u32,
+            );
+            let window_offset: (u32, u32) = (
+                (fitting_rect.top_left_x - self.window_rect.top_left_x) as u32,
+                (fitting_rect.top_left_y - self.window_rect.top_left_y) as u32,
+            );
+            for (x, y, pixel) in graphics.enumerate_pixels() {
+                if x < graphics_offset.0
+                    || y < graphics_offset.1
+                    || x >= graphics_limit.0
+                    || y >= graphics_limit.1
+                {
+                    continue;
+                }
+                screenshot
+                    .get_pixel_mut(
+                        x - graphics_offset.0 + window_offset.0,
+                        y - graphics_offset.1 + window_offset.1,
+                    )
+                    .blend(pixel);
+            }
+        }
+        Ok((self.window_rect, screenshot.into_raw()))
     }
 
     pub fn load_script(

@@ -368,6 +368,12 @@ impl GeneralGraphics for Animation {
     fn get_priority(&self) -> anyhow::Result<isize> {
         self.state.borrow().get_priority()
     }
+
+    fn get_pixel_data(&self) -> anyhow::Result<Arc<Vec<u8>>> {
+        self.get_frame_to_show()?
+            .map(|r| r.1.data)
+            .ok_or(RunnerError::NoImageDataLoaded(self.parent.name.clone()).into())
+    }
 }
 
 impl GeneralButton for Animation {
