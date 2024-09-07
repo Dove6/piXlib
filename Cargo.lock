@@ -3276,6 +3276,7 @@ dependencies = [
  "bevy_web_file_drop",
  "chrono",
  "codepage-strings",
+ "lazy_static",
  "log",
  "pixlib_formats",
  "pixlib_parser",

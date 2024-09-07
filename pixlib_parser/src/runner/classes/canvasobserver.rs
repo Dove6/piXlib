@@ -203,9 +203,12 @@ impl CnvType for CanvasObserver {
             CallableIdentifier::Method("REMOVE") => {
                 self.state.write().unwrap().remove().map(|_| CnvValue::Null)
             }
-            CallableIdentifier::Method("SAVE") => {
-                self.state.write().unwrap().save().map(|_| CnvValue::Null)
-            }
+            CallableIdentifier::Method("SAVE") => self
+                .state
+                .write()
+                .unwrap()
+                .save(context, &arguments[0].to_str())
+                .map(|_| CnvValue::Null),
             CallableIdentifier::Method("SETBACKGROUND") => self
                 .state
                 .write()
@@ -370,9 +373,17 @@ impl CanvasObserverState {
         todo!()
     }
 
-    pub fn save(&mut self) -> anyhow::Result<()> {
+    pub fn save(&mut self, context: RunnerContext, filename: &str) -> anyhow::Result<()> {
         // SAVE
-        todo!()
+        context
+            .runner
+            .events_out
+            .graphics
+            .borrow_mut()
+            .use_and_drop_mut(|events| {
+                events.push_back(GraphicsEvent::ScreenshotTaken(filename.to_owned()))
+            });
+        Ok(())
     }
 
     pub fn set_background(

@@ -142,6 +142,7 @@ pub enum GraphicsEvent {
     GraphicsLoaded,
     GraphicsFlipped,
     FrameChanged,
+    ScreenshotTaken(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
