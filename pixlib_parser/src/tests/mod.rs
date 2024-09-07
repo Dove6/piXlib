@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fs::File,
     io::{Read, Seek, Write},
     path::PathBuf,
     sync::{Arc, RwLock},
@@ -9,9 +10,10 @@ use super::*;
 use crate::common::LoggableToOption;
 use filesystems::GameDirectory;
 use goldenfile::{
-    differs::{binary_diff, Differ},
+    differs::{binary_diff, text_diff, Differ},
     Mint,
 };
+use image::{ImageBuffer, ImageFormat, Rgba};
 use pixlib_formats::file_formats::{arr::parse_arr, img::parse_img};
 use runner::*;
 use test_case::test_case;
@@ -33,14 +35,16 @@ fn run_snapshot_test(dir_path: &str, snapshot_files: &[&str]) {
         snapshot_files.iter().map(|n| {
             (
                 Path::from(OUTPUT_DIR_PATH).with_appended(n),
-                original_snapshots
-                    .new_goldenfile_with_differ(n, choose_differ(n))
-                    .unwrap(),
+                RwFileBuffer::new(
+                    original_snapshots
+                        .new_goldenfile_with_differ(n, choose_differ(n))
+                        .unwrap(),
+                ),
             )
         }),
     ))));
     let filesystem = Arc::new(RwLock::new(LayeredFileSystem {
-        layers: vec![main_fs, golden_fs],
+        layers: vec![main_fs, golden_fs.clone()],
     }));
     let runner = CnvRunner::try_new(filesystem, Default::default(), (800, 600)).unwrap();
     runner.reload_application().unwrap();
@@ -61,10 +65,118 @@ fn run_snapshot_test(dir_path: &str, snapshot_files: &[&str]) {
             });
         runner.step().unwrap();
     }
+    for filename in snapshot_files.iter() {
+        let golden_path = Path::from(OUTPUT_DIR_PATH).with_appended(filename);
+        let mut golden_fs_guard = golden_fs.write().unwrap();
+        let Some(golden_original) = golden_fs_guard.0.get_mut(&golden_path) else {
+            continue;
+        };
+        let mut vec = Vec::new();
+        golden_original.rewind().unwrap();
+        golden_original.read_to_end(&mut vec).unwrap();
+        if let Some(human_readable_name) = filename
+            .to_ascii_uppercase()
+            .strip_suffix(".ARR")
+            .map(|p| p.to_owned() + ".TXT")
+        {
+            let mut human_readable = original_snapshots
+                .new_goldenfile_with_differ(
+                    &human_readable_name,
+                    choose_differ(&human_readable_name),
+                )
+                .unwrap();
+            if let Ok(parsed_arr) = parse_arr(&vec) {
+                human_readable
+                    .write_all(format!("{:#?}", parsed_arr).as_bytes())
+                    .unwrap();
+            }
+        } else if let Some(human_readable_name) = filename
+            .to_ascii_uppercase()
+            .strip_suffix(".IMG")
+            .map(|p| p.to_owned() + ".PNG")
+        {
+            let mut human_readable = original_snapshots
+                .new_goldenfile_with_differ(
+                    &human_readable_name,
+                    choose_differ(&human_readable_name),
+                )
+                .unwrap();
+            if let Ok(parsed_img) = parse_img(&vec) {
+                let image: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_raw(
+                    parsed_img.header.width_px,
+                    parsed_img.header.height_px,
+                    (*parsed_img.image_data.to_rgba8888(
+                        parsed_img.header.color_format,
+                        parsed_img.header.compression_type,
+                    ))
+                    .clone(),
+                )
+                .unwrap();
+                image
+                    .write_to(&mut human_readable, ImageFormat::Png)
+                    .unwrap();
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
-struct VirtualFilesystem(pub HashMap<Path, std::fs::File>);
+struct RwFileBuffer {
+    pub position: usize,
+    pub buffer: Vec<u8>,
+    pub inner: File,
+}
+
+impl RwFileBuffer {
+    pub fn new(inner: File) -> Self {
+        Self {
+            position: 0,
+            buffer: Vec::new(),
+            inner,
+        }
+    }
+
+    pub fn set_len(&mut self, size: u64) -> std::io::Result<()> {
+        self.inner.set_len(size)?;
+        self.buffer.truncate(size as usize);
+        Ok(())
+    }
+}
+
+impl Read for RwFileBuffer {
+    fn read(&mut self, mut buf: &mut [u8]) -> std::io::Result<usize> {
+        let written = buf.write(&self.buffer[self.position..])?;
+        self.position += written;
+        Ok(written)
+    }
+}
+
+impl Write for RwFileBuffer {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let written = self.inner.write(buf)?;
+        self.buffer
+            .drain(self.position..(self.position + written).min(self.buffer.len()));
+        self.buffer
+            .splice(self.position..self.position, buf[..written].iter().copied());
+        self.position += written;
+        Ok(written)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+impl Seek for RwFileBuffer {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        let position = self.inner.seek(pos)?;
+        self.position = position as usize;
+        Ok(position)
+    }
+}
+
+#[derive(Debug)]
+struct VirtualFilesystem(pub HashMap<Path, RwFileBuffer>);
 
 impl FileSystem for VirtualFilesystem {
     fn read_file(&mut self, filename: &str) -> std::io::Result<Arc<Vec<u8>>> {
@@ -106,6 +218,7 @@ fn choose_differ(filename: &str) -> Differ {
         ".arr" => Box::new(arr_diff),
         ".img" => Box::new(img_diff),
         ".png" => Box::new(png_diff),
+        ".txt" => Box::new(text_diff),
         _ => Box::new(binary_diff),
     }
 }
