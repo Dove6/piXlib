@@ -214,13 +214,25 @@ impl FileSystem for VirtualFilesystem {
 
 fn choose_differ(filename: &str) -> Differ {
     let ext = filename[filename.rfind('.').unwrap_or(0)..].to_ascii_lowercase();
-    match ext.as_ref() {
+    let differ: Differ = match ext.as_ref() {
         ".arr" => Box::new(arr_diff),
         ".img" => Box::new(img_diff),
         ".png" => Box::new(png_diff),
         ".txt" => Box::new(text_diff),
         _ => Box::new(binary_diff),
-    }
+    };
+    Box::new(move |old, new| {
+        if !old.exists() && new.exists() {
+            panic!("File didn't exist before");
+        }
+        if old.exists() && !new.exists() {
+            panic!("File no more exists");
+        }
+        if !old.exists() && !new.exists() {
+            return;
+        }
+        differ(old, new);
+    })
 }
 
 fn arr_diff(old: &std::path::Path, new: &std::path::Path) {
@@ -231,10 +243,10 @@ fn arr_diff(old: &std::path::Path, new: &std::path::Path) {
 
 fn try_arr_diff(old: &std::path::Path, new: &std::path::Path) -> Result<(), ()> {
     similar_asserts::assert_eq!(
-        parse_arr(&std::fs::read(old).unwrap())
+        parse_arr(&std::fs::read(old).ok_or_error().ok_or(())?)
             .ok_or_error()
             .ok_or(())?,
-        parse_arr(&std::fs::read(new).unwrap())
+        parse_arr(&std::fs::read(new).ok_or_error().ok_or(())?)
             .ok_or_error()
             .ok_or(())?,
     );
@@ -248,8 +260,8 @@ fn img_diff(old: &std::path::Path, new: &std::path::Path) {
 }
 
 fn try_img_diff(old: &std::path::Path, new: &std::path::Path) -> Result<(), ()> {
-    let old = std::fs::read(old).unwrap();
-    let new = std::fs::read(new).unwrap();
+    let old = std::fs::read(old).ok_or_error().ok_or(())?;
+    let new = std::fs::read(new).ok_or_error().ok_or(())?;
     let old = parse_img(&old).ok_or_error().ok_or(())?;
     let new = parse_img(&new).ok_or_error().ok_or(())?;
     assert_eq!(
