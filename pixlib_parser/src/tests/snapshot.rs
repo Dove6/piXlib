@@ -21,6 +21,7 @@ static OUTPUT_DIR_PATH: &str = "output";
 
 #[test_case("basic_structure", &["OUT.ARR"])]
 #[test_case("basic_image", &["OUT.IMG"])]
+#[test_case("basic_animation", &["OUT.IMG"])]
 #[ignore = "To be run separately"]
 fn run_snapshot_test(dir_path: &str, snapshot_files: &[&str]) {
     env_logger::try_init().ok_or_error();

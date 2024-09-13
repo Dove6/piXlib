@@ -939,6 +939,12 @@ impl CnvRunner {
                         y - graphics_offset.1 + window_offset.1,
                     )
                     .blend(pixel);
+                screenshot
+                    .get_pixel_mut(
+                        x - graphics_offset.0 + window_offset.0,
+                        y - graphics_offset.1 + window_offset.1,
+                    )
+                    .0[3] = 255;
             }
         }
         Ok((self.window_rect, screenshot.into_raw()))
