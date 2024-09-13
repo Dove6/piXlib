@@ -101,19 +101,6 @@ impl dyn FileSystem {
     }
 }
 
-#[derive(Debug)]
-pub struct DummyFileSystem;
-
-impl FileSystem for DummyFileSystem {
-    fn read_file(&mut self, _: &str) -> std::io::Result<Arc<Vec<u8>>> {
-        Ok(Arc::new(Vec::new()))
-    }
-
-    fn write_file(&mut self, _: &str, _: &[u8]) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct GamePaths {
     pub data_directory: Path,

@@ -33,6 +33,9 @@ image = { version = "0.25", default-features = false, features = [
     "png",
 ] }
 
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+uptime_lib = "0.3"
+
 [build-dependencies]
 lalrpop = "0.20"
 

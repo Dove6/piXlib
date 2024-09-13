@@ -10,6 +10,19 @@ use zip::{result::ZipError, ZipArchive};
 
 use crate::runner::{FileSystem, Path};
 
+#[derive(Debug)]
+pub struct DummyFileSystem;
+
+impl FileSystem for DummyFileSystem {
+    fn read_file(&mut self, _: &str) -> std::io::Result<Arc<Vec<u8>>> {
+        Ok(Arc::new(Vec::new()))
+    }
+
+    fn write_file(&mut self, _: &str, _: &[u8]) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 pub struct CompressedPatch {
     handle: ZipArchive<Cursor<Vec<u8>>>,
 }

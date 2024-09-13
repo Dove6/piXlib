@@ -290,7 +290,7 @@ impl SystemState {
 
     pub fn get_system_time(&self) -> anyhow::Result<String> {
         // GETSYSTEMTIME
-        todo!()
+        todo!() // TODO: uptime_lib for non-web, what about web?
     }
 
     pub fn get_time_string(&self) -> anyhow::Result<String> {
