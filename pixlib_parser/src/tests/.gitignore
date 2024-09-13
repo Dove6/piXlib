@@ -2,3 +2,8 @@
 *.dll
 *.exe
 *.bat
+*.log
+
+# cnc-ddraw
+Shaders/
+ddraw.ini

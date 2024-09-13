@@ -32,8 +32,3 @@ lazy_static = "1.4"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 bevy_web_file_drop = { git = "https://github.com/Dove6/bevy_web_file_drop.git", branch = "fix/bevy-0.14-asset-reader-trait" }
-
-[target.'cfg(not(target_family = "wasm"))'.dependencies.bevy]
-version = "0.14"
-default-features = false
-features = ["dynamic_linking"]

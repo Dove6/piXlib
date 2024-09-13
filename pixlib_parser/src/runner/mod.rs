@@ -435,13 +435,18 @@ impl CnvRunner {
         Ok(runner)
     }
 
-    #[allow(clippy::mutable_key_type)]
-    pub fn step(self: &Arc<CnvRunner>) -> anyhow::Result<()> {
+    pub(crate) fn init_objects(&self) -> anyhow::Result<()> {
         let mut to_init = Vec::new();
         self.find_objects(|o| !*o.initialized.read().unwrap(), &mut to_init);
         for object in to_init {
             object.init(None).ok_or_error();
         }
+        Ok(())
+    }
+
+    #[allow(clippy::mutable_key_type)]
+    pub fn step(self: &Arc<CnvRunner>) -> anyhow::Result<()> {
+        self.init_objects()?;
         let mut finished_animations = HashSet::new();
         self.events_in
             .timer
@@ -1149,22 +1154,23 @@ impl CnvRunner {
             panic!();
         };
         let scene_name = scene_object.name.clone();
-        let scene_path = scene.get_script_path().unwrap();
-        let contents = (*self.filesystem)
-            .write()
-            .unwrap()
-            .read_scene_asset(
-                self.game_paths.clone(),
-                &ScenePath::new(&scene_path, &(scene_name.clone() + ".cnv")),
-            )
-            .unwrap();
-        let contents = parse_cnv(&contents);
-        self.load_script(
-            ScenePath::new(&scene_path, &scene_name),
-            contents.as_parser_input(),
-            Some(Arc::clone(&scene_object)),
-            ScriptSource::Scene,
-        )?;
+        if let Some(scene_path) = scene.get_script_path() {
+            let contents = (*self.filesystem)
+                .write()
+                .unwrap()
+                .read_scene_asset(
+                    self.game_paths.clone(),
+                    &ScenePath::new(&scene_path, &(scene_name.clone() + ".cnv")),
+                )
+                .unwrap();
+            let contents = parse_cnv(&contents);
+            self.load_script(
+                ScenePath::new(&scene_path, &scene_name),
+                contents.as_parser_input(),
+                Some(Arc::clone(&scene_object)),
+                ScriptSource::Scene,
+            )?;
+        }
         scene.handle_scene_loaded()
     }
 
