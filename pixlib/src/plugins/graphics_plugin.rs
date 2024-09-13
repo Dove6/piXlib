@@ -19,7 +19,7 @@ use crate::{
 
 use super::{events_plugin::PixlibScriptEvent, scripts_plugin::ScriptRunner};
 
-const POOL_SIZE: usize = 50;
+const POOL_SIZE: usize = 1111;
 
 #[derive(Debug, Default)]
 pub struct GraphicsPlugin;

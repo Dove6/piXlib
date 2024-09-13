@@ -139,7 +139,15 @@ impl Add for &CnvValue {
             CnvValue::Integer(i) => CnvValue::Integer(*i + rhs.to_int()),
             CnvValue::Double(d) => CnvValue::Double(*d + rhs.to_dbl()),
             CnvValue::Bool(b) => CnvValue::Bool(*b || rhs.to_bool()),
-            CnvValue::String(s) => CnvValue::String(s.clone() + rhs.to_str().as_ref()),
+            CnvValue::String(s) => {
+                if let Ok(d) = s.parse::<f64>() {
+                    CnvValue::Double(d + rhs.to_dbl())
+                } else if let Ok(i) = s.parse::<i32>() {
+                    CnvValue::Integer(i + rhs.to_int())
+                } else {
+                    CnvValue::String(s.clone() + rhs.to_str().as_ref())
+                }
+            }
             CnvValue::Null => CnvValue::String(self.to_str() + rhs.to_str().as_ref()),
         }
     }
@@ -153,7 +161,15 @@ impl Mul for &CnvValue {
             CnvValue::Integer(i) => CnvValue::Integer(*i * rhs.to_int()),
             CnvValue::Double(d) => CnvValue::Double(*d * rhs.to_dbl()),
             CnvValue::Bool(b) => CnvValue::Bool(*b && rhs.to_bool()),
-            CnvValue::String(s) => CnvValue::String(s.clone()),
+            CnvValue::String(s) => {
+                if let Ok(d) = s.parse::<f64>() {
+                    CnvValue::Double(d * rhs.to_dbl())
+                } else if let Ok(i) = s.parse::<i32>() {
+                    CnvValue::Integer(i * rhs.to_int())
+                } else {
+                    CnvValue::String(s.clone())
+                }
+            }
             CnvValue::Null => CnvValue::Null,
         }
     }
@@ -167,7 +183,15 @@ impl Sub for &CnvValue {
             CnvValue::Integer(i) => CnvValue::Integer(*i - rhs.to_int()),
             CnvValue::Double(d) => CnvValue::Double(*d - rhs.to_dbl()),
             CnvValue::Bool(b) => CnvValue::Bool(*b && !rhs.to_bool()),
-            CnvValue::String(s) => CnvValue::String(s.clone()),
+            CnvValue::String(s) => {
+                if let Ok(d) = s.parse::<f64>() {
+                    CnvValue::Double(d - rhs.to_dbl())
+                } else if let Ok(i) = s.parse::<i32>() {
+                    CnvValue::Integer(i - rhs.to_int())
+                } else {
+                    CnvValue::String(s.clone())
+                }
+            }
             CnvValue::Null => CnvValue::Null,
         }
     }
@@ -181,7 +205,15 @@ impl Div for &CnvValue {
             CnvValue::Integer(i) => CnvValue::Integer(*i / rhs.to_int()),
             CnvValue::Double(d) => CnvValue::Double(*d / rhs.to_dbl()),
             CnvValue::Bool(b) => CnvValue::Bool(*b),
-            CnvValue::String(s) => CnvValue::String(s.clone()),
+            CnvValue::String(s) => {
+                if let Ok(d) = s.parse::<f64>() {
+                    CnvValue::Double(d / rhs.to_dbl())
+                } else if let Ok(i) = s.parse::<i32>() {
+                    CnvValue::Integer(i / rhs.to_int())
+                } else {
+                    CnvValue::String(s.clone())
+                }
+            }
             CnvValue::Null => CnvValue::Null,
         }
     }
@@ -195,7 +227,15 @@ impl Rem for &CnvValue {
             CnvValue::Integer(i) => CnvValue::Integer(*i % rhs.to_int()),
             CnvValue::Double(d) => CnvValue::Double(*d % rhs.to_dbl()),
             CnvValue::Bool(b) => CnvValue::Bool(*b),
-            CnvValue::String(s) => CnvValue::String(s.clone()),
+            CnvValue::String(s) => {
+                if let Ok(d) = s.parse::<f64>() {
+                    CnvValue::Double(d % rhs.to_dbl())
+                } else if let Ok(i) = s.parse::<i32>() {
+                    CnvValue::Integer(i % rhs.to_int())
+                } else {
+                    CnvValue::String(s.clone())
+                }
+            }
             CnvValue::Null => CnvValue::Null,
         }
     }

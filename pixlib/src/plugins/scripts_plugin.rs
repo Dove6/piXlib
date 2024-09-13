@@ -11,7 +11,8 @@ use bevy::{
     prelude::{in_state, DetectChanges, IntoSystemConfigs, NextState, NonSend, Res, ResMut},
 };
 use pixlib_parser::{
-    common::IssueManager,
+    common::{IssueManager, LoggableToOption},
+    filesystems::GameDirectory,
     runner::{CnvContent, CnvRunner, FileSystem, GamePaths, RunnerIssue, ScenePath, ScriptSource},
     scanner::parse_cnv,
 };
@@ -81,6 +82,20 @@ fn read_args(asset_server: Res<AssetServer>, mut filesystem: ResMut<FileSystemRe
 }
 
 fn load_filesystem(asset_server: &AssetServer, filesystem: &mut FileSystemResource, path: String) {
+    let is_dir = path.bytes().rposition(|c| c == b'.').is_none()
+        || (path
+            .bytes()
+            .rposition(|c| c == b'/')
+            .is_some_and(|slash_pos| path.bytes().rposition(|c| c == b'.').unwrap() < slash_pos));
+    if is_dir {
+        (*filesystem)
+            .write()
+            .unwrap()
+            .push_layer(Arc::new(RwLock::new(
+                GameDirectory::new(&path).ok_or_error().unwrap(),
+            )));
+        return;
+    }
     let is_main = path.to_uppercase().trim().ends_with(".ISO");
     let handle: Handle<Blob> = asset_server.load(path);
     filesystem.insert_handle(PendingHandle::new(handle, is_main, is_main));

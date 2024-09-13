@@ -29,7 +29,7 @@ use super::{
     scripts_plugin::ScriptRunner,
 };
 
-const POOL_SIZE: usize = 50;
+const POOL_SIZE: usize = 1111;
 const EASING: AudioTween = AudioTween::linear(Duration::ZERO);
 
 #[derive(Debug, Default)]
