@@ -35,7 +35,11 @@ fn substitute_behavior_arguments(identifier: &str, context: &RunnerContext) -> S
 
 impl CnvExpression for Expression {
     fn calculate(&self, context: RunnerContext) -> anyhow::Result<CnvValue> {
-        log::trace!("Expression::calculate: {:?} with context: {}", self, context);
+        log::trace!(
+            "Expression::calculate: {:?} with context: {}",
+            self,
+            context
+        );
         let result = match self {
             Expression::LiteralBool(b) => Ok(CnvValue::Bool(*b)),
             Expression::LiteralNull => Ok(CnvValue::Null),
