@@ -38,6 +38,7 @@ jobs:
   test-game-specific:
     runs-on: ubuntu-latest
     strategy:
+      max-parallel: 1
       matrix:
         feature: ["test_risp8", "test_riu8", "test_ric", "test_riwc", "test_rikn", "test_rikwa"]
     steps:
@@ -48,7 +49,36 @@ jobs:
         with:
           shared-key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Run tests
-        run: cargo test --all --verbose --features bevy/x11,${{ matrix.feature }} -- --ignored
+        run: cargo test -p pixlib_parser --verbose --features ${{ matrix.feature }} -- --ignored > test_results.txt
+        continue-on-error: true
+      - name: Check test output
+        run: |
+          sed -i -nE '/^test result: [A-Z]+. [0-9]+ passed; [0-9]+ failed; [0-9]+ ignored; [0-9]+ measured; [0-9]+ filtered out; finished in [0-9]+\.[0-9]+s$/p' test_results.txt
+          grep -E '^test result: ' test_results.txt
+      - name: Process test output
+        id: process_test_output
+        run: |
+          sed -E 's/^test result: [A-Z]+. ([0-9]+) passed; ([0-9]+) failed; [0-9]+ ignored; [0-9]+ measured; [0-9]+ filtered out; finished in [0-9]+\.[0-9]+s$/\1 \2/' test_results.txt | awk '{ printf "percentage=%.1f\n", 100 * $1 / ($1 + $2); }' >> "$GITHUB_OUTPUT"
+      - name: Calculate color value
+        id: calculate_color_value
+        run: |
+          if awk 'BEGIN { exit !('"${{ steps.process_test_output.outputs.percentage }}"' > 99); }'; then
+            echo "color=0AF" >> "$GITHUB_OUTPUT"
+          elif awk 'BEGIN { exit !('"${{ steps.process_test_output.outputs.percentage }}"' > 66); }'; then
+            echo "color=0C0" >> "$GITHUB_OUTPUT"
+          elif awk 'BEGIN { exit !('"${{ steps.process_test_output.outputs.percentage }}"' > 33); }'; then
+            echo "color=CA0" >> "$GITHUB_OUTPUT"
+          else
+            echo "color=B00" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Generate passing percentage badge
+        uses: RubbaBoy/BYOB@v1.3.0
+        with:
+          NAME: passing_percent_${{ matrix.feature }}
+          LABEL: Passing percentage
+          STATUS: ${{ steps.process_test_output.outputs.percentage }}%
+          COLOR: ${{ steps.calculate_color_value.outputs.color }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   format:
     runs-on: ubuntu-latest
     steps:
