@@ -3,7 +3,14 @@ name = "pixlib_parser"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = []
+test_risp8 = []
+test_riu8 = []
+test_ric = []
+test_riwc = []
+test_rikn = []
+test_rikwa = []
 
 [dependencies]
 pixlib_formats = { path = "../pixlib_formats" }
