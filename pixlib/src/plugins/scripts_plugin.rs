@@ -85,7 +85,7 @@ fn read_args(asset_server: Res<AssetServer>, mut filesystem: ResMut<FileSystemRe
 fn load_filesystem(asset_server: &AssetServer, filesystem: &mut FileSystemResource, path: String) {
     #[cfg(not(target_family = "wasm"))]
     {
-        let is_dir = path.bytes().rposition(|c| c == b'.').is_none()
+        let is_dir = !path.bytes().any(|c| c == b'.')
             || (path
                 .bytes()
                 .rposition(|c| c == b'/')

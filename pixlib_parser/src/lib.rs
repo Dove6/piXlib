@@ -8,6 +8,7 @@ pub mod runner;
 pub mod scanner;
 
 #[cfg(all(test, not(target_family = "wasm")))]
+#[allow(clippy::arc_with_non_send_sync)]
 mod tests;
 
 #[allow(clippy::assertions_on_constants)]
